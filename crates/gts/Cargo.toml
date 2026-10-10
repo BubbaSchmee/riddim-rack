@@ -1,0 +1,16 @@
+[package]
+name = "gts"
+version = "0.1.0"
+edition = "2021"
+authors = ["Riddim Rack Open Source"]
+license = "GPL-3.0-or-later"
+description = "GTS, a two-oscillator graintable synthesizer VST3/CLAP instrument"
+repository = "https://github.com/BubbaSchmee/riddim-rack"
+homepage = "https://github.com/BubbaSchmee/riddim-rack"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }

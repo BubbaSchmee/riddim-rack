@@ -1,0 +1,4 @@
+# Metadata for `cargo xtask bundle <package>`. See nih-plug bundler.toml for the format.
+
+[gts]
+name = "GTS"
