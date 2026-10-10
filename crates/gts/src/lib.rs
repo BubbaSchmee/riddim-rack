@@ -67,7 +67,9 @@ impl Plugin for Gts {
             buffer_config.sample_rate,
             buffer_config.max_buffer_size
         );
-        self.engine.set_sample_rate(buffer_config.sample_rate as f64);
+        if let Some(t) = self.engine.initialize(buffer_config.sample_rate) {
+            nih_log!("initialize: graintables generated in {:.2} ms", t.as_secs_f64() * 1000.0);
+        }
         self.engine.log_notes = std::env::var_os("NIH_LOG").is_some();
         true
     }
@@ -82,40 +84,48 @@ impl Plugin for Gts {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
+        let t = context.transport();
+        let transport = dsp::Transport {
+            tempo: t.tempo.unwrap_or(120.0),
+            playing: t.playing,
+            pos_beats: t.pos_beats().unwrap_or(0.0),
+        };
+        let prev = self.engine.transport;
+        // Rare events; logging formats a String, hence permit_alloc.
+        if transport.playing != prev.playing {
+            util::permit_alloc(|| nih_log!("transport: {}", if transport.playing { "play" } else { "stop" }));
+        }
+        if (transport.tempo - prev.tempo).abs() > 1e-3 {
+            util::permit_alloc(|| nih_log!("transport: tempo {:.2} bpm", transport.tempo));
+        }
+        self.engine.transport = transport;
+        self.engine.set_patch(&dsp::Patch::from_params(&self.params));
+
         let mut next_event = context.next_event();
         for (i, mut frame) in buffer.iter_samples().enumerate() {
             while let Some(event) = next_event {
                 if event.timing() > i as u32 {
                     break;
                 }
-                match event {
-                    NoteEvent::NoteOn { note, velocity, .. } => {
-                        self.engine.note_on(note, velocity);
-                        if self.engine.log_notes {
-                            nih_log!(
-                                "note-on: note={} velocity={:.2} held={}",
-                                note,
-                                velocity,
-                                self.engine.held_count()
-                            );
-                        }
+                self.engine.handle_event(&event);
+                if let NoteEvent::NoteOn { note, velocity, .. } = event {
+                    if self.engine.log_notes {
+                        let voices = self.engine.active_voices();
+                        util::permit_alloc(|| {
+                            nih_log!("note-on: note={} velocity={:.2} voices={}", note, velocity, voices)
+                        });
                     }
-                    NoteEvent::NoteOff { note, .. } => self.engine.note_off(note),
-                    // TODO(voice): MidiPitchBend { value 0..1, 0.5 = centre }, MidiCC { cc 1 = wheel }.
-                    _ => {}
                 }
                 next_event = context.next_event();
             }
 
-            let gain = util::db_to_gain(self.params.volume.smoothed.next());
-            let s = self.engine.next_sample() * gain;
-            for sample in frame.iter_mut() {
-                *sample = s;
+            let (l, r) = self.engine.next_frame();
+            for (ch, sample) in frame.iter_mut().enumerate() {
+                *sample = if ch == 0 { l } else { r };
             }
         }
 
-        self.current_index
-            .store(self.params.osca.index.value() as u32, Ordering::Relaxed);
+        self.current_index.store(self.engine.display_index(), Ordering::Relaxed);
         ProcessStatus::Normal
     }
 }
