@@ -3,18 +3,23 @@
 //! This file holds one voice; allocation (mono note stack, poly stealing) lives in `Engine`.
 //! Per-sample stages of `Voice::next`, in order:
 //!   1. glide (portamento in semitones),
-//!   2. modulation inputs (`Voice::modulation`, written by the LFO stage before `next`),
+//!   2. modulators: Mod A / Mod B LFOs -> `Voice::modulation` (Target, Mod B -> Mod A depth,
+//!      wheel / velocity Mod amounts),
 //!   3. per osc: pitch, Shift, Index + Motion, grain oscillator, amp envelope, Vol,
-//!   4. shaper / filters / routing (TODO(integration), pass-through today).
+//!   4. shared filter envelope, cutoffs (every `FILTER_TICK` samples), Shaper -> Filter A / B per
+//!      `Routing`, then Spread.
 
 use super::env::Adsr;
+use super::filter::MultiFilter;
 use super::grain::GrainOsc;
+use super::lfo::Lfo;
+use super::shaper::Shaper;
 use super::tables::{Tables, GRAINS};
-use super::Patch;
+use super::{Patch, Transport};
+use crate::params::{Routing, Target};
 
-/// Per-sample modulation inputs for this voice, one slot per oscillator (0 = A, 1 = B).
-/// Zero means unmodulated. TODO(integration): the Mod A / Mod B LFO stage fills these (after
-/// applying Target, Mod B -> Mod A scaling, wheel/velocity Mod amounts) before `Voice::next`.
+/// Per-sample modulation inputs for this voice, one slot per oscillator / filter (0 = A, 1 = B).
+/// Zero means unmodulated. Written by the modulator stage at the top of `Voice::next`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VoiceMod {
     /// Semitones added to the pitch.
@@ -27,6 +32,8 @@ pub struct VoiceMod {
     pub motion: [f32; 2],
     /// Gain offset: the osc is scaled by `max(0, 1 + vol)`.
     pub vol: [f32; 2],
+    /// Octaves added to Filter A / B cutoff (Mod B).
+    pub cutoff: [f32; 2],
 }
 
 /// Engine-wide per-sample values every voice reads.
@@ -56,7 +63,7 @@ struct Osc {
     freq: f32,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Default)]
 pub struct Voice {
     pub note: u8,
     pub velocity: f32,
@@ -69,11 +76,37 @@ pub struct Voice {
     target: f32,
     osc: [Osc; 2],
     pub modulation: VoiceMod,
+    /// Mod A, Mod B.
+    lfo: [Lfo; 2],
+    /// Filter A, Filter B.
+    filt: [MultiFilter; 2],
+    shaper: Shaper,
+    fenv: Adsr,
+    /// Samples until the next cutoff update.
+    tick: u32,
+    /// Set on a fresh note-on: grains start on the first `next`, once modulation is known.
+    fresh: bool,
 }
 
 /// Ping-pong period of the scan (0 -> 31 -> 0) and a common multiple with the 32-grain wrap.
 const PINGPONG: f64 = 2.0 * (GRAINS - 1) as f64;
 const SCAN_WRAP: f64 = 992.0;
+/// Cutoff update interval in samples. The SVF takes stepped coefficients cleanly at this rate and
+/// the comb smooths its delay internally.
+const FILTER_TICK: u32 = 16;
+/// Kbd tracking pivot: Filter Freq is exact at this note (C4) for any Kbd amount.
+pub const KBD_REF: f32 = 60.0;
+
+/// Bipolar velocity amount -> gain: +amt fades low velocities down, -amt fades high ones down.
+#[inline]
+fn vel_scale(amt: f32, vel: f32) -> f32 {
+    if amt >= 0.0 { 1.0 - amt * (1.0 - vel) } else { 1.0 + amt * vel }
+}
+
+#[inline]
+fn hits(t: Target, i: usize) -> bool {
+    matches!((t, i), (Target::Both, _) | (Target::A, 0) | (Target::B, 1))
+}
 
 impl Voice {
     pub fn is_active(&self) -> bool {
@@ -82,6 +115,10 @@ impl Voice {
 
     pub fn amp_env(&self, osc: usize) -> &Adsr {
         &self.osc[osc].env
+    }
+
+    pub fn filter_env(&self) -> &Adsr {
+        &self.fenv
     }
 
     /// Current oscillator f0 in Hz (after glide, bend, octave/semi/cent and pitch modulation).
@@ -99,17 +136,38 @@ impl Voice {
         (self.osc[osc].grain.grain_pos() / (GRAINS - 1) as f32 * 127.0).min(127.0)
     }
 
-    /// Envelope times for this voice's velocity. Cheap; called per block and on trigger.
+    /// Not real-time: resets the filters.
+    pub fn set_sample_rate(&mut self, sr: f32) {
+        for l in &mut self.lfo {
+            l.set_sample_rate(sr as f64);
+        }
+        for f in &mut self.filt {
+            f.set_sample_rate(sr as f64);
+        }
+    }
+
+    /// Envelope times for this voice's velocity, shaper settings. Cheap; called per block and on trigger.
     pub fn update(&mut self, patch: &Patch, sr: f32) {
         // Velocity -> Attack: +1 makes a full-velocity attack 16x longer, -1 16x shorter.
         let att_scale = 2f32.powf(4.0 * patch.vel_att * self.velocity);
         for (o, op) in self.osc.iter_mut().zip(&patch.osc) {
             o.env.set((op.att * att_scale).clamp(0.001, 10.0), op.dec, op.sus, op.rel, sr);
         }
+        self.fenv.set(patch.fenv_att, patch.fenv_dec, patch.fenv_sus, patch.fenv_rel, sr);
+        self.shaper.set(patch.shaper_mode, patch.shaper_amt);
+    }
+
+    /// LFO rate / sync / curve, per block. Synced LFOs lock to the host beat only while it plays.
+    pub fn configure_mods(&mut self, patch: &Patch, transport: &Transport) {
+        let beat = transport.playing.then_some(transport.pos_beats);
+        for (l, m) in self.lfo.iter_mut().zip([&patch.moda, &patch.modb]) {
+            let sync = m.sync.then_some((m.div, transport.tempo, beat));
+            l.configure(m.curve, m.rate, sync, m.oneshot);
+        }
     }
 
     /// Note-on for this voice. `glide` keeps the current pitch and slides to the note;
-    /// `retrigger` restarts envelopes and Motion scan (false = legato move).
+    /// `retrigger` restarts envelopes, LFOs and Motion scan (false = legato move).
     pub fn trigger(&mut self, note: u8, velocity: f32, glide: bool, retrigger: bool, age: u64, patch: &Patch, ctl: &Controls) {
         let was_active = self.is_active();
         self.note = note;
@@ -126,21 +184,22 @@ impl Voice {
         self.update(patch, ctl.sr);
         let vel_amts = [patch.vel_vol_a, patch.vel_vol_b];
         for i in 0..2 {
-            let amt = vel_amts[i];
             let o = &mut self.osc[i];
-            o.vel_gain = if amt >= 0.0 { 1.0 - amt * (1.0 - velocity) } else { 1.0 + amt * velocity };
+            o.vel_gain = vel_scale(vel_amts[i], velocity);
             o.scan = 0.0;
             o.env.gate_on();
         }
+        for l in &mut self.lfo {
+            l.trigger();
+        }
+        self.fenv.gate_on();
+        self.tick = 0;
         if !was_active {
-            // Fresh voice: start grains in phase, Shift settled, nothing gliding in from old state.
-            for i in 0..2 {
-                let shift = self.shift_target(i, patch, ctl);
-                let gp = self.grain_pos(i, patch, ctl, 0.0);
-                let o = &mut self.osc[i];
-                o.shift = shift;
-                o.grain.reset(2f64.powf(shift as f64 / 12.0), gp);
+            // Fresh voice: no ringing from the last note (fills the comb lines, no allocation).
+            for f in &mut self.filt {
+                f.reset();
             }
+            self.fresh = true;
         }
     }
 
@@ -149,6 +208,7 @@ impl Voice {
         for o in &mut self.osc {
             o.env.gate_off();
         }
+        self.fenv.gate_off();
     }
 
     pub fn kill(&mut self) {
@@ -156,6 +216,7 @@ impl Voice {
         for o in &mut self.osc {
             o.env.kill();
         }
+        self.fenv.kill();
     }
 
     fn shift_target(&self, i: usize, patch: &Patch, ctl: &Controls) -> f32 {
@@ -181,14 +242,69 @@ impl Voice {
         gp as f32
     }
 
-    /// One sample: (osc A, osc B) after envelope and Vol, before panning.
+    /// Mod A / Mod B -> `self.modulation`.
+    fn modulate(&mut self, patch: &Patch, ctl: &Controls) {
+        let (a, b) = (self.lfo[0].next(), self.lfo[1].next());
+        // Mod B "Mod A" amount, wheel Mod and velocity Mod all scale the Mod A depth.
+        let depth = a
+            * (1.0 + patch.modb_moda * b)
+            * (1.0 + patch.wheel_mod * ctl.wheel)
+            * vel_scale(patch.vel_mod, self.velocity);
+        let mut m = VoiceMod::default();
+        for i in 0..2 {
+            if hits(patch.moda.target, i) {
+                m.pitch[i] = 24.0 * patch.moda_pitch * depth;
+                m.index[i] = 127.0 * patch.moda_index * depth;
+                m.shift[i] = 24.0 * patch.moda_shift * depth;
+            }
+            // Mod B Target picks the oscillator for Motion / Vol and the filter for cutoff.
+            if hits(patch.modb.target, i) {
+                m.motion[i] = patch.modb_motion * b;
+                m.vol[i] = patch.modb_vol * b;
+                m.cutoff[i] = 5.0 * patch.modb_cutoff * b;
+            }
+        }
+        self.modulation = m;
+    }
+
+    /// Filter A / B cutoffs from Freq, Kbd, filter env, Mod B and wheel.
+    fn set_filters(&mut self, patch: &Patch, ctl: &Controls, fenv: f32) {
+        let sign = if patch.fenv_inv { -1.0 } else { 1.0 };
+        let env_oct = sign * 8.0 * patch.fenv_amt * fenv * vel_scale(patch.vel_fenv, self.velocity);
+        // ponytail: wheel cutoff spans ±5 octaves like Mod B cutoff (SPEC gives no range).
+        let wheel_oct = 5.0 * patch.wheel_cutoff * ctl.wheel;
+        for j in 0..2 {
+            let fp = &patch.filt[j];
+            let mut oct = fp.kbd * (self.pitch - KBD_REF) / 12.0 + self.modulation.cutoff[j] + wheel_oct;
+            if fp.env {
+                oct += env_oct;
+            }
+            let hz = (fp.freq * 2f32.powf(oct)).clamp(20.0, 0.45 * ctl.sr);
+            self.filt[j].set(fp.ty, hz, fp.res);
+        }
+    }
+
+    /// One sample, (left, right) after routing and Spread.
     #[inline]
     pub fn next(&mut self, tables: &Tables, patch: &Patch, ctl: &Controls) -> (f32, f32) {
         // 1. glide
         self.pitch = self.target + (self.pitch - self.target) * ctl.glide;
 
-        // 2. modulation: `self.modulation` was written by the LFO stage (TODO(integration)).
+        // 2. modulators
+        self.modulate(patch, ctl);
         let m = self.modulation;
+        if self.fresh {
+            // Start grains in phase with Shift settled and the first grain at the modulated
+            // Index (a one-shot into Index opens on its peak, not one period late).
+            self.fresh = false;
+            for i in 0..2 {
+                let shift = self.shift_target(i, patch, ctl);
+                let gp = self.grain_pos(i, patch, ctl, 0.0);
+                let o = &mut self.osc[i];
+                o.shift = shift;
+                o.grain.reset(2f64.powf(shift as f64 / 12.0), gp);
+            }
+        }
 
         // 3. oscillators
         let mut out = [0.0f32; 2];
@@ -216,9 +332,32 @@ impl Voice {
             out[i] = s * env * op.vol * o.vel_gain * (1.0 + m.vol[i]).max(0.0);
         }
 
-        // 4. TODO(integration): Shaper -> Filter A / Filter B per `Routing` (shared filter env,
-        //    Kbd from `self.pitch`, vel_fenv / wheel_cutoff / Mod B cutoff from `patch`).
-        //    Return (A path, B path); Series/Bypass can return (mix, 0.0). Pass-through for now.
-        (out[0], out[1])
+        // 4. filter env, shaper, filters, routing
+        let fenv = self.fenv.next();
+        if self.tick == 0 {
+            self.set_filters(patch, ctl, fenv);
+            self.tick = FILTER_TICK;
+        }
+        self.tick -= 1;
+        let shape = |s: &mut Shaper, x: f32| if patch.shaper_on { s.process(x) } else { x };
+        let [a, b] = out;
+        match patch.routing {
+            Routing::Parallel => {
+                // Shaper on A only, as in the original lineage. Spread pans A left, B right.
+                let fa = self.filt[0].process(shape(&mut self.shaper, a));
+                let fb = self.filt[1].process(b);
+                let spread = patch.spread.clamp(0.0, 1.0);
+                (fa + fb * (1.0 - spread), fa * (1.0 - spread) + fb)
+            }
+            Routing::Series => {
+                let y = self.filt[0].process(shape(&mut self.shaper, a + b));
+                let y = self.filt[1].process(y);
+                (y, y)
+            }
+            Routing::Bypass => {
+                let y = shape(&mut self.shaper, a + b);
+                (y, y)
+            }
+        }
     }
 }

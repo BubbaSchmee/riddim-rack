@@ -120,6 +120,7 @@ fn pitch_bend_follows_range() {
 fn mod_wheel_drives_index() {
     let mut p = Patch::default();
     p.wheel_index = 0.5;
+    p.moda_index = 0.0; // isolate the wheel from the default Mod A one-shot into Index
     let mut e = engine(&p);
     e.handle_event(&on(33));
     run(&mut e, 0.1);

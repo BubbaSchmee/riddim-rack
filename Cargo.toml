@@ -5,3 +5,7 @@ members = ["crates/gts", "xtask"]
 [profile.release]
 lto = "thin"
 strip = "symbols"
+
+# The DSP tests render seconds of audio; unoptimized they take minutes.
+[profile.dev.package.gts]
+opt-level = 2

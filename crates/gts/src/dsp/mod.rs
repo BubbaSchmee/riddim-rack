@@ -9,7 +9,9 @@ pub mod shaper;
 pub mod tables;
 pub mod voice;
 
-use crate::params::{GtsParams, OscParams, Table};
+use crate::params::{
+    Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
+};
 use nih_plug::prelude::NoteEvent;
 use std::time::{Duration, Instant};
 use tables::Tables;
@@ -58,12 +60,79 @@ impl OscPatch {
     }
 }
 
+/// One LFO's settings (Mod A or Mod B).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ModPatch {
+    pub curve: Curve,
+    /// Hz, used when `sync` is off.
+    pub rate: f32,
+    pub sync: bool,
+    pub div: Division,
+    pub oneshot: bool,
+    pub target: Target,
+}
+
+impl ModPatch {
+    fn from_params(p: &ModParams) -> Self {
+        Self {
+            curve: p.curve.value(),
+            rate: p.rate.value(),
+            sync: p.sync.value(),
+            div: p.div.value(),
+            oneshot: p.oneshot.value(),
+            target: p.target.value(),
+        }
+    }
+}
+
+/// Filter A or B settings.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FilterPatch {
+    pub ty: FilterType,
+    /// Hz.
+    pub freq: f32,
+    pub res: f32,
+    pub kbd: f32,
+    pub env: bool,
+}
+
+impl FilterPatch {
+    fn from_params(p: &FilterParams) -> Self {
+        Self { ty: p.ty.value(), freq: p.freq.value(), res: p.res.value(), kbd: p.kbd.value(), env: p.env.value() }
+    }
+}
+
 /// Plain-value snapshot of the parameters, taken once per block (with sample-accurate automation
 /// the host splits blocks at parameter changes). Tests build one with `Patch::default()`.
-/// TODO(integration): add the Mod A/B, Shaper, Filter, Filter Env and Routing values here.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Patch {
     pub osc: [OscPatch; 2],
+    /// Mod A, Mod B.
+    pub moda: ModPatch,
+    pub modb: ModPatch,
+    /// Mod A amounts, bipolar: x24 st, x127, x24 st.
+    pub moda_pitch: f32,
+    pub moda_index: f32,
+    pub moda_shift: f32,
+    /// Mod B amounts, bipolar: x1, x1, x5 octaves, x1 (scales Mod A depth).
+    pub modb_motion: f32,
+    pub modb_vol: f32,
+    pub modb_cutoff: f32,
+    pub modb_moda: f32,
+    pub shaper_on: bool,
+    pub shaper_mode: ShaperMode,
+    pub shaper_amt: f32,
+    /// Filter A, Filter B.
+    pub filt: [FilterPatch; 2],
+    /// Seconds.
+    pub fenv_att: f32,
+    pub fenv_dec: f32,
+    pub fenv_sus: f32,
+    pub fenv_rel: f32,
+    /// 0..1 = up to +8 octaves.
+    pub fenv_amt: f32,
+    pub fenv_inv: bool,
+    pub routing: Routing,
     pub poly: usize,
     pub legato: bool,
     /// Seconds.
@@ -72,17 +141,15 @@ pub struct Patch {
     pub bend_range: f32,
     pub wheel_index: f32,
     pub wheel_shift: f32,
-    /// Not applied yet; for the filter stage.
+    /// x5 octaves on both filters.
     pub wheel_cutoff: f32,
-    /// Not applied yet; for the LFO stage.
+    /// Scales Mod A depth by `1 + wheel_mod * wheel`.
     pub wheel_mod: f32,
     pub vel_vol_a: f32,
     pub vel_vol_b: f32,
-    /// Not applied yet; for the filter envelope.
     pub vel_fenv: f32,
     pub vel_att: f32,
     pub vel_shift: f32,
-    /// Not applied yet; for the LFO stage.
     pub vel_mod: f32,
     pub volume_db: f32,
     pub spread: f32,
@@ -92,6 +159,26 @@ impl Patch {
     pub fn from_params(p: &GtsParams) -> Self {
         Self {
             osc: [OscPatch::from_params(&p.osca), OscPatch::from_params(&p.oscb)],
+            moda: ModPatch::from_params(&p.moda),
+            modb: ModPatch::from_params(&p.modb),
+            moda_pitch: p.moda_amt.pitch.value(),
+            moda_index: p.moda_amt.index.value(),
+            moda_shift: p.moda_amt.shift.value(),
+            modb_motion: p.modb_amt.motion.value(),
+            modb_vol: p.modb_amt.vol.value(),
+            modb_cutoff: p.modb_amt.cutoff.value(),
+            modb_moda: p.modb_amt.moda.value(),
+            shaper_on: p.shaper.on.value(),
+            shaper_mode: p.shaper.mode.value(),
+            shaper_amt: p.shaper.amt.value(),
+            filt: [FilterPatch::from_params(&p.filta), FilterPatch::from_params(&p.filtb)],
+            fenv_att: p.fenv.att.value(),
+            fenv_dec: p.fenv.dec.value(),
+            fenv_sus: p.fenv.sus.value(),
+            fenv_rel: p.fenv.rel.value(),
+            fenv_amt: p.fenv.amt.value(),
+            fenv_inv: p.fenv.inv.value(),
+            routing: p.routing.value(),
             poly: p.poly.value().clamp(1, MAX_VOICES as i32) as usize,
             legato: p.legato.value(),
             porta: p.porta.value(),
@@ -118,8 +205,8 @@ impl Default for Patch {
     }
 }
 
-/// Host transport at the start of the current block. TODO(integration): LFO sync advances
-/// `pos_beats` per sample from `tempo` inside the block.
+/// Host transport. The plugin sets it at the start of each block; `Engine::next_frame` advances
+/// `pos_beats` from `tempo` while playing, so offline renders only set it once.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Transport {
     pub tempo: f64,
@@ -174,7 +261,7 @@ impl Engine {
     pub fn new() -> Self {
         let mut e = Self {
             tables: Tables::new(),
-            voices: [Voice::default(); MAX_VOICES],
+            voices: std::array::from_fn(|_| Voice::default()),
             patch: Patch::default(),
             ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0 },
             held: [(0, 0.0); MAX_HELD],
@@ -207,6 +294,9 @@ impl Engine {
     fn set_sample_rate(&mut self, sr: f32) {
         self.ctl.sr = sr;
         self.ctl.smooth = (-1.0 / (0.005 * sr)).exp();
+        for v in &mut self.voices {
+            v.set_sample_rate(sr);
+        }
         let p = self.patch;
         self.set_patch(&p);
         self.gain = self.gain_target;
@@ -241,6 +331,7 @@ impl Engine {
         self.gain_target = 10f32.powf(p.volume_db / 20.0);
         for v in &mut self.voices {
             v.update(p, sr);
+            v.configure_mods(p, &self.transport);
         }
     }
 
@@ -272,11 +363,6 @@ impl Engine {
 
     pub fn voice(&self, i: usize) -> &Voice {
         &self.voices[i]
-    }
-
-    /// Mutable voice access for the modulation stage (writes `Voice::modulation`).
-    pub fn voice_mut(&mut self, i: usize) -> &mut Voice {
-        &mut self.voices[i]
     }
 
     pub fn active_voices(&self) -> usize {
@@ -384,18 +470,17 @@ impl Engine {
         self.ctl.wheel = self.wheel_raw + (self.ctl.wheel - self.wheel_raw) * k;
         self.gain = self.gain_target + (self.gain - self.gain_target) * k;
 
-        // TODO(integration): per-voice LFO stage here, writing `Voice::modulation` (it can read
-        // `self.transport`, `self.ctl.wheel`, each voice's velocity and gate).
-        let spread = self.patch.spread.clamp(0.0, 1.0);
+        if self.transport.playing {
+            self.transport.pos_beats += self.transport.tempo / 60.0 / self.ctl.sr as f64;
+        }
         let (mut l, mut r) = (0.0, 0.0);
         for v in &mut self.voices {
             if !v.is_active() {
                 continue;
             }
-            // Spread pans A left and B right; 0 = both centred.
             let (a, b) = v.next(&self.tables, &self.patch, &self.ctl);
-            l += a + b * (1.0 - spread);
-            r += a * (1.0 - spread) + b;
+            l += a;
+            r += b;
         }
         (limit(l * self.gain), limit(r * self.gain))
     }
