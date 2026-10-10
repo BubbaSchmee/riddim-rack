@@ -112,7 +112,7 @@ Mod A/B each: `mod{a,b}_curve`, `_rate` (0.03..30 Hz, 4 Hz), `_sync` (bool, A: o
 (enum, 1/8), `_oneshot` (bool, A: on), `_target` (A/B/Both). Mod A: `moda_pitch`, `moda_index`
 (default 0.5), `moda_shift`. Mod B: `modb_motion`, `modb_vol`, `modb_cutoff`, `modb_moda`.
 Shaper: `shaper_on`, `shaper_mode`, `shaper_amt` (0.3).
-Filter A/B each: `filt{a,b}_type` (A: Comb-, B: LP12), `_freq` (A: 220 Hz, B: 2 kHz), `_res`
+Filter A/B each: `filt{a,b}_type` (A: Comb-, B: LP12), `_freq` (A: 880 Hz — was 220 Hz, which put the comb below the bass fundamental and cut it ~10 dB; B: 2 kHz), `_res`
 (A: 0.6), `_kbd` (0.5), `_env` (bool, on).
 Filter env: `fenv_att/dec/sus/rel` (5 ms, 250 ms, 0.2, 100 ms), `fenv_amt` (0.5), `fenv_inv`.
 `routing`, `poly` (1), `legato` (on), `porta` (0.08), `bend_range` (12).
@@ -123,7 +123,7 @@ Defaults not listed above (fixed by the scaffold): `moda_curve` Decay, `modb_cur
 `shaper_mode` Saturate, `filtb_res` 0.1, all `wheel_*`, `vel_*` and `modb_*` amounts 0 (all
 bipolar -1..1), `spread` 0. Envelope times and portamento are stored in seconds.
 Defaults are chosen so an init patch on a low note already sounds like a riddim bass:
-Square Morph, mono legato, Mod A one-shot 1/8 sync into Index, Comb- filter A at 220 Hz.
+Square Morph, mono legato, Mod A one-shot 1/8 sync into Index, Comb- filter A at 880 Hz. Kbd tracking pivots at C4 (note 60); wheel cutoff range is ±5 octaves like Mod B.
 
 ## GUI (nih_plug_egui, functional, dark)
 Fixed window ≈ 1000×620 logical px. Sections as labelled groups: Osc A | Osc B (top row),

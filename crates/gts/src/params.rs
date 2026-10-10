@@ -477,7 +477,7 @@ impl Default for GtsParams {
                 amt: unit("Shaper Amt".into(), 0.3),
             },
 
-            filta: FilterParams::new("A", FilterType::CombMinus, 220.0, 0.6),
+            filta: FilterParams::new("A", FilterType::CombMinus, 880.0, 0.6),
             filtb: FilterParams::new("B", FilterType::Lp12, 2000.0, 0.1),
             fenv: FilterEnvParams {
                 att: time("Filter Env Attack".into(), 0.005),
