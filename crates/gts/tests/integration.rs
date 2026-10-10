@@ -311,3 +311,175 @@ fn synced_lfo_does_not_step_after_an_off_grid_note_on() {
     // Sine slope peaks at 6 st * 2pi / 9600 samples ~ 0.004 st per sample.
     assert!(worst < 0.02, "pitch stepped {worst} st in one sample");
 }
+
+/// Largest one-sample step of the left channel: (steady before, first 20 ms after `after`
+/// replaces `before` mid-note, steady after).
+fn switch_steps(before: &Patch, after: &Patch) -> (f32, f32, f32) {
+    let mut e = engine(before);
+    e.note_on(34, 1.0); // 0.5 s is 29.1 cycles: the switch lands off a zero crossing
+    let a = render(&mut e, before, 0.5);
+    let b = render(&mut e, after, 0.5);
+    let step = |x: &[f32]| x.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0f32, f32::max);
+    let n = (0.02 * SR) as usize;
+    let mut joined = vec![a[a.len() - 1]];
+    joined.extend_from_slice(&b[..n]);
+    (step(&a[a.len() / 2..]), step(&joined), step(&b[b.len() / 2..]))
+}
+
+fn assert_no_click(name: &str, before: &Patch, after: &Patch) {
+    let (pre, sw, post) = switch_steps(before, after);
+    println!("{name}: max step steady {pre:.4} / {post:.4}, at switch {sw:.4}");
+    assert!(sw <= 1.25 * pre.max(post), "{name}: switch step {sw}, steady {pre} / {post}");
+}
+
+fn click_patch() -> Patch {
+    let mut p = Patch::default();
+    p.moda_index = 0.0;
+    p.fenv_amt = 0.0;
+    p
+}
+
+#[test]
+fn shaper_toggle_does_not_click() {
+    let mut p = click_patch();
+    p.routing = Routing::Bypass;
+    p.osc[0].table = Table::HarmonicRise;
+    p.osc[0].index = 0.0;
+    p.shaper_mode = ShaperMode::Saturate;
+    p.shaper_amt = 1.0;
+    let mut q = p;
+    q.shaper_on = true;
+    assert_no_click("shaper off -> on", &p, &q);
+    assert_no_click("shaper on -> off", &q, &p);
+}
+
+#[test]
+fn filter_type_and_routing_changes_do_not_click() {
+    let mut p = click_patch();
+    p.osc[1].on = true;
+    p.filt[0].ty = FilterType::Lp12;
+    p.filt[0].freq = 2000.0;
+    p.filt[0].res = 0.5;
+    for ty in [FilterType::Bp12, FilterType::CombPlus, FilterType::CombMinus, FilterType::Am] {
+        let mut q = p;
+        q.filt[0].ty = ty;
+        assert_no_click(&format!("Lp12 -> {ty:?}"), &p, &q);
+    }
+    for (r0, r1) in [(Routing::Parallel, Routing::Series), (Routing::Series, Routing::Bypass), (Routing::Bypass, Routing::Parallel)] {
+        let (mut a, mut b) = (p, p);
+        a.routing = r0;
+        b.routing = r1;
+        assert_no_click(&format!("{r0:?} -> {r1:?}"), &a, &b);
+    }
+}
+
+#[test]
+fn switched_off_osc_does_not_hold_the_voice() {
+    let mut p = Patch::default();
+    p.osc[0].rel = 0.05;
+    p.osc[1].on = false;
+    p.osc[1].rel = 5.0;
+    let mut e = engine(&p);
+    e.note_on(45, 1.0);
+    render(&mut e, &p, 0.2);
+    e.note_off(45);
+    render(&mut e, &p, 0.5);
+    assert_eq!(e.active_voices(), 0);
+}
+
+#[test]
+fn synced_lfo_relock_on_play_is_smooth() {
+    // Transport stopped at note-on (free-running at host tempo), then play starts off-grid: the
+    // re-lock must glide, not jump.
+    let mut p = Patch::default();
+    p.moda.curve = Curve::Sine;
+    p.moda.oneshot = false;
+    p.moda_pitch = 0.25;
+    p.moda_index = 0.0;
+    let mut e = Engine::new();
+    e.initialize(SR);
+    e.transport = Transport { tempo: 150.0, playing: false, pos_beats: 0.0 };
+    e.set_patch(&p);
+    e.note_on(45, 1.0);
+    let st = |e: &Engine| 12.0 * (e.voice(0).freq(0) / 440.0).log2();
+    let mut last = 0.0;
+    let mut worst = 0f32;
+    for i in 0..(0.5 * SR) as usize {
+        if i == 7168 {
+            // Free-run phase is 7168 / 9600 = 0.747 cycles; the grid says 0.147 (0.4 away).
+            e.transport = Transport { tempo: 150.0, playing: true, pos_beats: 3.0733 };
+        }
+        if i % 512 == 0 {
+            e.set_patch(&p);
+        }
+        e.next_frame();
+        let now = st(&e);
+        if i > 0 {
+            worst = worst.max((now - last).abs());
+        }
+        last = now;
+    }
+    // A 0.4-cycle correction over ~12 ms adds ~0.02 st per sample on top of the sine's 0.004.
+    assert!(worst < 0.04, "pitch stepped {worst} st in one sample");
+}
+
+#[test]
+fn spread_puts_osc_a_on_the_left() {
+    let mut p = Patch::default();
+    p.spread = 1.0;
+    p.osc[1].on = false;
+    let energy = |x: &[f32]| x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>();
+    let mut e = engine(&p);
+    e.note_on(45, 1.0);
+    let (l, r): (Vec<f32>, Vec<f32>) = (0..24000).map(|_| e.next_frame()).unzip();
+    let (el, er) = (energy(&l), energy(&r));
+    assert!(el > 1.0 && er < 1e-3 * el, "engine: L {el}, R {er}");
+
+    // Same through the plugin's channel mapping.
+    let mut e = engine(&p);
+    e.note_on(45, 1.0);
+    let (mut ch0, mut ch1) = (vec![0f32; 24000], vec![0f32; 24000]);
+    let mut buf = nih_plug::buffer::Buffer::default();
+    unsafe {
+        buf.set_slices(24000, |s| {
+            s.push(&mut ch0);
+            s.push(&mut ch1);
+        })
+    };
+    for frame in buf.iter_samples() {
+        gts::write_frame(frame, e.next_frame());
+    }
+    drop(buf);
+    let (el, er) = (energy(&ch0), energy(&ch1));
+    assert!(el > 1.0 && er < 1e-3 * el, "plugin: L {el}, R {er}");
+}
+
+#[test]
+fn motion_ping_pongs_negative_and_wraps_positive() {
+    let trace = |motion: f32| {
+        let mut p = Patch::default();
+        p.moda_index = 0.0;
+        p.osc[0].motion = motion;
+        let mut e = engine(&p);
+        e.note_on(93, 1.0); // a new grain every 27 samples
+        (0..SR as usize)
+            .map(|i| {
+                if i % 512 == 0 {
+                    e.set_patch(&p);
+                }
+                e.next_frame();
+                e.voice(0).index(0)
+            })
+            .collect::<Vec<f32>>()
+    };
+    let big_jump = |t: &[f32]| t.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0f32, f32::max);
+    let t = trace(-0.5);
+    let (lo, hi) = t.iter().fold((f32::MAX, f32::MIN), |(a, b), &v| (a.min(v), b.max(v)));
+    let peak = t.iter().position(|&v| v == hi).unwrap();
+    assert!(lo >= 0.0 && hi <= 127.0, "{lo}..{hi}");
+    assert!(hi > 120.0 && t[peak..].iter().any(|&v| v < 10.0), "no rise then fall: {lo}..{hi}");
+    assert!(t[..peak].first().unwrap() < &hi, "should rise first");
+    assert!(big_jump(&t) < 20.0, "ping-pong must not wrap: {}", big_jump(&t));
+    let t = trace(0.5);
+    assert!(big_jump(&t) > 100.0, "positive motion should wrap: {}", big_jump(&t));
+}

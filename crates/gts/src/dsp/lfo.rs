@@ -35,13 +35,20 @@ pub struct Lfo {
     rng: u32,
     prev: f32,
     next: f32,
+    /// Grid-lock phase correction still to apply, at most `slew` cycles per sample (a half-cycle
+    /// correction takes 15 ms).
+    pending: f64,
+    slew: f64,
+    /// Set by `trigger`: the next lock snaps (a fresh note starts on the grid).
+    snap: bool,
 }
 
 impl Lfo {
     pub fn new() -> Self {
         // ponytail: seed from a global counter so Mod A and Mod B differ; deterministic per construction order.
         let seed = SEED.fetch_add(0x6C07_8965, Ordering::Relaxed) | 1;
-        let mut l = Self { sr: 44100.0, ph: 0.0, inc: 0.0, curve: Curve::Sine, one_shot: false, rng: seed, prev: 0.0, next: 0.0 };
+        let mut l = Self { sr: 44100.0, ph: 0.0, inc: 0.0, curve: Curve::Sine, one_shot: false, rng: seed, prev: 0.0, next: 0.0, pending: 0.0, slew: 0.0, snap: true };
+        l.set_sample_rate(44100.0);
         l.advance_random();
         l.advance_random();
         l
@@ -49,6 +56,7 @@ impl Lfo {
 
     pub fn set_sample_rate(&mut self, sr: f64) {
         self.sr = sr;
+        self.slew = 0.5 / (0.015 * sr);
     }
 
     fn rand(&mut self) -> f32 {
@@ -68,6 +76,8 @@ impl Lfo {
     /// Note-on: reset phase and re-arm one-shot.
     pub fn trigger(&mut self) {
         self.ph = 0.0;
+        self.pending = 0.0;
+        self.snap = true;
         self.advance_random();
     }
 
@@ -89,10 +99,15 @@ impl Lfo {
             if d > 0.5 {
                 d -= 1.0;
             }
-            if d.abs() > 1e-6 {
+            if self.snap {
                 self.ph += d;
+                self.pending = 0.0;
+            } else {
+                // A re-lock (e.g. stop -> play) glides onto the grid instead of jumping.
+                self.pending = d;
             }
         }
+        self.snap = false;
     }
 
     fn shape(&self, x: f64) -> f32 {
@@ -139,7 +154,9 @@ impl Lfo {
         }
         let before = self.ph.floor();
         let out = self.shape(self.ph.rem_euclid(1.0));
-        self.ph += self.inc;
+        let c = self.pending.clamp(-self.slew, self.slew);
+        self.pending -= c;
+        self.ph += self.inc + c;
         if !self.one_shot && self.ph.floor() > before {
             self.advance_random();
         }

@@ -1,8 +1,8 @@
 # Riddim Rack
 
-Open-source (GPL-3.0-or-later) functional recreations of the Reason devices riddim producers use, as Rust + nih-plug VST3/CLAP plugins for Windows, inspired by the classic Reason rack workflow.
+Open-source (GPL-3.0-or-later) functional recreations of the devices riddim producers use, as Rust + nih-plug VST3/CLAP plugins for Windows, inspired by the classic Reason rack workflow.
 
-We recreate behavior, never content: no Reason/Propellerhead trademarks beyond the sentence above, no copied graintables, samples, graphics or preset names. All graintables are generated procedurally by our own code.
+We recreate behavior, never content: no third-party trademarks, no copied graintables, samples, graphics or preset names. All graintables are generated procedurally by our own code.
 
 ## Devices
 

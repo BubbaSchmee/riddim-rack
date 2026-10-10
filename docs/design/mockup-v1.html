@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Riddim Rack - GUI mockup v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--page:#08080a;--pt:#d9d7d2;--pm:#7d7b76}
+*{box-sizing:border-box;margin:0}
+body{background:var(--page);color:var(--pt);font:13px/1.45 Inter,system-ui,sans-serif;padding:32px 16px 64px;font-feature-settings:"tnum" 1;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+h2{font-size:15px;font-weight:600;margin:48px 0 4px;padding-top:24px;border-top:1px solid #222}
+h3{font-size:12px;font-weight:600;margin:24px 0 8px;color:var(--pm);text-transform:uppercase;letter-spacing:1.2px}
+.note{color:var(--pm);font-size:12px;max-width:760px}
+.stage{overflow-x:auto;padding:16px 0}
+
+.amber{--p1:#19191c;--p2:#111113;--well:#0a0a0c;--hi:rgba(255,255,255,.06);--lo:rgba(0,0,0,.7);--rail:#1d1d20;--slot:#050506;
+ --text:#e9e6df;--muted:#8d8a83;--acc:#ffb020;--accg:255,176,32;--track:#2a2a2f;--cap1:#202024;--cap2:#2d2d33;--inset:#0e0e10}
+.mint{--p1:#232a2e;--p2:#192024;--well:#11171a;--hi:rgba(255,255,255,.07);--lo:rgba(0,0,0,.6);--rail:#2a3236;--slot:#0b1012;
+ --text:#e6ece9;--muted:#93a19b;--acc:#5ee6a8;--accg:94,230,168;--track:#334046;--cap1:#273136;--cap2:#36434a;--inset:#141b1e}
+
+.unit{position:relative;margin:0 auto;padding:16px 44px 20px;border-radius:4px;color:var(--text);
+ background:repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,rgba(0,0,0,.025) 1px 3px),linear-gradient(180deg,var(--p1),var(--p2));
+ box-shadow:0 0 0 1px #000,inset 0 1px 0 var(--hi),0 24px 60px rgba(0,0,0,.6)}
+.rail{position:absolute;top:0;bottom:0;width:28px;background:linear-gradient(90deg,var(--rail),color-mix(in srgb,var(--rail) 70%,#000));overflow:hidden}
+.rail.l{left:0;border-right:1px solid var(--lo);border-radius:4px 0 0 4px}.rail.r{right:0;border-left:1px solid var(--lo);border-radius:0 4px 4px 0}
+.rail i.s{position:absolute;left:8px;width:10px;height:18px;border-radius:5px;background:var(--slot);box-shadow:0 1px 0 var(--hi)}
+.screw{position:absolute;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,var(--cap2),var(--cap1));box-shadow:0 0 0 1px #000,0 1px 0 var(--hi);z-index:2}
+.screw:after{content:"";position:absolute;left:2px;right:2px;top:6px;height:2px;background:#050506;transform:rotate(var(--r,30deg));border-radius:1px}
+
+.head{display:flex;gap:16px;align-items:stretch;margin-bottom:16px}
+.plate{flex:0 0 232px;padding:8px 16px;border-radius:6px;background:linear-gradient(180deg,var(--p2),var(--well));box-shadow:inset 0 0 0 1px var(--lo),0 1px 0 var(--hi);display:flex;flex-direction:column;justify-content:center}
+.plate b{font-size:30px;font-weight:700;letter-spacing:8px;color:#d8d5ce;text-shadow:0 1px 0 rgba(0,0,0,.6),0 -1px 0 rgba(255,255,255,.08);line-height:1.1}
+.plate span{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.plate em{font-style:normal;font-size:11px;color:var(--muted);margin-top:12px;display:flex;gap:8px;align-items:center}
+
+.grp{background:var(--well);border-radius:6px;padding:8px 12px 12px;box-shadow:inset 0 1px 0 var(--lo),0 1px 0 var(--hi);min-width:0}
+.gh{display:flex;align-items:center;gap:8px;margin-bottom:8px;min-height:24px}
+.gh h4{font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:#77756f;text-shadow:0 1px 0 var(--hi),0 -1px 0 rgba(0,0,0,.4);white-space:nowrap}
+.gh .ln{flex:1;height:1px;background:linear-gradient(90deg,var(--hi),transparent);min-width:4px}
+.row{display:flex;gap:12px;margin-bottom:12px;align-items:stretch}
+.ks{display:flex;flex-wrap:wrap;gap:8px 0}
+.strip{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+
+.k{display:flex;flex-direction:column;align-items:center;width:var(--cw,56px)}
+.k .l{font-size:11px;font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin-bottom:2px;white-space:nowrap}
+.k .r{font-size:12px;color:var(--text);white-space:nowrap}
+.k svg{display:block;overflow:visible}
+.trk{fill:none;stroke:var(--track);stroke-width:3;stroke-linecap:round}
+.val{fill:none;stroke:var(--acc);stroke-width:3;stroke-linecap:round}
+.glo{fill:none;stroke:rgba(var(--accg),.18);stroke-width:7;stroke-linecap:round}
+.cap1{fill:var(--cap1);stroke:#000;stroke-width:1}.cap2{fill:var(--cap2)}
+.ind{stroke:var(--text);stroke-width:2;stroke-linecap:round}
+
+.combo{height:24px;padding:0 24px 0 8px;border-radius:4px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--lo),0 1px 0 var(--hi);font-size:12px;line-height:24px;position:relative;white-space:nowrap;color:var(--text);min-width:var(--w,64px)}
+.combo:after{content:"";position:absolute;right:9px;top:8px;width:5px;height:5px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg)}
+.tog{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 8px;border-radius:4px;background:var(--inset);box-shadow:inset 0 0 0 1px var(--lo),0 1px 0 var(--hi);font-size:11px;font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.tog.nolbl{gap:0;padding:0 8px}
+.led{width:8px;height:8px;border-radius:50%;background:#1b1b1e;box-shadow:inset 0 0 0 1px #000;flex:none}
+.on>.led,.led.on{background:var(--acc);box-shadow:0 0 0 1px rgba(var(--accg),.35),0 0 4px 1px rgba(var(--accg),.55),0 0 10px 3px rgba(var(--accg),.2)}
+.tog.on{color:var(--text)}
+
+.disp{flex:1;min-width:0;border-radius:6px;background:radial-gradient(120% 140% at 50% 0,#0f1214,#050607);box-shadow:inset 0 0 0 1px #000,inset 0 2px 12px #000,0 1px 0 var(--hi);position:relative;overflow:hidden}
+.disp svg{display:block;width:100%;height:100%}
+.disp .tx{font-family:Inter,sans-serif;font-size:11px;fill:#6c7478;letter-spacing:.5px}
+.disp .ta{font-family:Inter,sans-serif;font-size:12px;fill:var(--acc)}
+
+.sld{display:flex;flex-direction:column;gap:2px;width:168px}
+.sld .l{font-size:11px;font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between}
+.sld .l b{font-weight:500;color:var(--text);text-transform:none;letter-spacing:0;font-size:12px}
+.sld .t{height:4px;border-radius:2px;background:var(--track);position:relative;margin:12px 0 8px}
+.sld .t i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--acc);box-shadow:0 0 6px rgba(var(--accg),.5)}
+.sld .t u{position:absolute;top:-6px;width:14px;height:16px;margin-left:-7px;border-radius:3px;background:linear-gradient(180deg,var(--cap2),var(--cap1));box-shadow:0 0 0 1px #000}
+.sld .t u:after{content:"";position:absolute;left:6px;top:3px;width:2px;height:10px;background:var(--text);border-radius:1px}
+.sg{display:grid;grid-template-columns:36px repeat(16,1fr);gap:4px;padding:12px;font-size:11px}
+.sg .h{color:#6c7478;text-align:center;align-self:end;height:16px}
+.sg .h.cur{color:var(--acc)}
+.sg .v{align-self:center;color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.5px}
+.sg .c{height:32px;border-radius:4px;background:#0d1012;box-shadow:inset 0 0 0 1px #171c1f}
+.sg .c.dimc{opacity:.35}
+.sg .c.cur{background:rgba(var(--accg),.07);box-shadow:inset 0 0 0 1px rgba(var(--accg),.18)}
+.sg .c.s{background:rgba(var(--accg),.20);box-shadow:inset 0 0 0 1px rgba(var(--accg),.55),0 0 8px rgba(var(--accg),.18)}
+.sg .c.hold{background:linear-gradient(180deg,rgba(var(--accg),.16),rgba(var(--accg),.08));box-shadow:inset 0 0 0 1px rgba(var(--accg),.35)}
+.sg .c.s.cur{background:var(--acc);box-shadow:0 0 0 1px var(--acc),0 0 8px 2px rgba(var(--accg),.55),0 0 20px 6px rgba(var(--accg),.22)}
+
+table{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:8px}
+td,th{padding:6px 10px;border-bottom:1px solid #1d1d20;text-align:left;vertical-align:top}
+th{color:var(--pm);font-weight:500;width:210px}
+code{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#cfd4d0}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
+</style></head>
+<body><div class="wrap">
+<h1>Riddim Rack - GUI mockup v1</h1>
+<p class="note">One visual language for GTS and VSS: anodized rack panel, flat arc knobs, glowing display, a single accent. Two palette variants, then the token sheet for the egui implementation.</p>
+
+<h2>Variant A - Amber</h2>
+<p class="note">Near-black panel, amber accent #ffb020.</p>
+<h3>GTS - 1000 px</h3><div class="stage"><div id="gtsA" class="amber"></div></div>
+<h3>VSS - 760 px</h3><div class="stage"><div id="vssA" class="amber"></div></div>
+
+<h2>Variant B - Mint</h2>
+<p class="note">Slightly lighter slate panel, mint accent #5ee6a8 (green-leaning, not cyan).</p>
+<h3>GTS - 1000 px</h3><div class="stage"><div id="gtsB" class="mint"></div></div>
+<h3>VSS - 760 px</h3><div class="stage"><div id="vssB" class="mint"></div></div>
+
+<h2>Token sheet (egui painter)</h2>
+<div id="tokens"></div>
+</div>
+
+<script>
+const P=(c,r,a)=>{a=a*Math.PI/180;return [c+r*Math.cos(a),c+r*Math.sin(a)]};
+const arc=(c,r,a0,a1)=>{const[x0,y0]=P(c,r,a0),[x1,y1]=P(c,r,a1);return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${a1-a0>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`};
+function k(l,n,t,bi,s){s=s||40;const c=s/2,r=c-3,a0=135,sw=270,av=a0+sw*n,cr=r-6;
+ let v='';const from=bi?a0+sw/2:a0,to=av;
+ if(Math.abs(to-from)>1){const d=arc(c,r,Math.min(from,to),Math.max(from,to));v=`<path class="glo" d="${d}"/><path class="val" d="${d}"/>`}
+ const [ix0,iy0]=P(c,cr*.35,av),[ix1,iy1]=P(c,cr*.9,av);
+ return `<div class="k"><span class="l">${l}</span><svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><path class="trk" d="${arc(c,r,a0,a0+sw)}"/>${v}<circle class="cap1" cx="${c}" cy="${c}" r="${cr}"/><circle class="cap2" cx="${c}" cy="${c-1}" r="${cr-2}"/><line class="ind" x1="${c+ (ix0-c)}" y1="${iy0.toFixed(1)}" x2="${ix1.toFixed(1)}" y2="${iy1.toFixed(1)}"/></svg><span class="r">${t}</span></div>`}
+const combo=(t,w)=>`<div class="combo" style="--w:${w||64}px">${t}</div>`;
+const tog=(t,on)=>`<div class="tog ${on?'on':''} ${t?'':'nolbl'}"><i class="led"></i>${t}</div>`;
+const grp=(title,right,body,st)=>`<div class="grp" style="${st||''}"><div class="gh"><h4>${title}</h4><i class="ln"></i>${right||''}</div>${body}</div>`;
+const ks=(a,cw)=>`<div class="ks" style="--cw:${cw||56}px">${a.join('')}</div>`;
+
+function osc(n,on,tbl,v){const[oct,semi,cent,idx,mot,sh,vol,a,d,s,r]=v;
+ return grp('Osc '+n,combo(tbl,104)+tog('',on),
+  ks([k('Oct',(oct+4)/8,(oct>0?'+':'')+oct,1),k('Semi',semi/12,semi),k('Cent',(cent+50)/100,(cent>0?'+':'')+cent,1),
+      k('Index',idx/127,idx),k('Motion',(mot+1)/2,mot.toFixed(2),1),k('Shift',(sh+24)/48,(sh>0?'+':'')+sh+' st',1),k('Vol',vol,vol.toFixed(2))])+
+  ks([k('Att',a[0],a[1]),k('Dec',d[0],d[1]),k('Sus',s,s.toFixed(2)),k('Rel',r[0],r[1])]),'flex:1 1 0');}
+
+function filt(n,type,f,res,kbd,env){return grp('Filter '+n,tog('Env',env),
+  `<div class="strip">${combo(type,86)}</div>`+ks([k('Freq',f[0],f[1]),k('Res',res,res.toFixed(2)),k('Kbd',kbd,kbd.toFixed(2))]),'flex:1 1 0');}
+
+function wave(d,N,amp){let mx=0,ys=[];for(let i=0;i<=N;i++){const x=i/N;let y=0;for(let h=1;h<=24;h++)y+=(2/(h*Math.PI))*Math.sin(h*Math.PI*d)*Math.cos(2*Math.PI*h*(x-d/2));ys.push(y);mx=Math.max(mx,Math.abs(y))}
+ return ys.map(y=>y/mx*amp)}
+function gdisp(){const W=640,H=124,mid=54,A=34,N=240;
+ const path=(ys,x0,w)=>ys.map((y,i)=>(i?'L':'M')+(x0+w*i/N).toFixed(1)+' '+(mid-y).toFixed(1)).join('');
+ const cur=path(wave(.27,N,A),16,W-32),g1=path(wave(.42,N,A*.9),16,W-32),g2=path(wave(.12,N,A*.9),16,W-32);
+ let grid='';for(let i=0;i<=8;i++)grid+=`<line x1="${16+i*(W-32)/8}" x2="${16+i*(W-32)/8}" y1="22" y2="92" stroke="#fff" stroke-opacity=".05"/>`;
+ let tk='';for(let i=0;i<32;i++){const x=16+(i+.5)*(W-32)/32,on=i===16;tk+=`<rect x="${x-3}" y="${on?102:106}" width="6" height="${on?12:8}" rx="1.5" fill="${on?'var(--acc)':'#2a3034'}"/>`}
+ const mx=16+(64/127)*(W-32);
+ return `<div class="disp" style="height:${H}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}<line x1="16" x2="${W-16}" y1="${mid}" y2="${mid}" stroke="#fff" stroke-opacity=".1"/>
+ <path d="${g1}" fill="none" stroke="var(--acc)" stroke-opacity=".14" stroke-width="1"/><path d="${g2}" fill="none" stroke="var(--acc)" stroke-opacity=".14" stroke-width="1"/>
+ <path d="${cur}" fill="none" stroke="var(--acc)" stroke-opacity=".07" stroke-width="12" stroke-linejoin="round"/><path d="${cur}" fill="none" stroke="var(--acc)" stroke-opacity=".16" stroke-width="6" stroke-linejoin="round"/><path d="${cur}" fill="none" stroke="var(--acc)" stroke-width="2" stroke-linejoin="round"/>
+ ${tk}<path d="M${mx-5} 97L${mx+5} 97L${mx} 102Z" fill="var(--acc)"/>
+ <text class="tx" x="16" y="16">OSC A  /  SQUARE MORPH</text><text class="ta" x="${W-16}" y="16" text-anchor="end">INDEX 64</text></svg></div>`}
+
+function rack(w,inner){return `<div class="unit" style="width:${w}px"><div class="rail l"></div><div class="rail r"></div>
+ <i class="screw" style="left:7px;top:12px;--r:20deg"></i><i class="screw" style="left:7px;bottom:12px;--r:75deg"></i>
+ <i class="screw" style="right:7px;top:12px;--r:130deg"></i><i class="screw" style="right:7px;bottom:12px;--r:50deg"></i>${inner}</div>`}
+function slots(el){const h=el.querySelector('.unit').offsetHeight;el.querySelectorAll('.rail').forEach(r=>{for(let y=44;y<h-60;y+=40){const i=document.createElement('i');i.className='s';i.style.top=y+'px';r.appendChild(i)}})}
+
+function gts(){
+ const plate=`<div class="plate"><b>GTS</b><span>Graintable Synth</span><em><i class="led on"></i>Two-osc graintable &middot; v1.0</em></div>`;
+ const h=`<div class="head">${plate}${gdisp()}</div>`;
+ const e=[.05,'5 ms'],d=[.45,'300 ms'],r=[.3,'60 ms'];
+ const r1=`<div class="row">${osc('A',1,'Square Morph',[0,0,0,64,0,0,.8,e,d,1,r])}${osc('B',0,'Saw Stack',[0,0,0,64,0,0,.8,e,d,1,r])}</div>`;
+ const r2=`<div class="row">
+  ${grp('Mod A',combo('Decay',72),`<div class="strip">${tog('Sync',1)}${combo('1/8',44)}${tog('1-shot',1)}${combo('Both',48)}</div>`+ks([k('Rate',.45,'4.0 Hz'),k('Pitch',.5,'0.00',1),k('Index',.75,'+0.50',1),k('Shift',.5,'0.00',1)]),'flex:1.1 1 0')}
+  ${grp('Mod B',combo('Sine',72),`<div class="strip">${tog('Sync',0)}${combo('1/8',44)}${tog('1-shot',0)}${combo('Both',48)}</div>`+ks([k('Rate',.45,'4.0 Hz'),k('Motion',.5,'0.00',1),k('Vol',.5,'0.00',1),k('Cutoff',.5,'0.00',1),k('Mod A',.5,'0.00',1)],52),'flex:1.25 1 0')}
+  ${grp('Shaper',tog('',0),`<div class="strip">${combo('Saturate',96)}</div><div style="display:flex;gap:8px;align-items:center">${ks([k('Amt',.3,'0.30')])}<svg width="64" height="48" viewBox="0 0 64 48"><rect x=".5" y=".5" width="63" height="47" rx="4" fill="none" stroke="#fff" stroke-opacity=".08"/><line x1="4" y1="44" x2="60" y2="4" stroke="#fff" stroke-opacity=".1"/><path d="M4 44C26 44 30 4 60 4" fill="none" stroke="var(--acc)" stroke-opacity=".25" stroke-width="5"/><path d="M4 44C26 44 30 4 60 4" fill="none" stroke="var(--acc)" stroke-width="1.5"/></svg></div>`,'flex:.75 1 0')}
+ </div>`;
+ const r3=`<div class="row">
+  ${filt('A','Comb -',[.62,'880 Hz'],.6,.5,1)}${filt('B','LP12',[.72,'2.0 kHz'],.1,.5,1)}
+  ${grp('Filter Env',tog('Inv',0),ks([k('Att',.05,'5 ms'),k('Dec',.4,'250 ms'),k('Sus',.2,'0.20'),k('Rel',.28,'100 ms'),k('Amt',.5,'0.50')],52),'flex:1.3 1 0')}
+ </div>`;
+ const r4=`<div class="row" style="margin-bottom:0">
+  ${grp('Voice',tog('Legato',1),`<div class="strip">${combo('Parallel',100)}</div>`+ks([k('Poly',1/7,'1'),k('Porta',.04,'0.08 s'),k('Bend',.5,'12 st')],52),'flex:0 0 auto')}
+  ${grp('Wheel','',ks([k('Index',.5,'0.00',1),k('Shift',.5,'0.00',1),k('Cutoff',.5,'0.00',1),k('Mod',.5,'0.00',1)],52),'flex:0 0 auto')}
+  ${grp('Velocity','',ks([k('Vol A',.5,'0.00',1),k('Vol B',.5,'0.00',1),k('F.Env',.5,'0.00',1),k('Att',.5,'0.00',1),k('Shift',.5,'0.00',1),k('Mod',.5,'0.00',1)],50),'flex:1 1 auto')}
+  ${grp('Output','',ks([k('Volume',.6,'-6.0 dB'),k('Spread',0,'0.00')],56),'flex:0 0 auto')}</div>`;
+ return rack(1000,h+r1+r2+r3+r4);}
+
+function vss(){
+ const pat=[0,0,3,3,1,1,2,5,4,4,2,0,3,3,1,5],steps=12,curS=5,names=['A','E','I','O','U','Hold'];
+ let g='<span></span>';for(let c=0;c<16;c++)g+=`<span class="h ${c===curS?'cur':''}" style="${c>=steps?'opacity:.35':''}">${c+1}</span>`;
+ names.forEach((n,r)=>{g+=`<span class="v">${n}</span>`;for(let c=0;c<16;c++){const sel=pat[c]===r;g+=`<span class="c ${sel?(r===5?'s hold':'s'):''} ${c===curS?'cur':''} ${c>=steps?'dimc':''}"></span>`}});
+ const plate=`<div class="plate" style="flex:0 0 184px"><b>VSS</b><span>Vowel Step Sequencer</span><em><i class="led on"></i>16-step formant &middot; v1.0</em></div>`;
+ const kn=grp('Voice','',ks([k('Formant',.5,'+0.0 st',1,44),k('Reson.',.45,'0.45',0,44),k('Drive',.2,'0.20',0,44),k('Glide',.15,'18 ms',0,44),k('Swing',.3,'0.30',0,44),k('Mix',1,'100 %',0,44),k('Output',.8,'-3.0 dB',0,44)],56),'flex:1 1 auto');
+ const seq=grp('Sequence','',`<div class="strip" style="margin:0 0 4px"><div class="combo" style="--w:100px">Rate 1/16</div></div><div class="sld"><div class="l">Steps <b>${steps}</b></div><div class="t"><i style="width:${(steps-1)/15*100}%"></i><u style="left:${(steps-1)/15*100}%"></u></div></div>`,'flex:0 0 auto;width:152px');
+ const grid=`<div class="grp" style="padding:8px 0 0"><div class="gh" style="padding:0 12px"><h4>Vowel pattern</h4><i class="ln"></i><span style="font-size:11px;color:var(--muted)">Step ${curS+1} &middot; ${names[pat[curS]]}</span></div><div class="disp" style="margin:0 8px 8px"><div class="sg">${g}</div></div></div>`;
+ return rack(760,`<div class="head">${plate}${kn}</div><div class="row" style="margin-bottom:12px"><div style="flex:1;min-width:0">${grid}</div></div>`.replace('</div></div><div class="row"','</div></div><div class="row"'));}
+
+['A','B'].forEach(v=>{const g=document.getElementById('gts'+v),s=document.getElementById('vss'+v);g.innerHTML=gts();s.innerHTML=vss();requestAnimationFrame(()=>{slots(g);slots(s)})});
+
+const tr=(a,b)=>`<tr><th>${a}</th><td>${b}</td></tr>`;
+const sw=c=>`<span class="sw" style="background:${c}"></span><code>${c}</code>`;
+document.getElementById('tokens').innerHTML=`
+<h3>Colours (Amber / Mint)</h3><table>
+${tr('Panel, vertical gradient',sw('#19191c')+' to '+sw('#111113')+' &nbsp;/&nbsp; '+sw('#232a2e')+' to '+sw('#192024'))}
+${tr('Brushed texture','1-px vertical lines every 3 px, white a=0.012 and black a=0.025 over the panel. Optional; skip if costly.')}
+${tr('Well (group background)',sw('#0a0a0c')+' / '+sw('#11171a'))}
+${tr('Inset (combo, toggle)',sw('#0e0e10')+' / '+sw('#141b1e'))}
+${tr('Rail / rail slot',sw('#1d1d20')+' '+sw('#050506')+' / '+sw('#2a3236')+' '+sw('#0b1012'))}
+${tr('Edge highlight / shadow','White a=0.06 (0.07 mint), 1 px below each raised rect; black a=0.7 (0.6) 1 px at inner top edge. Emboss = paint the group rect 1 px lower in highlight first, then the real rect.')}
+${tr('Text / muted / engraved title',sw('#e9e6df')+' '+sw('#8d8a83')+' '+sw('#77756f')+' / '+sw('#e6ece9')+' '+sw('#93a19b'))}
+${tr('Accent (the only hue)',sw('#ffb020')+' / '+sw('#5ee6a8')+' &nbsp; value arcs, LEDs, display line, active cells, slider fill, current step')}
+${tr('Knob track / cap / cap highlight',sw('#2a2a2f')+' '+sw('#202024')+' '+sw('#2d2d33')+' / '+sw('#334046')+' '+sw('#273136')+' '+sw('#36434a'))}
+${tr('Display','Fill '+sw('#050607')+' with top 40 % '+sw('#0f1214')+'; grid white a=0.05; centre line white a=0.10; inactive tick '+sw('#2a3034')+'; caption '+sw('#6c7478'))}
+</table>
+<h3>Type</h3><table>
+${tr('Font','Inter (Regular/Medium/SemiBold/Bold TTF through egui FontDefinitions). Readouts need tabular figures; if unavailable, right-align in a fixed width.')}
+${tr('Sizes','Nameplate 30 px bold, tracking 8 px; descriptor 11 px caps, tracking 1.6; section title 11 px semibold caps, tracking 1.4, colour #77756f; knob label 11 px medium caps; readout 12 px; combo 12 px; display captions 11 / 12 px')}
+${tr('Tracking','egui has no letter-spacing: paint caps strings glyph by glyph with the extra advance, or omit it.')}
+</table>
+<h3>Geometry (8 px grid)</h3><table>
+${tr('Panel padding','16 top, 20 bottom, 44 sides (28 px rail + 16 gutter). GTS 1000 px wide, VSS 760 px wide.')}
+${tr('Rail','28 px wide rect, 1-px black line on the inner edge. Slots 10 x 18 px, radius 5, every 40 px from y=44, x offset 8 px.')}
+${tr('Screws','14 px circle centred in rail, 12 px from top/bottom edge. Layers: black circle r=7.5, cap2 circle r=7, cap1 circle r=5.5 offset (-1,-1), slot line 10 x 2 px rotated 20 / 75 / 130 / 50 deg.')}
+${tr('Group (well)','Radius 6; padding 8 top, 12 sides and bottom; gap between groups 12; header row 24 px high plus 8 px gap.')}
+${tr('Knob','40 px (GTS), 44 px (VSS). Arc radius d/2 - 3, 270-degree sweep starting at 135 degrees (clockwise, y down), 3 px round-cap stroke. Cap circle radius = arc radius - 6; second cap circle radius -2, offset up 1 px. Indicator 2 px from 0.35 to 0.9 of cap radius. Cell width 56 px (52 dense rows), label 11 px above, readout 12 px below.')}
+${tr('Bipolar knobs','Value arc runs from the 12 o\'clock centre (norm 0.5) to the value.')}
+${tr('Combo / toggle','Height 24, radius 4, inset fill, 1-px black stroke, 1-px highlight line below; combo chevron 5 px, 9 px from the right. Toggle = 8 px LED + 11 px caps label.')}
+${tr('LED','8 px circle. Off: #1b1b1e with black ring. On: accent fill.')}
+${tr('GTS display','Height 124, radius 6. 24-harmonic additive waveform, 240 points over width minus 32. Neighbour grains 1 px at a=0.14. 32 grain ticks 6 x 8 px (active 6 x 12, accent). Index marker triangle 10 x 5 above the active tick.')}
+${tr('VSS grid','Label column 36 px, 16 columns, cell height 32, gap 4, radius 4. Steps past the Steps value drawn at 35 % alpha. Header numbers 11 px.')}
+${tr('Slider','Track 4 px high, radius 2, accent fill; thumb 14 x 16, radius 3, 2 x 10 px indicator.')}
+</table>
+<h3>Glow recipes (painter strokes only)</h3><table>
+${tr('Value arc','Same arc twice: width 7 alpha 0.18, then width 3 alpha 1.0. Optional third pass width 11 alpha 0.06.')}
+${tr('LED on','Circle r=4 accent fill; r=5.5 stroke 1 a=0.55; r=7 fill a=0.20; r=10 fill a=0.08.')}
+${tr('Waveform line','Same polyline at widths 12 / 6 / 2 with alpha 0.07 / 0.16 / 1.0, rounded joins.')}
+${tr('Active step cell','Fill accent a=0.20, 1-px accent stroke a=0.55, rect expanded 2 px stroke a=0.18.')}
+${tr('Current step cell','Solid accent fill, expanded rects +2 px a=0.55 and +6 px a=0.22 (rounded), column wash accent a=0.07 behind the column.')}
+${tr('Gradient stand-ins','Panel: 2 stacked half-height fills or 8 horizontal slices. Knob cap and screw: 2 circles. Nameplate text: solid #d8d5ce.')}
+</table>`;
+</script></body></html>

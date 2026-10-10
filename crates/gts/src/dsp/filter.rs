@@ -65,6 +65,24 @@ impl MultiFilter {
         self.fresh = true;
     }
 
+    pub fn kind(&self) -> FilterType {
+        self.kind
+    }
+
+    /// Changes the type without touching coefficients (call `set` before processing).
+    pub fn set_kind(&mut self, kind: FilterType) {
+        self.kind = kind;
+    }
+
+    /// Copies `other`'s full state into this filter without allocating (both buffers are `BUF` long).
+    pub fn copy_from(&mut self, other: &Self) {
+        self.buf.copy_from_slice(&other.buf);
+        let Self { sr, kind, a1, a2, a3, k, ic1, ic2, w, delay, delay_t, mix, fb, phase, inc, fresh, .. } = *other;
+        (self.sr, self.kind, self.a1, self.a2, self.a3, self.k, self.ic1, self.ic2) = (sr, kind, a1, a2, a3, k, ic1, ic2);
+        (self.w, self.delay, self.delay_t, self.mix, self.fb, self.phase, self.inc, self.fresh) =
+            (w, delay, delay_t, mix, fb, phase, inc, fresh);
+    }
+
     pub fn set(&mut self, kind: FilterType, freq_hz: f32, res: f32) {
         self.kind = kind;
         let res = res.clamp(0.0, 1.0);

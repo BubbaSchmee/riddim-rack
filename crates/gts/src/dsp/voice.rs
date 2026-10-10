@@ -80,7 +80,17 @@ pub struct Voice {
     lfo: [Lfo; 2],
     /// Filter A, Filter B.
     filt: [MultiFilter; 2],
+    /// Snapshot of `filt` taken at a Type / Routing change, faded out over `XFADE` with the old
+    /// routing (`old_routing`) while `filt` fades in. `xfade` runs 1 -> 0.
+    old: [MultiFilter; 2],
+    routing: Option<Routing>,
+    old_routing: Option<Routing>,
+    xfade: f32,
     shaper: Shaper,
+    /// Shaper wet amount, slewed toward Shaper On (0/1) so toggling does not click.
+    shaper_mix: f32,
+    /// Osc A / B On, latched at `update`.
+    on: [bool; 2],
     fenv: Adsr,
     /// Samples until the next cutoff update.
     tick: u32,
@@ -94,6 +104,8 @@ const SCAN_WRAP: f64 = 992.0;
 /// Cutoff update interval in samples. The SVF takes stepped coefficients cleanly at this rate and
 /// the comb smooths its delay internally.
 const FILTER_TICK: u32 = 16;
+/// Filter Type / Routing crossfade length in seconds.
+const XFADE: f32 = 0.005;
 /// Kbd tracking pivot: Filter Freq is exact at this note (C4) for any Kbd amount.
 pub const KBD_REF: f32 = 60.0;
 
@@ -110,7 +122,8 @@ fn hits(t: Target, i: usize) -> bool {
 
 impl Voice {
     pub fn is_active(&self) -> bool {
-        self.osc[0].env.is_active() || self.osc[1].env.is_active()
+        // Only enabled oscillators keep the voice alive.
+        (self.on[0] && self.osc[0].env.is_active()) || (self.on[1] && self.osc[1].env.is_active())
     }
 
     pub fn amp_env(&self, osc: usize) -> &Adsr {
@@ -141,9 +154,10 @@ impl Voice {
         for l in &mut self.lfo {
             l.set_sample_rate(sr as f64);
         }
-        for f in &mut self.filt {
+        for f in self.filt.iter_mut().chain(&mut self.old) {
             f.set_sample_rate(sr as f64);
         }
+        self.xfade = 0.0;
     }
 
     /// Envelope times for this voice's velocity, shaper settings. Cheap; called per block and on trigger.
@@ -155,6 +169,7 @@ impl Voice {
         }
         self.fenv.set(patch.fenv_att, patch.fenv_dec, patch.fenv_sus, patch.fenv_rel, sr);
         self.shaper.set(patch.shaper_mode, patch.shaper_amt);
+        self.on = [patch.osc[0].on, patch.osc[1].on];
     }
 
     /// LFO rate / sync / curve, per block. Synced LFOs lock to the host beat only while it plays.
@@ -196,9 +211,13 @@ impl Voice {
         self.tick = 0;
         if !was_active {
             // Fresh voice: no ringing from the last note (fills the comb lines, no allocation).
-            for f in &mut self.filt {
+            for (f, fp) in self.filt.iter_mut().zip(&patch.filt) {
                 f.reset();
+                f.set_kind(fp.ty);
             }
+            self.routing = Some(patch.routing);
+            self.xfade = 0.0;
+            self.shaper_mix = if patch.shaper_on { 1.0 } else { 0.0 };
             self.fresh = true;
         }
     }
@@ -334,30 +353,65 @@ impl Voice {
 
         // 4. filter env, shaper, filters, routing
         let fenv = self.fenv.next();
+        // A Type or Routing change crossfades from a snapshot of the old path (reset the changed
+        // filter, ~5 ms fade) instead of switching with stale state.
+        let ty_changed = (0..2).any(|j| self.filt[j].kind() != patch.filt[j].ty);
+        if ty_changed || self.routing != Some(patch.routing) {
+            for j in 0..2 {
+                self.old[j].copy_from(&self.filt[j]);
+                if self.filt[j].kind() != patch.filt[j].ty {
+                    self.filt[j].reset();
+                    self.filt[j].set_kind(patch.filt[j].ty);
+                }
+            }
+            self.old_routing = self.routing;
+            self.routing = Some(patch.routing);
+            self.xfade = 1.0;
+            self.tick = 0;
+        }
         if self.tick == 0 {
             self.set_filters(patch, ctl, fenv);
             self.tick = FILTER_TICK;
         }
         self.tick -= 1;
-        let shape = |s: &mut Shaper, x: f32| if patch.shaper_on { s.process(x) } else { x };
+        let on = if patch.shaper_on { 1.0 } else { 0.0 };
+        self.shaper_mix = on + (self.shaper_mix - on) * ctl.smooth;
+        if (self.shaper_mix - on).abs() < 1e-4 {
+            self.shaper_mix = on;
+        }
         let [a, b] = out;
-        match patch.routing {
-            Routing::Parallel => {
-                // Shaper on A only, as in the original lineage. Spread pans A left, B right.
-                let fa = self.filt[0].process(shape(&mut self.shaper, a));
-                let fb = self.filt[1].process(b);
-                let spread = patch.spread.clamp(0.0, 1.0);
-                (fa + fb * (1.0 - spread), fa * (1.0 - spread) + fb)
-            }
-            Routing::Series => {
-                let y = self.filt[0].process(shape(&mut self.shaper, a + b));
-                let y = self.filt[1].process(y);
-                (y, y)
-            }
-            Routing::Bypass => {
-                let y = shape(&mut self.shaper, a + b);
-                (y, y)
-            }
+        let spread = patch.spread.clamp(0.0, 1.0);
+        let (mix, sh) = (self.shaper_mix, &mut self.shaper);
+        let (l, r) = route(patch.routing, &mut self.filt, sh, mix, spread, a, b);
+        if self.xfade <= 0.0 {
+            return (l, r);
+        }
+        let (ol, or) = route(self.old_routing.unwrap_or(patch.routing), &mut self.old, sh, mix, spread, a, b);
+        let g = self.xfade;
+        self.xfade -= 1.0 / (XFADE * ctl.sr);
+        (l + (ol - l) * g, r + (or - r) * g)
+    }
+}
+
+/// Shaper -> Filter A / B per `routing`, then Spread. `mix` crossfades dry -> shaped.
+#[inline]
+fn route(routing: Routing, f: &mut [MultiFilter; 2], s: &mut Shaper, mix: f32, spread: f32, a: f32, b: f32) -> (f32, f32) {
+    let mut shape = |x: f32| if mix > 0.0 { x + (s.process(x) - x) * mix } else { x };
+    match routing {
+        Routing::Parallel => {
+            // Shaper on A only, as in the original lineage. Spread pans A left, B right.
+            let fa = f[0].process(shape(a));
+            let fb = f[1].process(b);
+            (fa + fb * (1.0 - spread), fa * (1.0 - spread) + fb)
+        }
+        Routing::Series => {
+            let y = f[0].process(shape(a + b));
+            let y = f[1].process(y);
+            (y, y)
+        }
+        Routing::Bypass => {
+            let y = shape(a + b);
+            (y, y)
         }
     }
 }

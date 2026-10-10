@@ -15,6 +15,16 @@ pub struct Gts {
     engine: dsp::Engine,
     /// Osc A's current grain index (0..127), for the GUI readout.
     current_index: Arc<AtomicU32>,
+    /// Last tempo written to the log (a ramp logs every 0.5 BPM, not every block).
+    logged_tempo: f64,
+}
+
+/// Writes one engine frame to the plugin's output channels: channel 0 = left, the rest = right.
+#[doc(hidden)]
+pub fn write_frame(mut frame: nih_plug::buffer::ChannelSamples, (l, r): (f32, f32)) {
+    for (ch, sample) in frame.iter_mut().enumerate() {
+        *sample = if ch == 0 { l } else { r };
+    }
 }
 
 impl Default for Gts {
@@ -23,6 +33,7 @@ impl Default for Gts {
             params: Arc::new(GtsParams::default()),
             engine: dsp::Engine::new(),
             current_index: Arc::new(AtomicU32::new(0)),
+            logged_tempo: dsp::Transport::default().tempo,
         }
     }
 }
@@ -95,14 +106,15 @@ impl Plugin for Gts {
         if transport.playing != prev.playing {
             util::permit_alloc(|| nih_log!("transport: {}", if transport.playing { "play" } else { "stop" }));
         }
-        if (transport.tempo - prev.tempo).abs() > 1e-3 {
+        if (transport.tempo - self.logged_tempo).abs() > 0.5 {
+            self.logged_tempo = transport.tempo;
             util::permit_alloc(|| nih_log!("transport: tempo {:.2} bpm", transport.tempo));
         }
         self.engine.transport = transport;
         self.engine.set_patch(&dsp::Patch::from_params(&self.params));
 
         let mut next_event = context.next_event();
-        for (i, mut frame) in buffer.iter_samples().enumerate() {
+        for (i, frame) in buffer.iter_samples().enumerate() {
             while let Some(event) = next_event {
                 if event.timing() > i as u32 {
                     break;
@@ -119,10 +131,7 @@ impl Plugin for Gts {
                 next_event = context.next_event();
             }
 
-            let (l, r) = self.engine.next_frame();
-            for (ch, sample) in frame.iter_mut().enumerate() {
-                *sample = if ch == 0 { l } else { r };
-            }
+            write_frame(frame, self.engine.next_frame());
         }
 
         self.current_index.store(self.engine.display_index(), Ordering::Relaxed);

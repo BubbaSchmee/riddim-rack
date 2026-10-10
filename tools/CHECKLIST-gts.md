@@ -13,7 +13,7 @@ the plugin. Delete the plugin log first for a clean session.
 ## Setup
 
 1. Copy the whole `GTS.vst3` folder into `C:\Users\kolby\Documents\Ableton\Custom Plugins`
-   (Live's custom VST3 folder, already configured for VSS). Re-copy after every rebuild.
+   Live's custom VST3 folder (Preferences > Plug-Ins). Re-copy after every rebuild.
 2. Live > Preferences > Plug-Ins > Rescan.
 3. Launch Live via `tools/live-debug.bat`.
 4. New MIDI track, load GTS (Plug-Ins > VST3 > Riddim Rack Open Source > GTS).
