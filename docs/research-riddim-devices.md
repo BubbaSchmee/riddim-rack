@@ -1,4 +1,7 @@
-# Research: Reason devices in riddim production (2026-10-10, web survey)
+# Research: the rack devices riddim producers use (2026-10-10, web survey)
+
+Third-party product names below are nominative references to the devices whose *behavior* this
+project recreates. They are not used in any Riddim Rack product name, UI, metadata or marketing.
 
 Scoping input for SPEC.md. Behavior reference only; nothing here is copied content.
 

@@ -4,10 +4,13 @@ Open-source (GPL-3.0-or-later), Rust + nih-plug, VST3 (+CLAP), Windows first. On
 device, built in this order: **GTS** (graintable synth, this spec), then SDU (damage unit,
 Scream-style), then PBG (pattern band gate, Alligator-style). Each is a crate under `crates/`.
 
-Legal boundary (non-negotiable): we recreate *behavior*, never content. No Reason/Propellerhead
-trademarks (Reason, Malström, Scream, Alligator…) in names, UI, metadata or docs beyond a single
-"inspired by the classic Reason rack workflow" sentence in the README. No copied graintables,
-samples, graphics or preset names. All graintables are generated procedurally by our own code.
+Legal boundary (non-negotiable): we recreate *behavior*, never content. Third-party trademarks
+never appear in product names, code identifiers, UI strings, plugin metadata, release notes or
+README marketing copy; the README carries exactly one "inspired by the classic Reason rack
+workflow" sentence. Nominative references (naming the original device when describing the
+behavior being recreated) are permitted ONLY in this SPEC and in `docs/` research notes. No
+copied graintables, samples, graphics or preset names. All graintables are generated
+procedurally by our own code.
 
 This file is the single source of truth. Every agent reads it first. The orchestrator owns it.
 
@@ -54,7 +57,9 @@ grains with linear crossfade between neighbours. `G = 32` for all tables.
 | 6 | Reed | pulse + resonant peak sweeping 400 → 4000 Hz |
 | 7 | Grit | band-limited noise bursts, index = bandwidth narrow → wide (seeded, deterministic) |
 
-Each grain normalized to peak 1.0, DC removed.
+Each grain DC-removed and normalized to RMS 0.25, then scaled down further only if its peak
+exceeds 1.0 (revised 2026-10-10: peak normalization gave a 12.7 dB loudness spread between tables
+and 12 dB across Square Morph's index range).
 
 ## Oscillator playback (per voice, per osc)
 - Pitch: note + octave (-4..+4) + semi (0..12) + cent (-50..+50) + pitch bend + Mod A pitch.
@@ -66,6 +71,8 @@ Each grain normalized to peak 1.0, DC removed.
   >0 scans forward (wraps), <0 scans forward-backward (ping-pong); magnitude = scan speed, 1.0 =
   full table per 0.25 s. Scan position resets on note-on.
 - Per-osc ADSR amp envelope (A 1 ms..10 s log, D, S, R), per-osc Vol, On/Off.
+- Per-osc one-pole DC blocker (8 Hz) after the grain oscillator: negative Shift turns grains into a
+  unipolar pulse train (measured DC up to 98 % of RMS at shift -24 without it).
 
 ## Modulators (two LFOs, per voice, retrigger on note-on)
 Curves: Sine, Triangle, Saw Up, Saw Down, Square, Sample&Hold, Smooth Random, Decay (one cycle
@@ -77,8 +84,8 @@ note-on and hold the final value (this is the riddim "wobble on each note"). Tar
 - Mod B amounts: Motion (±1), Vol (±1), Filter cutoff (±5 octaves), Mod A amount (±1 scales all Mod A amounts).
 
 ## Shaper (optional, before Filter A)
-Modes: Sine (`sin(x·k)`), Saturate (`tanh`), Clip (hard), Quant (bit depth 16 → 2), Noise
-(input-scaled white noise added). Amt 0..1 drives the amount/gain. On/Off.
+Modes: Sine (`sin(x·k)`), Saturate (`tanh`), Clip (hard), Quant (bit depth 16 → 2, MID-TREAD so
+zero maps to zero: no DC pedestal, no click at note end), Noise (input-scaled white noise added). Amt 0..1 drives the amount/gain. On/Off.
 
 ## Filters A and B (identical; per voice)
 Types: LP12 (SVF), BP12 (SVF), Comb+ (feedforward comb tuned to Freq, Res = mix), Comb- (feedback
@@ -96,12 +103,15 @@ Shaper sits before FA in Parallel too (applies to A only, as in the original lin
 ## Voice management
 Polyphony 1..8 (default 1). Legato on/off (default on): in mono, a new note while one is held
 does not retrigger envelopes/LFOs. Portamento 0..2 s (default 0.08 s in mono). Pitch bend range
-0..24 st (default 12). Voice stealing: oldest. Mod wheel (CC1) amounts: Index, Shift, Filter
+0..24 st (default 12). Voice stealing: oldest. Changing Polyphony releases only the voices
+with index ≥ the new count (a held note on voice 0 keeps sounding). Sustain pedal (CC64 ≥ 0.5)
+defers note-offs and flushes them on release; CC120/123 (all sound/notes off) release everything. Mod wheel (CC1) amounts: Index, Shift, Filter
 cutoff, Mod amount. Velocity (bipolar amounts): Vol A, Vol B, Filter env, Attack, Shift, Mod amount.
 
 ## Output
-Volume -24..+6 dB (default -6), Spread 0..1 (A left / B right stereo offset, 0 = mono). Soft
-limiter (tanh above 0.95) as safety only.
+Volume -24..+6 dB (default -6), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
+sum is scaled by 1/sqrt(poly) so chords do not live in the limiter (mono unchanged). Soft limiter
+(tanh above 0.95) as safety only.
 
 ## Parameters (~80; ids stable; display names in quotes)
 Osc A/B each: `osc{a,b}_on` "Osc A On", `_table` (enum above), `_oct` (-4..4), `_semi` (0..12),
@@ -110,7 +120,8 @@ Osc A/B each: `osc{a,b}_on` "Osc A On", `_table` (enum above), `_oct` (-4..4), `
 `_rel` (1 ms..10 s, 60 ms). Osc B default off, table Saw Stack.
 Mod A/B each: `mod{a,b}_curve`, `_rate` (0.03..30 Hz, 4 Hz), `_sync` (bool, A: on), `_div`
 (enum, 1/8), `_oneshot` (bool, A: on), `_target` (A/B/Both). Mod A: `moda_pitch`, `moda_index`
-(default 0.5), `moda_shift`. Mod B: `modb_motion`, `modb_vol`, `modb_cutoff`, `modb_moda`.
+(default -0.5: the one-shot Decay then starts each note on the wide, loud pulse and narrows it,
+giving a punchy attack; +0.5 started notes 8 dB quiet), `moda_shift`. Mod B: `modb_motion`, `modb_vol`, `modb_cutoff`, `modb_moda`.
 Shaper: `shaper_on`, `shaper_mode`, `shaper_amt` (0.3).
 Filter A/B each: `filt{a,b}_type` (A: Comb-, B: LP12), `_freq` (A: 880 Hz — was 220 Hz, which put the comb below the bass fundamental and cut it ~10 dB; B: 2 kHz), `_res`
 (A: 0.6), `_kbd` (0.5), `_env` (bool, on).
@@ -126,7 +137,9 @@ Defaults are chosen so an init patch on a low note already sounds like a riddim 
 Square Morph, mono legato, Mod A one-shot 1/8 sync into Index, Comb- filter A at 880 Hz. Kbd tracking pivots at C4 (note 60); wheel cutoff range is ±5 octaves like Mod B.
 
 ## GUI (nih_plug_egui, functional, dark)
-Fixed window ≈ 1000×620 logical px. Sections as labelled groups: Osc A | Osc B (top row),
+Fixed window 1000×760 logical px (fits 1080p at 100 % and 125 % OS scaling; at 150 % Live's
+chrome pushes it off screen, documented in README). The functional egui layout is v1; the
+designed look is specified in `docs/design/DESIGN.md` (Variant B mint) and replaces it. Sections as labelled groups: Osc A | Osc B (top row),
 Mod A | Mod B | Shaper (second row), Filter A | Filter B | Filter Env (third row), Voice | Wheel |
 Velocity | Output (bottom row). ParamSlider at width 80 with `with_width`, ComboBox for enums
 at width 110, bool as checkbox. Compute every row's width in a comment and keep rows under
@@ -144,7 +157,11 @@ note, velocity, voice count. Panics land in the same file via nih-plug's hook.
      Goertzel comb over harmonics), i.e. Shift must not change pitch.
    - shift: spectral centroid at shift +12 > shift 0 > shift -12 for Square Morph index 64.
    - index: spectra at index 0 vs 127 differ (normalized spectral distance > 0.2) for every table.
-   - tables: every grain peak ≤ 1.0, |DC| < 1e-3, no NaN; generation under 50 ms total.
+   - tables: every grain RMS within 1 % of 0.25 unless peak-capped at 1.0, peak ≤ 1.0, |DC| < 1e-3,
+     no NaN; generation under 50 ms total (release).
+   - dc: for every table at shift -12 and -24, |mean| of the oscillator output < 2 % of its RMS.
+   - sustain: CC64 held defers note-off; releasing the pedal releases the voice; CC123 silences all.
+   - poly: lowering Polyphony while a note sounds on voice 0 keeps it sounding.
    - envelope: amp ADSR with A=100 ms reaches 0.99 within 100 ms ± 5 %; release to < 1e-3 within R.
    - lfo: sync 1/8 at 150 BPM gives period 0.2 s ± 1 sample; one-shot holds final value after 1 cycle.
    - filters: LP12 at 1 kHz is -3 dB ± 1 dB at 1 kHz and < -20 dB at 4 kHz; Comb- at 220 Hz has
