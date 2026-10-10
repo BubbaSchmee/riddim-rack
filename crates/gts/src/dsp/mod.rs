@@ -376,8 +376,9 @@ impl Engine {
 
     fn glide_allowed(&self, v: &Voice) -> bool {
         // Fingered portamento with legato on (glide only between overlapping notes), always
-        // glide from a sounding voice with legato off.
-        v.is_active() && (!self.patch.legato || v.gate)
+        // glide from a sounding voice with legato off. Mono only: in poly a reused voice's pitch
+        // belongs to an unrelated note.
+        self.patch.poly <= 1 && v.is_active() && (!self.patch.legato || v.gate)
     }
 
     pub fn note_on(&mut self, note: u8, velocity: f32) {
@@ -396,6 +397,7 @@ impl Engine {
             // Legato: a new key while one is held moves the pitch without retriggering.
             let retrigger = !(patch.legato && v.gate);
             v.trigger(note, velocity, glide, retrigger, age, &patch, &ctl);
+            v.configure_mods(&patch, &self.transport);
             self.last_voice = 0;
             return;
         }
@@ -411,6 +413,8 @@ impl Engine {
             .unwrap_or(0);
         let glide = self.glide_allowed(&self.voices[i]);
         self.voices[i].trigger(note, velocity, glide, true, age, &patch, &ctl);
+        // Lock synced LFOs to the grid now, not at the next block (that would step mid-note).
+        self.voices[i].configure_mods(&patch, &self.transport);
         self.last_voice = i;
     }
 
@@ -431,6 +435,7 @@ impl Engine {
                 let (n, vel) = self.held[self.n_held - 1];
                 self.age += 1;
                 v.trigger(n, vel, true, !patch.legato, self.age, &patch, &ctl);
+                v.configure_mods(&patch, &self.transport);
             }
             return;
         }

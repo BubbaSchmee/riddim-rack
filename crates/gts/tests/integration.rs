@@ -276,3 +276,38 @@ fn cpu_eight_voices() {
     println!("8 voices, 10 s at 48 kHz in {cpu:.3} s: {:.1}x real time (checksum {acc})", secs / cpu);
     assert!(cpu < secs);
 }
+
+#[test]
+fn synced_lfo_does_not_step_after_an_off_grid_note_on() {
+    // Sine 1/8 at 150 BPM into pitch, note-on mid-block and off the division grid: the pitch
+    // must move smoothly across the next block boundary (no re-lock jump).
+    let mut p = Patch::default();
+    p.moda.curve = Curve::Sine;
+    p.moda.oneshot = false;
+    p.moda_pitch = 0.25;
+    p.moda_index = 0.0;
+    p.porta = 0.0;
+    let mut e = Engine::new();
+    e.initialize(SR);
+    e.transport = Transport { tempo: 150.0, playing: true, pos_beats: 0.25 };
+    e.set_patch(&p);
+    for _ in 0..100 {
+        e.next_frame();
+    }
+    e.note_on(45, 1.0);
+    let st = |e: &Engine| 12.0 * (e.voice(0).freq(0) / 440.0).log2();
+    e.next_frame();
+    let mut last = st(&e);
+    let mut worst = 0f32;
+    for i in 101..2048 {
+        if i % 512 == 0 {
+            e.set_patch(&p);
+        }
+        e.next_frame();
+        let now = st(&e);
+        worst = worst.max((now - last).abs());
+        last = now;
+    }
+    // Sine slope peaks at 6 st * 2pi / 9600 samples ~ 0.004 st per sample.
+    assert!(worst < 0.02, "pitch stepped {worst} st in one sample");
+}

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set "RRDIR=%LOCALAPPDATA%\VSS"
+set "RRDIR=%LOCALAPPDATA%\RiddimRack"
 set "LIVE_EXE=C:\ProgramData\Ableton\Live 12 Standard\Program\Ableton Live 12 Standard.exe"
 set "LIVE_PROC=Ableton Live 12 Standard.exe"
 

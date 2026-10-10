@@ -158,3 +158,19 @@ fn output_is_bounded_with_eight_loud_voices() {
     }
     assert!(peak <= 1.0 && peak > 0.9, "peak {peak}");
 }
+
+#[test]
+fn poly_stolen_voice_starts_on_pitch() {
+    // Defaults: legato on, porta 80 ms. Stealing a held voice must not glide from its old note.
+    let mut p = Patch::default();
+    p.poly = 2;
+    let mut e = engine(&p);
+    e.handle_event(&on(40));
+    run(&mut e, 0.01);
+    e.handle_event(&on(52));
+    run(&mut e, 0.01);
+    e.handle_event(&on(64));
+    run(&mut e, 0.001);
+    let v = (0..2).map(|i| e.voice(i)).find(|v| v.note == 64).unwrap();
+    assert!((v.pitch() - 64.0).abs() < 1e-3, "stolen voice glides: {}", v.pitch());
+}
