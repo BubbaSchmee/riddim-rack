@@ -34,8 +34,8 @@ A two-oscillator graintable synthesizer in the Malström lineage: each oscillato
 short single-cycle grains; **Index** picks the grain, **Motion** scans the table automatically,
 **Shift** resamples each grain to move the spectrum/formant while the note pitch stays fixed.
 Two LFO modulators with tempo sync and one-shot mode, a shaper, two multimode filters including
-comb and AM modes, shared filter envelope, mono/legato/portamento. Instrument: MIDI in, stereo out,
-no audio in.
+comb and AM modes, shared filter envelope, mono/legato/portamento. Instrument: MIDI in (`MidiConfig::MidiCCs`, required for
+pitch bend and CC1 to be delivered), stereo out, no audio in.
 
 ## Graintables (procedural, generated at `initialize`, no allocation in `process`)
 Representation: a table = `G` grains × `N = 2048` f32 samples, each grain exactly one cycle at a
@@ -118,7 +118,11 @@ Filter env: `fenv_att/dec/sus/rel` (5 ms, 250 ms, 0.2, 100 ms), `fenv_amt` (0.5)
 `routing`, `poly` (1), `legato` (on), `porta` (0.08), `bend_range` (12).
 Wheel: `wheel_index`, `wheel_shift`, `wheel_cutoff`, `wheel_mod`. Velocity: `vel_vol_a`,
 `vel_vol_b`, `vel_fenv`, `vel_att`, `vel_shift`, `vel_mod`. Output: `volume`, `spread`.
-Defaults above are chosen so an init patch on a low note already sounds like a riddim bass:
+Defaults not listed above (fixed by the scaffold): `moda_curve` Decay, `modb_curve` Sine,
+`modb_sync` off, `modb_oneshot` off, both `_target` Both, both `_div` 1/8, `shaper_on` off,
+`shaper_mode` Saturate, `filtb_res` 0.1, all `wheel_*`, `vel_*` and `modb_*` amounts 0 (all
+bipolar -1..1), `spread` 0. Envelope times and portamento are stored in seconds.
+Defaults are chosen so an init patch on a low note already sounds like a riddim bass:
 Square Morph, mono legato, Mod A one-shot 1/8 sync into Index, Comb- filter A at 220 Hz.
 
 ## GUI (nih_plug_egui, functional, dark)
