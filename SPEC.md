@@ -181,3 +181,69 @@ note, velocity, voice count. Panics land in the same file via nih-plug's hook.
 Preset browser, factory preset bank, graintable import, oscillator direct outs, CV, custom
 graphics, macOS/Linux, audio input, mip-mapped tables, per-osc filter routing beyond the three
 routings above.
+
+# RR-BUS — inter-device modulation (all devices)
+
+Every Riddim Rack device links `crates/rr-bus`: a process-wide, lock-free, control-rate signal
+bus so devices in the same Live session can modulate each other without host routing. Devices
+**publish** signals and have **CV-in slots** that route any published signal to one of their own
+parameters with an amount. This is the project's answer to rack patch cables.
+
+## Transport
+- Named shared memory `Local\RiddimRackBus.v1` (Windows `CreateFileMappingW` on the page file via
+  the `windows-sys` crate; non-Windows and tests fall back to a process-local static). Fixed
+  64 KiB layout, versioned header `{magic "RRB1", version u32, created_ms u64}`. If the mapping is
+  missing, corrupt or a different version, the device runs with the bus disabled and never panics.
+- Nothing in the audio thread blocks, allocates or syscalls: all fields are atomics; mapping is
+  opened in `initialize` (GUI/host thread).
+- `MAX_INSTANCES = 64` instance records `{id: AtomicU64 (0 = free, else unique nonzero), device:
+  [u8; 8] ("GTS"), label: [u8; 24] (user-editable, default "GTS 1"), heartbeat_ms: AtomicU64}`.
+- `MAX_SOURCES = 256` source slots `{owner: AtomicU64 (instance id), gen: AtomicU32 (bumped on
+  each (re)allocation), name: [u8; 24] ("Mod A"), kind: u8 (Unipolar 0..1 | Bipolar -1..1 |
+  Gate 0/1), value: AtomicU32 (f32 bits), stamp: AtomicU64 (publisher block counter)}`.
+- Allocation by CAS on `id`/`owner`; slots are released on drop and reclaimed when the owner's
+  heartbeat is older than 2 s (crashed or force-quit host). Heartbeat is written once per block.
+- A source is identified to subscribers by `(owner id, slot index, gen)`; persisted in the
+  subscriber's state as `"<label> · <name>"` and re-resolved by label + name at load and whenever
+  the current binding disappears, so a saved Live set reconnects after reload.
+
+## API (no nih-plug dependency)
+`Bus::open() -> Bus` (never fails; may be disabled), `bus.register(device: &str) -> Instance`,
+`instance.set_label(&str)`, `instance.publish(name, kind) -> Source`, `source.set(f32)` per block,
+`instance.heartbeat()` per block, `bus.list() -> Vec<SourceInfo>` (GUI thread only, allocates),
+`Subscription::bind(bus, label, name)`, `sub.read() -> Option<f32>` per block (None = unbound or
+owner gone), `sub.rebind_if_lost()` (GUI thread, cheap, called ~4×/s).
+
+## Device contract
+- Publishes (GTS): `Mod A`, `Mod B` (bipolar), `Gate` (note held), `Filter Env` (unipolar),
+  `Amp Env` (unipolar). (VSS): `Step Gate` (gate, high for the first half of each step),
+  `Vowel` (unipolar, A..U = 0,.25,.5,.75,1; Hold keeps last), `Step` (unipolar, step/steps).
+  SDU and PBG publish their follower / pattern gates when built.
+- Three CV-in slots per device. Per slot: persisted source string, `cvN_target` enum param
+  (device-specific list of modulatable params; first entry Off), `cvN_amount` bipolar param -1..1.
+  Modulation is applied in the audio thread as an additive offset to the target's **normalized**
+  value, clamped to 0..1, smoothed with a 5 ms one-pole so per-block updates do not step; it never
+  writes host parameter values (modulation, not automation). GTS targets: Osc A Index, Osc A
+  Shift, Osc B Index, Osc B Shift, Filter A Freq, Filter B Freq, Mod A Amount, Volume. VSS
+  targets: Formant Shift, Resonance, Drive, Glide, Mix.
+- Feedback loops (A modulates B modulates A) are allowed; one block of delay breaks the cycle.
+- The device's own sources are listed too (self-patching is fine).
+
+## GUI (rr-ui): PATCH strip
+A `PATCH` group in the rack panel (GTS: added to the bottom row, window stays 1000×760 by
+tightening the Velocity group; VSS: a fourth column in the header row, window 760×560): an
+editable instance label; three rows of `source combo | target combo | amount knob | activity
+LED` where the LED brightness follows |incoming value|. Source combos list `"<label> · <name>"`
+for every live source, refreshed ~4×/s; a lost source shows its persisted name dimmed.
+
+## Verification
+- rr-bus unit tests, std only: two `Bus::open()` in one process share state; publish/read
+  round-trip; gen bump prevents stale binding after slot reuse; stale-heartbeat reclaim; 64
+  instances × 4 sources allocate and free without leaks; corrupt header → disabled bus, no panic;
+  a 4-thread stress of publishers and readers for 1 s has no torn values (f32 bits atomic).
+- Device tests: a CV-in bound to a test publisher moves the target (e.g. GTS Filter A Freq
+  tracks a published ramp within one block + 5 ms smoothing); unbound/lost source applies zero;
+  state save/load restores the source string, target and amount; pluginval strictness 5 on
+  release and debug bundles (the mapping must not be opened or touched from `process`).
+- Manual: two GTS instances and one VSS in one Live set; VSS `Step Gate` → GTS 1 `Filter A Freq`
+  chops audibly in time; GTS 1 `Mod A` → GTS 2 `Osc A Index`; save, close, reopen: patches hold.
