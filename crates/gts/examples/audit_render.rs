@@ -47,6 +47,18 @@ fn patch(kv: &[(&str, &str)]) -> Patch {
             "porta" => p.porta = f(v),
             "legato" => p.legato = v == "1",
             "fenv_amt" => p.fenv_amt = f(v),
+            // v2 additions: Osc A tuning, Osc B, Mod A pitch/shift.
+            "oct" => p.osc[0].oct = v.parse().unwrap(),
+            "semi" => p.osc[0].semi = v.parse().unwrap(),
+            "b_on" => p.osc[1].on = v == "1",
+            "b_table" => p.osc[1].table = Table::from_index(v.parse().unwrap()),
+            "b_index" => p.osc[1].index = f(v),
+            "b_shift" => p.osc[1].shift = f(v),
+            "b_oct" => p.osc[1].oct = v.parse().unwrap(),
+            "b_cent" => p.osc[1].cent = f(v),
+            "b_vol" => p.osc[1].vol = f(v),
+            "moda_pitch" => p.moda_pitch = f(v),
+            "moda_shift" => p.moda_shift = f(v),
             _ => {}
         }
     }
@@ -142,6 +154,23 @@ fn main() {
         }
         let mut f = std::fs::File::create(out).unwrap();
         let bytes: Vec<u8> = buf.iter().flat_map(|v| v.to_le_bytes()).collect();
+        if out.ends_with(".wav") {
+            // v2 addition: a `.wav` output path writes a mono 32-bit float WAV instead of raw f32.
+            let mut h = Vec::with_capacity(44);
+            h.extend_from_slice(b"RIFF");
+            h.extend_from_slice(&(36 + bytes.len() as u32).to_le_bytes());
+            h.extend_from_slice(b"WAVEfmt ");
+            h.extend_from_slice(&16u32.to_le_bytes());
+            h.extend_from_slice(&3u16.to_le_bytes()); // IEEE float
+            h.extend_from_slice(&1u16.to_le_bytes());
+            h.extend_from_slice(&(SR as u32).to_le_bytes());
+            h.extend_from_slice(&(SR as u32 * 4).to_le_bytes());
+            h.extend_from_slice(&4u16.to_le_bytes());
+            h.extend_from_slice(&32u16.to_le_bytes());
+            h.extend_from_slice(b"data");
+            h.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+            f.write_all(&h).unwrap();
+        }
         f.write_all(&bytes).unwrap();
     }
 }

@@ -360,7 +360,7 @@ impl Voice {
                 continue;
             }
             let ratio = 2f64.powf(o.shift as f64 / 12.0);
-            let s = o.grain.next(tables, op.table as usize, o.freq as f64 / ctl.sr as f64, ratio, gp);
+            let s = o.grain.next(tables, op.table as usize, o.freq as f64 / ctl.sr as f64, ratio, gp, ctl.sr);
             // DC blocker: negative Shift makes the grains a unipolar pulse train.
             o.dc += ctl.dc * (s - o.dc);
             let s = s - o.dc;
