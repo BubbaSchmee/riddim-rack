@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/gts", "crates/rr-ui", "xtask"]
+members = ["crates/gts", "crates/rr-bus", "crates/rr-ui", "xtask"]
 
 [profile.release]
 lto = "thin"

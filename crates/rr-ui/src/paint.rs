@@ -148,6 +148,17 @@ pub fn led(p: &Painter, c: Pos2, on: bool) {
     }
 }
 
+/// Level LED: the unlit LED with the lit look faded in by `level` (0..=1).
+pub fn led_level(p: &Painter, c: Pos2, level: f32) {
+    led(p, c, false);
+    let k = level.clamp(0.0, 1.0);
+    if k > 0.02 {
+        glow_discs(p, c, T.accent, &[(10.0, 0.04 * k), (8.0, 0.07 * k), (6.5, 0.12 * k)]);
+        p.circle_stroke(c, 5.0, st(1.0, T.a(0.4 * k)));
+        p.circle_filled(c, 4.0, T.accent.gamma_multiply(k));
+    }
+}
+
 /// `Stroke::new` with the width pinned to f32 (avoids float-literal inference warnings).
 pub fn st(width: f32, color: Color32) -> Stroke {
     Stroke::new(width, color)

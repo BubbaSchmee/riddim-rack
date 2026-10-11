@@ -1,4 +1,4 @@
-//! Renders the GTS-like demo panel (1000x760) or, with `vss`, the VSS-like panel (760x560) in
+//! Renders the GTS-like demo panel (1000x760) or, with `vss`, the VSS-like panel (1064x560) in
 //! an eframe window, saves a screenshot to `docs/design/` on the first stable frame and exits.
 //! Pass `live` to keep the window open and play with the widgets.
 //!
@@ -10,6 +10,10 @@ use rr_ui::theme::{metrics::*, T};
 use rr_ui::widgets::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+/// PATCH column width and the VSS window width it needs (760 + column + gap).
+const PATCH_W_VSS: f32 = 292.0;
+const VSS_W: f32 = 760.0 + PATCH_W_VSS + 12.0;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Mode {
@@ -32,6 +36,10 @@ struct State {
     sel: HashMap<String, usize>,
     steps: f32,
     cells: [u8; 16],
+    patch_label: String,
+    patch_src: [Option<usize>; 3],
+    patch_tgt: [usize; 3],
+    patch_amt: [f32; 3],
 }
 
 fn additive(duty: f32, n: usize, amp: f32) -> Vec<f32> {
@@ -61,6 +69,10 @@ impl Demo {
                 sel: HashMap::new(),
                 steps: 12.0 / 16.0,
                 cells: [0, 0, 3, 3, 1, 1, 2, 5, 4, 4, 2, 0, 3, 3, 1, 5],
+                patch_label: "Lead bass".into(),
+                patch_src: [Some(1), Some(0), None],
+                patch_tgt: [0, 1, 2],
+                patch_amt: [0.78, 0.35, 0.5],
             }),
         }
     }
@@ -85,6 +97,35 @@ impl Demo {
         }
     }
 
+    /// PATCH strip with demo data: row 2 follows a live source, row 3 a lost one, row 4 none.
+    fn patch(&self, ui: &mut Ui, targets: &[&str]) {
+        let sources: Vec<String> = ["GTS 1 · Mod A", "VSS · Step Gate", "GTS 2 · Mod B"].iter().map(|s| s.to_string()).collect();
+        let mut label = self.st.borrow().patch_label.clone();
+        let (src, tgt, amt) = {
+            let s = self.st.borrow();
+            (s.patch_src, s.patch_tgt, s.patch_amt)
+        };
+        let act = [0.92, 0.35, 0.0];
+        let lost = [None, None, Some("GTS 3 · Mod A")];
+        let mut rows: Vec<PatchRow> = (0..3)
+            .map(|i| PatchRow { sources: &sources, source_idx: src[i], lost_name: lost[i], targets, target_idx: tgt[i], amount01: amt[i], activity01: act[i] })
+            .collect();
+        let r = patch_strip(ui, &mut label, &mut rows);
+        let mut s = self.st.borrow_mut();
+        s.patch_label = label;
+        for (i, e) in r.rows.iter().enumerate() {
+            if let Some(v) = e.source_changed {
+                s.patch_src[i] = v;
+            }
+            if let Some(v) = e.target_changed {
+                s.patch_tgt[i] = v;
+            }
+            if let Some(v) = e.amount.changed {
+                s.patch_amt[i] = v;
+            }
+        }
+    }
+
     // --- GTS -----------------------------------------------------------------------------
 
     fn gts(&self, hui: &mut Ui, bui: &mut Ui) {
@@ -100,7 +141,14 @@ impl Demo {
         let wave = additive(0.27, 240, 1.0);
         let g1 = additive(0.42, 240, 0.9);
         let g2 = additive(0.12, 240, 0.9);
-        waveform_display_ex(hui, &wave, &[&g1, &g2], 64.0 / 127.0, "Osc A  /  Square Morph", "Index 64");
+        hui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = GAP;
+            let pw = 300.0;
+            ui.allocate_ui(vec2(ui.available_width() - pw - GAP, DISPLAY_H), |ui| {
+                waveform_display_ex(ui, &wave, &[&g1, &g2], 64.0 / 127.0, "Osc A  /  Square Morph", "Index 64");
+            });
+            ui.allocate_ui(vec2(pw, PATCH_H), |ui| self.patch(ui, &["Osc A Index", "Osc B Index", "Filter A Freq", "Filter B Freq", "Mod A Rate", "Volume"]));
+        });
 
         bui.spacing_mut().item_spacing = vec2(GAP, GAP);
         let (h1, h2, h3, h4) = (184.0, 141.0, 111.0, 111.0);
@@ -277,14 +325,16 @@ impl Demo {
                     me.st.borrow_mut().steps = (v * 15.0).round() / 15.0;
                 }
             });
+            ui.allocate_ui(vec2(PATCH_W_VSS, PATCH_H), |ui| me.patch(ui, &["Formant", "Reson.", "Drive", "Glide", "Swing", "Mix"]));
         });
 
         let steps = 1 + (me.st.borrow().steps * 15.0).round() as usize;
         let rows = ["A", "E", "I", "O", "U", "Hold"];
         let cur = 5usize;
         let body_h = bui.max_rect().height();
+        let wide = bui.max_rect().width();
         let cells = me.st.borrow().cells;
-        group_ext(bui, vec2(672.0, body_h), "Vowel pattern", |ui| caption(ui, &format!("Step {} \u{b7} {}", cur + 1, rows[cells[cur] as usize])), |ui| {
+        group_ext(bui, vec2(wide, body_h), "Vowel pattern", |ui| caption(ui, &format!("Step {} \u{b7} {}", cur + 1, rows[cells[cur] as usize])), |ui| {
             let h = body_h - GROUP_CHROME_H;
             let hold = Some(5);
             if let Some((c, r)) = step_grid_ex(ui, &rows, 16, steps, Some(cur), &cells, hold, Some(h)) {
@@ -298,7 +348,7 @@ impl eframe::App for Demo {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let (w, h, name) = match self.mode {
             Mode::Gts => (1000.0, 760.0, "preview-rr-ui.png"),
-            Mode::Vss => (760.0, 560.0, "preview-rr-ui-vss.png"),
+            Mode::Vss => (VSS_W, 560.0, "preview-rr-ui-vss.png"),
         };
         if self.frame == 0 {
             // Render at 1 px per point regardless of OS scaling so the PNG is 1:1.
@@ -361,7 +411,7 @@ fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().collect();
     let mode = if args.iter().any(|a| a == "vss") { Mode::Vss } else { Mode::Gts };
     let live = args.iter().any(|a| a == "live");
-    let (w, h) = if mode == Mode::Gts { (1000.0, 760.0) } else { (760.0, 560.0) };
+    let (w, h) = if mode == Mode::Gts { (1000.0, 760.0) } else { (VSS_W, 560.0) };
     let opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([w, h]).with_resizable(false).with_title("rr-ui preview"),
         ..Default::default()

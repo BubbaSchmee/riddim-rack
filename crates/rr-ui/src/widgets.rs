@@ -174,6 +174,21 @@ pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, reado
         ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
     }
 
+    let out = knob_interact(ui, &resp, value01, default01);
+
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        paint::caps(p, pos2(rect.center().x, rect.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
+        let c = pos2(rect.center().x, rect.top() + KNOB_LABEL_H + d / 2.0);
+        draw_knob(p, c, d, value01, style.bipolar, hot);
+        let col = if hot { T.accent } else { T.text };
+        p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, readout, font::mono(12.0), col);
+    }
+    out
+}
+
+/// Vertical-drag / double-click-reset gesture shared by every knob.
+fn knob_interact(ui: &Ui, resp: &egui::Response, value01: f32, default01: f32) -> KnobResponse {
     let mut out = KnobResponse { drag_started: resp.drag_started(), drag_ended: resp.drag_stopped(), ..Default::default() };
     if resp.double_clicked() {
         out.reset = true;
@@ -184,15 +199,6 @@ pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, reado
         if next != value01 {
             out.changed = Some(next);
         }
-    }
-
-    if ui.is_rect_visible(rect) {
-        let p = ui.painter();
-        paint::caps(p, pos2(rect.center().x, rect.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
-        let c = pos2(rect.center().x, rect.top() + KNOB_LABEL_H + d / 2.0);
-        draw_knob(p, c, d, value01, style.bipolar, hot);
-        let col = if hot { T.accent } else { T.text };
-        p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, readout, font::mono(12.0), col);
     }
     out
 }
@@ -596,6 +602,225 @@ pub fn waveform_display_ex(ui: &mut Ui, samples: &[f32], ghosts: &[&[f32]], mark
     p.text(pos2(x0 + w, rect.top() + 14.0), Align2::RIGHT_CENTER, readout.to_uppercase(), font::label(12.0), T.accent);
 }
 
+// ---------------------------------------------------------------------------------------------
+// PATCH strip (RR-BUS)
+// ---------------------------------------------------------------------------------------------
+
+/// Height of the PATCH group: chrome + three 24 px rows with 4 px gaps. Equals the 124 px
+/// nameplate / header row.
+pub const PATCH_H: f32 = GROUP_CHROME_H + 3.0 * CONTROL_H + 2.0 * PATCH_ROW_GAP;
+const PATCH_ROW_GAP: f32 = 4.0;
+const PATCH_KNOB_D: f32 = 24.0;
+const PATCH_LED_W: f32 = 12.0;
+const PATCH_GAP: f32 = 6.0;
+const PATCH_FONT: f32 = 12.0;
+const PATCH_LABEL_W: f32 = 104.0;
+const PATCH_LABEL_CHARS: usize = 16;
+
+/// One PATCH row as the caller sees it. `sources` are display names ("GTS 1 · Mod A"); the
+/// combo adds a leading "None" entry itself. `lost_name` is the persisted name of a bound
+/// source that is no longer live (shown dimmed while `source_idx` is `None`).
+pub struct PatchRow<'a> {
+    pub sources: &'a [String],
+    pub source_idx: Option<usize>,
+    pub lost_name: Option<&'a str>,
+    pub targets: &'a [&'a str],
+    pub target_idx: usize,
+    /// Bipolar amount, centre 0.5.
+    pub amount01: f32,
+    /// |incoming value|, 0..1, drives the LED brightness.
+    pub activity01: f32,
+}
+
+/// What one row did this frame. `source_changed` is `Some(None)` for "None" (unbind).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PatchRowResponse {
+    pub source_changed: Option<Option<usize>>,
+    pub target_changed: Option<usize>,
+    pub amount: KnobResponse,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PatchResponse {
+    pub label_changed: Option<String>,
+    pub rows: Vec<PatchRowResponse>,
+}
+
+/// Control rects of one PATCH row.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PatchRects {
+    pub src: Rect,
+    pub tgt: Rect,
+    pub knob: Rect,
+    pub led: Rect,
+}
+
+pub(crate) fn patch_row_rects(row: Rect) -> PatchRects {
+    let combos = (row.width() - PATCH_KNOB_D - PATCH_LED_W - 3.0 * PATCH_GAP).max(40.0);
+    let src_w = (combos * 0.54).round();
+    let y = row.top();
+    let mut x = row.left();
+    let mut take = |w: f32| {
+        let r = Rect::from_min_size(pos2(x, y), vec2(w, CONTROL_H));
+        x += w + PATCH_GAP;
+        r
+    };
+    let (src, tgt, knob, led) = (take(src_w), take(combos - src_w), take(PATCH_KNOB_D), take(PATCH_LED_W));
+    PatchRects { src, tgt, knob, led }
+}
+
+/// `text` cut to `max_w` px with a trailing ellipsis.
+fn elide(p: &egui::Painter, f: &egui::FontId, text: &str, max_w: f32) -> String {
+    if paint::text_width(p, f, text, 0.0) <= max_w {
+        return text.to_string();
+    }
+    let mut s: String = text.to_string();
+    while !s.is_empty() && paint::text_width(p, f, &format!("{s}\u{2026}"), 0.0) > max_w {
+        s.pop();
+    }
+    format!("{}\u{2026}", s.trim_end())
+}
+
+/// Inset dropdown at an exact rect. `cur` is the shown text (`dim` for none / lost), `selected`
+/// the highlighted item. Returns the picked item index.
+fn patch_dropdown(ui: &mut Ui, id: egui::Id, ctrl: Rect, cur: &str, dim: bool, selected: Option<usize>, items: &[String]) -> Option<usize> {
+    let f = font::label(PATCH_FONT);
+    let resp = ui.interact(ctrl, id, Sense::click());
+    let popup_id = id.with("popup");
+    if resp.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup_id));
+    }
+    let open = ui.memory(|m| m.is_popup_open(popup_id));
+    if ui.is_rect_visible(ctrl) {
+        let p = ui.painter();
+        paint::inset_box(p, ctrl, resp.hovered() || open);
+        let col = if dim { T.muted.gamma_multiply(0.75) } else { T.text };
+        let shown = elide(p, &f, cur, ctrl.width() - 8.0 - 18.0);
+        p.text(pos2(ctrl.left() + 8.0, ctrl.center().y), Align2::LEFT_CENTER, shown, f.clone(), col);
+        let (cx, cy) = (ctrl.right() - 10.0, ctrl.center().y - 1.0);
+        p.add(Shape::line(vec![pos2(cx - 3.0, cy - 1.5), pos2(cx, cy + 1.5), pos2(cx + 3.0, cy - 1.5)], paint::st(1.5, T.muted)));
+    }
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+    }
+    let mut picked = None;
+    let min_w = items.iter().map(|s| paint::text_width(ui.painter(), &f, s, 0.0)).fold(ctrl.width() - 8.0, f32::max);
+    egui::popup::popup_below_widget(ui, popup_id, &resp, egui::popup::PopupCloseBehavior::CloseOnClick, |ui| {
+        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        ui.set_min_width(min_w + 16.0);
+        for (i, item) in items.iter().enumerate() {
+            let (r, rr) = ui.allocate_exact_size(vec2(ui.available_width(), CONTROL_H), Sense::click());
+            if rr.hovered() {
+                ui.painter().rect_filled(r, 3.0, T.a(0.16));
+            }
+            let col = if Some(i) == selected { T.accent } else { T.text };
+            ui.painter().text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, item, f.clone(), col);
+            if rr.clicked() && Some(i) != selected {
+                picked = Some(i);
+            }
+        }
+    });
+    picked
+}
+
+/// 24 px bipolar knob for dense rows: 2.5 px arc from 12 o'clock, small cap and pointer.
+fn draw_knob_small(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, hot: bool, live: bool) {
+    let r = d / 2.0 - 2.0;
+    let k = if live { 1.0 } else { 0.4 };
+    paint::arc_stroke(p, c, r, ARC_START, ARC_START + ARC_SWEEP, 2.5, T.track, true);
+    let a_val = ARC_START + ARC_SWEEP * value01.clamp(0.0, 1.0);
+    let mid = ARC_START + ARC_SWEEP / 2.0;
+    if (a_val - mid).abs() > 1.0 {
+        let (a0, a1) = (mid.min(a_val), mid.max(a_val));
+        if hot {
+            paint::arc_stroke(p, c, r, a0, a1, 8.0, T.a(0.06), false);
+        }
+        paint::arc_stroke(p, c, r, a0, a1, 5.0, T.a(0.18 * k), false);
+        paint::arc_stroke(p, c, r, a0, a1, 2.5, T.accent.gamma_multiply(k), true);
+    }
+    let rc = r - 4.0;
+    p.circle_filled(c, rc, T.cap1);
+    p.circle_stroke(c, rc, paint::st(1.0, Color32::BLACK));
+    p.circle_filled(c - vec2(0.0, 0.5), rc - 1.5, T.cap2);
+    let a = a_val.to_radians();
+    let dir = vec2(a.cos(), a.sin());
+    p.line_segment([c + dir * rc * 0.3, c + dir * rc * 0.95], paint::st(1.5, T.text.gamma_multiply(k)));
+}
+
+/// The RR-BUS PATCH group: engraved title, editable instance label (inset box, mono text) in
+/// the header, then one row per entry of `rows`: source combo | target combo | small bipolar
+/// knob | activity LED. Width fills the available width, height is [`PATCH_H`] for three rows.
+/// `label` is edited in place; the caller applies row changes from the response.
+pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> PatchResponse {
+    let mut out = PatchResponse { rows: vec![PatchRowResponse::default(); rows.len()], ..Default::default() };
+    let height = PATCH_H.max(GROUP_CHROME_H + rows.len() as f32 * (CONTROL_H + PATCH_ROW_GAP) - PATCH_ROW_GAP);
+    let base = ui.id().with("patch");
+    group_ext(
+        ui,
+        vec2(0.0, height),
+        "Patch",
+        |hui| {
+            let (rect, _) = hui.allocate_exact_size(vec2(PATCH_LABEL_W, CONTROL_H), Sense::hover());
+            paint::inset_box(hui.painter(), rect, false);
+            let edit = egui::TextEdit::singleline(label)
+                .id(base.with("label"))
+                .font(font::mono(PATCH_FONT))
+                .text_color(T.text)
+                .frame(false)
+                .margin(vec2(8.0, 4.0))
+                .char_limit(PATCH_LABEL_CHARS)
+                .vertical_align(Align::Center);
+            let r = hui.put(rect, edit);
+            if r.hovered() {
+                hui.ctx().set_cursor_icon(CursorIcon::Text);
+            }
+            if r.changed() {
+                out.label_changed = Some(label.clone());
+            }
+        },
+        |ui| {
+            ui.spacing_mut().item_spacing.y = PATCH_ROW_GAP;
+            for (i, row) in rows.iter().enumerate() {
+                let (rr, _) = ui.allocate_exact_size(vec2(ui.available_width(), CONTROL_H), Sense::hover());
+                let rc = patch_row_rects(rr);
+                let ev = &mut out.rows[i];
+
+                // Source: leading "None", then the live sources.
+                let mut items: Vec<String> = Vec::with_capacity(row.sources.len() + 1);
+                items.push("None".into());
+                items.extend(row.sources.iter().cloned());
+                let bound = row.source_idx.filter(|&s| s < row.sources.len());
+                let (cur, dim) = match (bound, row.lost_name) {
+                    (Some(s), _) => (row.sources[s].as_str(), false),
+                    (None, Some(lost)) => (lost, true),
+                    (None, None) => ("None", true),
+                };
+                if let Some(k) = patch_dropdown(ui, base.with((i, 0)), rc.src, cur, dim, Some(bound.map_or(0, |s| s + 1)), &items) {
+                    ev.source_changed = Some(k.checked_sub(1));
+                }
+                let targets: Vec<String> = row.targets.iter().map(|s| s.to_string()).collect();
+                let tcur = row.targets.get(row.target_idx).copied().unwrap_or("");
+                ev.target_changed = patch_dropdown(ui, base.with((i, 1)), rc.tgt, tcur, false, Some(row.target_idx), &targets);
+
+                // Amount knob.
+                let kr = ui.interact(rc.knob, base.with((i, 2)), Sense::click_and_drag());
+                let hot = kr.hovered() || kr.dragged();
+                if hot {
+                    ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+                }
+                ev.amount = knob_interact(ui, &kr, row.amount01, 0.5);
+
+                if ui.is_rect_visible(rr) {
+                    let live = bound.is_some();
+                    draw_knob_small(ui.painter(), rc.knob.center(), PATCH_KNOB_D, row.amount01, hot, live);
+                    paint::led_level(ui.painter(), rc.led.center(), if live { row.activity01 } else { 0.0 });
+                }
+            }
+        },
+    );
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -733,5 +958,126 @@ mod tests {
         let c = pos2(0.0, 0.0);
         let p = paint::arc_points(c, 10.0, ARC_START + ARC_SWEEP / 2.0, ARC_START + ARC_SWEEP / 2.0);
         assert!(p[0].x.abs() < 1e-3 && (p[0].y + 10.0).abs() < 1e-3);
+    }
+
+    // --- PATCH strip -------------------------------------------------------------------------
+
+    struct PatchHarness {
+        ctx: egui::Context,
+        label: std::cell::RefCell<String>,
+        seen: std::cell::RefCell<Vec<PatchResponse>>,
+    }
+
+    impl PatchHarness {
+        fn new() -> Self {
+            let ctx = egui::Context::default();
+            crate::fonts::install(&ctx);
+            Self { ctx, label: "GTS 1".to_string().into(), seen: Default::default() }
+        }
+        fn frame(&self, events: Vec<egui::Event>, t: f64) {
+            let raw = egui::RawInput {
+                time: Some(t),
+                events,
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 400.0))),
+                ..Default::default()
+            };
+            let sources: Vec<String> = ["GTS 1 \u{b7} Mod A", "VSS \u{b7} Step Gate"].iter().map(|s| s.to_string()).collect();
+            let _ = self.ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+                    let mk = |s: Option<usize>| PatchRow { sources: &sources, source_idx: s, lost_name: None, targets: &["Cutoff", "Index", "Pitch"], target_idx: 0, amount01: 0.5, activity01: 0.6 };
+                    let mut rows = [mk(None), mk(Some(0)), mk(None)];
+                    let mut label = self.label.borrow().clone();
+                    let r = ui.allocate_ui(vec2(292.0, PATCH_H), |ui| patch_strip(ui, &mut label, &mut rows)).inner;
+                    *self.label.borrow_mut() = label;
+                    self.seen.borrow_mut().push(r);
+                });
+            });
+        }
+        fn rects(&self, row: usize) -> PatchRects {
+            // Group at the origin: body starts 12 px in and 36 px down; rows are 28 px apart.
+            patch_row_rects(Rect::from_min_size(pos2(12.0, 36.0 + 28.0 * row as f32), vec2(292.0 - 24.0, 24.0)))
+        }
+        fn click(&self, at: egui::Pos2, t: f64) {
+            let btn = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+            self.frame(vec![egui::Event::PointerMoved(at)], t);
+            self.frame(vec![btn(true)], t + 0.05);
+            self.frame(vec![btn(false)], t + 0.10);
+            self.frame(vec![], t + 0.15);
+        }
+        fn any<T>(&self, f: impl Fn(&PatchResponse) -> Option<T>) -> Option<T> {
+            self.seen.borrow().iter().find_map(f)
+        }
+    }
+
+    #[test]
+    fn patch_source_combo_pick_maps_to_source_index() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        let src = h.rects(2).src;
+        h.click(src.center(), 0.1);
+        assert!(h.ctx.memory(|m| m.any_popup_open()), "source popup did not open");
+        // Popup rows: None, "GTS 1 . Mod A", "VSS . Step Gate"; pick the third (sources[1]).
+        let item = pos2(src.center().x, src.bottom() + 8.0 + 24.0 * 2.0 + 12.0);
+        h.click(item, 0.5);
+        assert_eq!(h.any(|r| r.rows[2].source_changed), Some(Some(1)));
+        assert!(h.any(|r| r.rows[0].source_changed).is_none() && h.any(|r| r.rows[1].source_changed).is_none());
+    }
+
+    #[test]
+    fn patch_source_none_entry_unbinds() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        let src = h.rects(1).src; // row 1 is bound to sources[0]
+        h.click(src.center(), 0.1);
+        h.click(pos2(src.center().x, src.bottom() + 8.0 + 12.0), 0.5);
+        assert_eq!(h.any(|r| r.rows[1].source_changed), Some(None));
+    }
+
+    #[test]
+    fn patch_target_combo_pick_maps_to_target_index() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        let tgt = h.rects(0).tgt;
+        h.click(tgt.center(), 0.1);
+        h.click(pos2(tgt.center().x, tgt.bottom() + 8.0 + 24.0 * 2.0 + 12.0), 0.5);
+        assert_eq!(h.any(|r| r.rows[0].target_changed), Some(2));
+    }
+
+    #[test]
+    fn patch_knob_drag_up_raises_amount() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        let c = h.rects(1).knob.center();
+        let btn = |pressed| egui::Event::PointerButton { pos: c, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        h.frame(vec![egui::Event::PointerMoved(c)], 0.1);
+        h.frame(vec![btn(true)], 0.15);
+        h.frame(vec![egui::Event::PointerMoved(c - vec2(0.0, 10.0))], 0.2);
+        h.frame(vec![egui::Event::PointerMoved(c - vec2(0.0, 20.0))], 0.25);
+        h.frame(vec![egui::Event::PointerButton { pos: c - vec2(0.0, 20.0), button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() }], 0.3);
+        let seen = h.seen.borrow();
+        let moved: f32 = seen.iter().filter_map(|r| r.rows[1].amount.changed).fold(0.5, f32::max);
+        assert!(moved > 0.5 && moved <= 0.5 + 20.0 / DRAG_PX + 1e-4, "amount {moved}");
+        assert!(seen.iter().any(|r| r.rows[1].amount.drag_started) && seen.iter().any(|r| r.rows[1].amount.drag_ended));
+        assert!(seen.iter().all(|r| r.rows[0].amount.changed.is_none()));
+    }
+
+    #[test]
+    fn patch_label_edit_reports_new_text() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        // Header label box: right-aligned in the header row (group x 0..292, pad 12).
+        let at = pos2(292.0 - 12.0 - 6.0, 8.0 + 12.0);
+        h.click(at, 0.1);
+        h.frame(vec![egui::Event::Text("b".into())], 0.5);
+        h.frame(vec![], 0.6);
+        assert_eq!(h.any(|r| r.label_changed.clone()).as_deref(), Some("GTS 1b"));
+        assert_eq!(*h.label.borrow(), "GTS 1b");
+    }
+
+    #[test]
+    fn patch_row_rects_tile_the_row() {
+        let r = patch_row_rects(Rect::from_min_size(pos2(10.0, 20.0), vec2(268.0, 24.0)));
+        assert!((r.led.right() - 278.0).abs() < 1.0);
+        assert!(r.src.right() < r.tgt.left() && r.tgt.right() < r.knob.left() && r.knob.right() < r.led.left());
     }
 }

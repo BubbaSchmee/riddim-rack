@@ -17,7 +17,7 @@ with the painter: rects, strokes, circles, arcs as polylines, text. No images.
    insets (combos, toggles) one step further, display glass is the deepest.
 3. Restraint. Glow is a hint of light, never a halo. If glow is the first thing you notice,
    it is too strong.
-4. Fixed-size editors. GTS is 1000 x 760, VSS is 760 x 560. Layout is specified in px below.
+4. Fixed-size editors. GTS is 1000 x 760, VSS is 1064 x 560 (760 x 560 before the PATCH column). Layout is specified in px below.
 
 ## 2. Tokens
 
@@ -202,6 +202,32 @@ Click or drag across cells sets the row of each column the pointer crosses; the 
 only cells whose row actually changes. Pointer hit-testing gives the 4 and 12 px gaps to the
 nearest cell, so there are no dead strips.
 
+### 3.9 PATCH strip (RR-BUS)
+
+`widgets::patch_strip(ui, label, rows)`. A group (3.2) titled PATCH, 124 px high
+(`PATCH_H` = 44 chrome + 3 x 24 + 2 x 4), width from the caller (300 on GTS, 292 on VSS; the
+combos share what the fixed parts leave). The instance label sits in the 24 px header row, right
+aligned: a 104 px inset box (same fill, stroke and lower highlight as a combo) holding editable
+JetBrains Mono 12 text, `text` colour, 8 px side padding, 16 characters max, text cursor.
+
+Body: three 24 px rows, 4 px apart, each `source combo | target combo | amount knob | LED` with
+6 px between; the combos split the free width 54 / 46, the knob is 24 px and the LED cell 12 px.
+
+| Part | Look |
+|---|---|
+| Source combo | combo (3.5) at 12 px; first item "None", then every live source as `<label> . <name>`; selected item `accent`. Text is cut with an ellipsis, the popup is as wide as its longest item |
+| Source lost | the persisted name in `muted@0.75`, row knob at 40 % and LED forced off; picking a live source or None clears it |
+| Source None | "None" in `muted@0.75`, knob at 40 %, LED off |
+| Target combo | combo at 12 px, `text` colour |
+| Amount knob | 24 px bipolar knob: 2.5 px track arc, value arc from 12 o'clock (`accent`, +5 px `accent@0.18` glow), 4 px-inset cap, 1.5 px pointer. Same gesture as 3.3: drag up raises, Shift is 10x finer, double-click resets to the centre |
+| LED | the LED of 3.4 with its glow and ring alpha and the fill alpha scaled by `activity01` (|incoming value|); below 2 % it reads as off |
+| Label focus | egui text-edit caret in `text`; no extra focus ring |
+
+Events (see the doc comments): `source_changed` is `Some(None)` for "None",
+`target_changed` an index into `targets`, `amount` a `KnobResponse` (wrap `drag_started`,
+`changed`, `drag_ended` in begin / set / end), `label_changed` the new text. The strip never
+mutates the rows; the caller applies the events.
+
 ## 4. Interaction rules
 
 | Control | Rule |
@@ -238,8 +264,11 @@ Coordinates are window px; x runs 44 to 956 inside the rails.
 
 ### 6.1 GTS, 1000 x 760
 
-Header band y 16 to 140: nameplate (44, 16) 232 x 124, display (292, 16) 664 x 124.
-Body starts at y 156.
+Header band y 16 to 140: nameplate (44, 16) 232 x 124, display (292, 16) 352 x 124, PATCH
+(656, 16) 300 x 124.
+Body starts at y 156. PATCH lives in the header band, not row 4: rows 1 to 4 are already 912
+px wide, so no bottom-row group can take the 280 px a legible source | target | knob | LED row
+needs, and tightening Velocity alone frees only about 60. Window stays 1000 x 760.
 
 | Row | y | Height | Groups (x, width) |
 |---|---|---|---|
@@ -270,17 +299,20 @@ Fit check, inner width = group width - 24: Osc 426 holds 7 x 56 = 392; Mod A 292
 3 x 56; Filter Env 264 holds 5 x 52 = 260; Voice 234 holds 84 + 3 x 50; Wheel 176 = 4 x 44;
 Velocity 266 holds 6 x 44 = 264; Output 104 = 2 x 52.
 
-### 6.2 VSS, 760 x 560
+### 6.2 VSS, 1064 x 560
 
 Header band y 16 to 140: nameplate (44, 16) 168 x 124, Voice group (228, 16) 376 x 124, Sequence
-group (616, 16) 100 x 124. The Steps slider and Rate combo live in the Sequence group of the
+group (616, 16) 100 x 124, PATCH (728, 16) 292 x 124 as the fourth column. The four columns need
+1064 px; the old 760 px window cannot hold them (Voice cannot go below 7 x 50 px cells), so VSS is
+1064 x 560 with the Vowel pattern group stretched to 976 and the grid still centred. (Open: if the
+VSS window must stay 760 wide, PATCH needs a second header band instead.) The Steps slider and Rate combo live in the Sequence group of the
 header row.
 
 * Voice: Formant (bipolar), Reson., Drive, Glide, Swing, Mix, Output; 44 px knobs in 50 px cells.
 * Sequence: Rate combo (label above, 37 px cell), then a 76 px Steps slider 4 px below.
 
-Body: the Vowel pattern group at (44, 156), 672 x 384, ending at y 540. Header caption on the
-right reads "Step N . Vowel". The step grid fills the group body: 648 x 340, grid block 612 x 272
+Body: the Vowel pattern group at (44, 156), 976 x 384, ending at y 540. Header caption on the
+right reads "Step N . Vowel". The step grid fills the group body (940 x 340), grid block 612 x 272
 centred.
 
 ## 7. Accessibility

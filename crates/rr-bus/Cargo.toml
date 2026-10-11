@@ -1,0 +1,11 @@
+[package]
+name = "rr-bus"
+version = "0.1.0"
+edition = "2021"
+authors = ["Riddim Rack Open Source"]
+license = "GPL-3.0-or-later"
+description = "Process-wide lock-free control-rate modulation bus shared by Riddim Rack devices"
+repository = "https://github.com/BubbaSchmee/riddim-rack"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Memory", "Win32_Security"] }
