@@ -1,7 +1,7 @@
 //! GTS, a two-oscillator graintable synth. See SPEC.md at the repo root for the contract.
 
 pub mod dsp;
-mod editor;
+pub mod editor;
 pub mod params;
 
 use nih_plug::prelude::*;

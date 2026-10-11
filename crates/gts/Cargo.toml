@@ -14,3 +14,9 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+rr-ui = { path = "../rr-ui" }
+
+[dev-dependencies]
+# Same pins as rr-ui's preview example: only the screenshot example needs a window.
+eframe = { version = "=0.31.1" }
+png = "0.17"
