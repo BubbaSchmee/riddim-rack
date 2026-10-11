@@ -20,7 +20,7 @@ MIDI 60 so the pitch matches. `compare_render -- 48` renders the literal 130.81 
 ```
 export PATH="$USERPROFILE/.cargo/bin:$PATH" CARGO_TARGET_DIR=/d/cargo-target/riddim-rack CARGO_INCREMENTAL=0
 cargo run -p gts --release --example compare_render                 # MIDI 60 -> docs/audits/renders/compare/
-cargo run -p gts --release --example compare_render -- 60 xover20   # diagnostic: crossover at its minimum
+cargo run -p gts --release --example compare_render -- 60 xover120  # diagnostic (v2.1): the old 120 Hz crossover; off is now the init
 py -3.12 tools/compare.py --selfcheck
 py -3.12 tools/compare.py docs/audits/references/serum-init-basic-shapes-c3.wav \
   docs/audits/renders/compare/gts-sequence.wav --f0 261.63 \
@@ -332,3 +332,98 @@ but the waveform shape changes: the saw's peak is +3.9 dB over the reference's a
   metric's resolution of about 1.9 ms. GTS's first output sample is 0.0115 where the reference's
   is 0, inside GTS's 1 ms attack.
 - **Init level:** GTS raw RMS −16.65 dBFS sits inside the reference's −14.0 to −18.8 dBFS range.
+
+## v2.1: after closing gaps 1–4
+
+Date 2026-10-11, `main` at ab7061d plus the uncommitted v2.1 changes. Same reference, same
+comparator, same MIDI 60 at 44.1 kHz. What changed:
+
+- **Gap 2, Basic table.** `Table::Basic` (appended, index 8): sine (grain 0, Index 0) → triangle
+  (grain 10, Index 40.97) → saw (grain 21, Index 86.03) → square (grain 31, Index 127). Exact
+  series: triangle odd 1/k² cosines, saw 1/k sines, square odd 1/k sines (relative phases 0/π, as
+  a cosine square). The triangle → saw step turns every odd harmonic a quarter cycle, because the
+  two shapes' relative phases differ by π on h = 3, 7, 11 … and no time alignment removes that.
+  The grains in between interpolate each harmonic in amplitude and phase, so nothing cancels. The
+  frames are RMS-normalised like every table (gap 6: GTS keeps constant loudness). The table gets
+  its own trim from the existing calibration.
+- **Gap 1, band limit.** Mips went from one per octave to four (37 levels, `round(512·2^(−m/4))`
+  harmonics), and the cap went from 17.5 kHz to 0.46·sr. Off Shift 0, the cap is also held 3·f0
+  under Nyquist, for the grain windows' sidebands. The 4-point Hermite was replaced by a cubic
+  B-spline on prefiltered samples. That is an exact interpolator: at 8 samples per top harmonic
+  its images sit 67 dB under that harmonic, against 63 dB for Hermite at 16. This halves the
+  storage per level. Memory is 39.1 MB for 9 tables (was 29.4 MB for 8). Generation takes 89 ms
+  in release (was 121 ms).
+- **Gap 3, crossover.** `mono_xover` at its 20 Hz minimum is now a true bypass (no allpass on the
+  mid), crossfaded over ~5 ms when it turns on or off. The init is 20 Hz (off). Wide presets keep
+  120 Hz.
+- **Gap 4, release.** The init amp release is 20 ms (was 60 ms), with the existing curve 0.
+
+GTS positions: Basic 86.03 / 0 / 40.97 / 127 / 127. Segment 4 still has no counterpart and plays
+the square. `compare_render -- 60 xover120` renders the same sequence with the old 120 Hz split,
+as a diagnostic. In the table below, *before* is the section above (Harmonic Rise 87 / 0, Square
+Morph 0 ×3, crossover 120 Hz, release 60 ms) and *after* is v2.1. Log-mel splits use the same 64
+bands. "16–20 kHz bands" are the four band centres at 16.8, 17.7, 18.7 and 19.8 kHz, given as REF
+minus GTS.
+
+| metric | REF | before | after |
+|---|---|---|---|
+| saw −60 dBc bandwidth, C4 | h84, 21 977 Hz | h64, 16 744 Hz | **h76, 19 884 Hz** |
+| saw −60 dBc bandwidth, C#4 (MIDI 61) | – | h32, 8 870 Hz | **h64, 17 740 Hz** |
+| saw 16–20 kHz bands, C4 (dB) | – | 2.0 / 38.6 / 70.1 / 69.9 | **0.0 / 0.0 / 0.0 / 1.5** |
+| square 16–20 kHz bands, C4 (dB) | – | ≈ 57–60 | **0.0 / 0.0 / 0.0 / 2.1** |
+| saw distance h1–40 / log-mel / log-mel < 16 kHz | | 0.03 / 15.89 / 0.42 dB | 0.03 / **1.99** / 0.28 dB |
+| sine distance h1–40 / log-mel / < 16 kHz | | 0.00 / 0.73 / 0.44 dB | 0.00 / 0.64 / 0.45 dB |
+| **triangle** distance h1–40 / log-mel / < 16 kHz | | 11.77 / 22.30 / 21.49 dB | **0.01 / 3.64 / 0.58 dB** |
+| triangle tilt (dB/oct) | −12.05 | −6.0 | **−12.04** |
+| blend distance h1–40 / log-mel / < 16 kHz | | 0.71 / 16.45 / 1.53 dB | 0.71 / 8.25 / 1.55 dB |
+| square distance h1–40 / log-mel / < 16 kHz | | 0.02 / 16.78 / 0.40 dB | 0.02 / **8.40** / 0.89 dB |
+| steady crest saw / sine / tri / blend / square (dB) | 7.85 / 3.01 / 4.70 / 6.37 / 3.17 | 11.72 / 3.01 / 7.51 / 7.51 / 7.51 | **6.37** / 3.01 / **4.72** / 1.79 / **1.79** |
+| release to −60 dB after note-off | 14.4 ms | 50.5 ms | **17.6 ms** |
+| alias floor, SPEC 1.1 test (worst of C1–C7, shift 0/+12) | | −82.8 dB | −82.8 dB |
+| non-harmonic floor, saw C4 / C#4 | −105.5 dB | −105.1 dB / – | −105.6 / −95.8 dB |
+
+The square's log-mel distance below 16 kHz went from 0.40 to 0.89 dB, and the blend's stayed at
+1.5 dB. The square's steady band averages agree to within 0.06 dB below 16 kHz. The residual
+comes from frame-to-frame scatter in the bands between odd harmonics, which sit near the −100 dB
+floor. The full-band log-mel totals for square and blend (8.3–8.4 dB) come from the two bands
+centred above 20 kHz. The reference has h79–h83 there (up to 21.7 kHz). GTS stops at h75,
+19.6 kHz.
+
+**Acceptance.**
+
+- **Basic triangle:** 0.01 dB harmonic distance and 0.58 dB log-mel below 16 kHz (targets ≤ 0.5 and
+  ≤ 3 dB). The sine, saw and square frames measure 0.00, 0.03 and 0.02 dB (target ≤ 0.1).
+- **Band limit:** the C#4 bandwidth is 17.74 kHz (target ≥ 17 kHz). At C4 the 16–20 kHz bands are
+  within 1.5 dB (saw) and 2.1 dB (square) (target 6 dB). The alias test is green.
+- **Release:** 17.6 ms to −60 dB. The note-off click test is green: a 1 ms release steps 0.43× the
+  steady signal.
+- **Crossover:** the SPEC 1.5 test reads −48.2 dB below 120 Hz with the crossover at 120 Hz (target
+  ≤ −40 dB). The sweep test steps 1.14× steady (target ≤ 1.25×).
+
+**Crest: the gap-3 target is not met.** The reason is in the reference, not in GTS. With the
+crossover off, GTS keeps the table phases: the Basic triangle's crest matches the textbook
+band-limited triangle to 0.01 dB (test `crossover_off_is_a_true_bypass`). The saw and square are
+now 1.5 and 1.4 dB *under* the reference, where they were 3.9 and 4.3 dB over.
+
+A least-squares fit of 84 harmonics shows why. The reference's relative phases follow the
+textbook −(k−1)·π/2 only at low harmonics, then drift: −0.17 rad at h33, −1.12 at h57, −2.5 at h69,
+and they wrap near Nyquist. This is the signature of a nonlinear-phase filter near Nyquist. It
+raises the crest of a 1/k series by about 1.6 dB: an 84-harmonic saw with textbook phases
+measures 6.15 dB, and the reference measures 7.85 dB. The triangle's energy sits in its low
+harmonics, so its crest is unaffected (4.70 vs 4.72 dB). Matching 7.85 / 3.17 dB would mean adding
+that dispersion, which costs headroom for no gain. So the section above's "textbook phases" holds
+up to about h20 for the saw and square.
+
+**Why 0.46·sr and not 0.45.** Quarter-octave levels cannot give `floor(TOP/f0)` harmonics at every
+note. At a cap of 0.45·sr, C4 at 44.1 kHz misses its 76-harmonic level by 0.2 % (76 × 261.63 =
+19 884 Hz, against a cap of 19 845 Hz) and drops to 64 harmonics. Its 16–20 kHz bands then read
+−2 / −39 / −70 / −70 dB, as before. At 0.46 the alias floor is identical (−82.8 dB). Exact per-note
+truncation would need a level for every harmonic count, about 87 k samples per grain for counts
+up to 128 alone, against the 34 k that fit the 40 MB budget. It could also be done by running the
+oscillator oversampled, which costs CPU. Either is a later option. Across all notes, the top
+harmonic now lands between 0.387·sr and 0.46·sr: 17.1–20.3 kHz at 44.1 kHz, where it was
+8.75–17.5 kHz.
+
+Reproduce: `cargo run -p gts --release --example compare_render` (add `-- 61` for C#4, or `-- 60
+xover120` for the old crossover), then the `compare.py` line from "How to reproduce" with
+`--json docs/audits/renders/compare/seq-v21.json`.

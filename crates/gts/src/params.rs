@@ -25,6 +25,9 @@ pub enum Table {
     Reed,
     #[name = "Grit"]
     Grit,
+    /// Appended (saved state is append-only): sine -> triangle -> saw -> square.
+    #[name = "Basic"]
+    Basic,
 }
 
 #[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
@@ -280,7 +283,7 @@ impl OscParams {
             att: time(n("Attack"), 0.005),
             dec: time(n("Decay"), 0.3),
             sus: unit(n("Sustain"), 1.0),
-            rel: time(n("Release"), 0.06),
+            rel: time(n("Release"), 0.02),
             curve: bipolar(n("Env Curve"), 0.0),
             unison: IntParam::new(n("Unison"), 1, IntRange::Linear { min: 1, max: 7 }),
             detune: FloatParam::new(n("Detune"), 12.0, FloatRange::Linear { min: 0.0, max: 50.0 })
@@ -528,7 +531,7 @@ pub struct GtsParams {
     /// Stereo spread, 0..1 (A left / B right, 0 = mono).
     #[id = "spread"]
     pub spread: FloatParam,
-    /// Mono crossover in Hz, 20..300: the output is mono below it (SPEC v2 1.5).
+    /// Mono crossover in Hz, 20..300: the output is mono below it (SPEC v2 1.5); 20 = off (bypass).
     #[id = "mono_xover"]
     pub mono_xover: FloatParam,
 
@@ -647,7 +650,7 @@ impl Default for GtsParams {
             spread: unit("Spread".into(), 0.0),
             mono_xover: FloatParam::new(
                 "Mono Crossover",
-                120.0,
+                20.0,
                 FloatRange::Skewed { min: 20.0, max: 300.0, factor: FloatRange::skew_factor(-1.0) },
             )
             .with_unit(" Hz")

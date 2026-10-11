@@ -1,12 +1,15 @@
-//! Procedural graintables: 8 tables x 32 grains, each grain mip-mapped one level per octave.
+//! Procedural graintables: 9 tables x 32 grains, each grain mip-mapped four levels per octave.
 //!
 //! Every grain is one cycle defined by harmonic coefficients 1..=512 (FM is computed in the time
 //! domain and transformed), then rendered by inverse FFT into `MIPS` band-limited levels: mip `m`
-//! keeps harmonics `1..=HMAX >> m` (512, 256, ..., 1). The oscillator picks the mip from the
-//! effective read rate `f0 * 2^(shift/12)` so the highest kept harmonic stays at or below
-//! `TOP_HZ` (SQ-1..5). A level holds at least 16 samples per top harmonic, so 4-point Hermite
-//! reads stay below -80 dB of interpolation images (SQ-7): the 2048-sample frame for mips 2..9,
-//! 4096 for mip 1 and 8192 for mip 0. Positions are always in frame units (0..N).
+//! keeps harmonics `1..=harmonics(m)` (512, 431, 362, 304, 256, ..., 1: quarter-octave steps).
+//! The oscillator picks the mip from the effective read rate `f0 * 2^(shift/12)` so the highest
+//! kept harmonic stays at or below `TOP` x the running sample rate (SQ-1..5), so at every note the
+//! top harmonic lands within a quarter octave under `TOP`. Levels are read with a cubic B-spline
+//! on prefiltered samples (an exact interpolator whose images fall as `(nu / (1 - nu))^4`): at 8
+//! samples per top harmonic the images sit 67 dB under that harmonic, below the 4-point Hermite
+//! at 16 (63 dB) it replaced (SQ-7). Levels in octave `o` hold `4096 >> o` samples, never under
+//! 128. Positions are always in frame units (0..N).
 //! Each grain is DC-free and RMS-normalised to 0.25 on its 2048-sample level (`grain`), peak
 //! capped at 1.0; all levels share that gain. Neighbouring grains share phase structure so
 //! Index crossfades never cancel.
@@ -18,29 +21,36 @@
 
 use super::grain::marker_amp;
 use crate::params::Table;
-use std::f32::consts::{PI, TAU};
+use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 /// Frame length: samples per grain at the reference level (positions are in these units).
 pub const N: usize = 2048;
 /// Grains per table.
 pub const GRAINS: usize = 32;
 /// Number of tables (matches `params::Table`).
-pub const TABLES: usize = 8;
-/// Mip levels, one per octave.
-pub const MIPS: usize = 10;
-/// Harmonics in mip 0; mip `m` keeps `HMAX >> m`.
+pub const TABLES: usize = 9;
+/// Mip levels, four per octave from `HMAX` down to 1 harmonic.
+pub const MIPS: usize = 37;
+/// Harmonics in mip 0.
 pub const HMAX: usize = 512;
-/// Highest kept harmonic (Hz) at the running sample rate (SQ-4).
-pub const TOP_HZ: f64 = 17_500.0;
-/// The mip `grain()` returns: the first one stored at exactly `N` samples.
-const GRAIN_MIP: usize = 2;
+/// Highest kept harmonic in cycles per sample at the running sample rate (SQ-4): 20.3 kHz at
+/// 44.1 kHz, 22.1 kHz at 48 kHz. (0.45 left C4 at 44.1 kHz 0.2 % short of its 76-harmonic level,
+/// at 64 harmonics = 16.7 kHz; the alias floor is the same at both.)
+pub const TOP: f64 = 0.46;
+/// The mip `grain()` returns: 256 harmonics in exactly `N` samples.
+const GRAIN_MIP: usize = 4;
 /// Fundamental at which the Hz-based tables (Vowel, Reed) are voiced. Shift moves them from here.
 const REF_F0: f32 = 65.0;
 
-/// Samples stored for mip `m` (16 per top harmonic, never under `N`).
+/// Harmonics kept by mip `m`: `round(HMAX * 2^(-m/4))`.
+pub fn harmonics(m: usize) -> usize {
+    (HMAX as f64 * 2f64.powf(-(m as f64) / 4.0)).round() as usize
+}
+
+/// Samples stored for mip `m`: 8 per top harmonic of its octave, never under 128.
 pub const fn mip_len(m: usize) -> usize {
-    let l = 16 * (HMAX >> m);
-    if l > N { l } else { N }
+    let l = 8 * (HMAX >> (m / 4));
+    if l > 128 { l } else { 128 }
 }
 
 /// Start of each mip inside a grain's storage (`MIP_OFF[MIPS]` = the grain stride).
@@ -53,7 +63,7 @@ const MIP_OFF: [usize; MIPS + 1] = {
     a
 };
 
-/// Samples per grain over all mips (8192 + 4096 + 8 x 2048).
+/// Samples per grain over all mips (33 920, so 39 MB for 9 tables).
 const STRIDE: usize = MIP_OFF[MIPS];
 
 /// Level-compensation grid: one point per semitone of Shift, `SHIFT_LO..=-SHIFT_LO`.
@@ -91,16 +101,10 @@ impl Default for Tables {
 #[inline]
 pub fn mip_for(rate: f64, top: f64) -> usize {
     let mut m = 0;
-    while m < MIPS - 1 && (HMAX >> m) as f64 * rate > top {
+    while m < MIPS - 1 && harmonics(m) as f64 * rate > top {
         m += 1;
     }
     m
-}
-
-/// `TOP_HZ` as cycles per sample at `sr`, never above 0.45 (low sample rates).
-#[inline]
-pub fn top_for(sr: f32) -> f64 {
-    (TOP_HZ / sr as f64).min(0.45)
 }
 
 impl Tables {
@@ -122,7 +126,8 @@ impl Tables {
         &self.data[base + MIP_OFF[m]..base + MIP_OFF[m + 1]]
     }
 
-    /// One grain (`N` samples, harmonics 1..=128) of `table`, for display and tests.
+    /// One grain (`N` samples, harmonics 1..=256) of `table`, for display and tests. The samples
+    /// are B-spline prefiltered (harmonic 256 is 0.9 dB up), close enough to draw.
     pub fn grain(&self, table: Table, g: usize) -> &[f32] {
         self.frame(table as usize, g, GRAIN_MIP)
     }
@@ -166,7 +171,8 @@ impl Tables {
                     4 => fm(x, c, &fft, &mut re[..N], &mut im[..N]),
                     5 => metal(x, c),
                     6 => reed(x, c),
-                    _ => grit(x, &rnd, c),
+                    7 => grit(x, &rnd, c),
+                    _ => basic(x, c),
                 }
             }
             for m in 0..MIPS {
@@ -174,10 +180,12 @@ impl Tables {
                 let (re, im) = (&mut re[..l], &mut im[..l]);
                 re.fill(0.0);
                 im.fill(0.0);
-                // Hermitian spectra: X[h] = (cc - i ss)/2 renders cc cos + ss sin.
-                for h in 1..=HMAX >> m {
+                // Hermitian spectra: X[h] = (cc - i ss)/2 renders cc cos + ss sin. The B-spline
+                // prefilter divides harmonic h by the sampled kernel's response (4 + 2 cos w) / 6.
+                for h in 1..=harmonics(m) {
                     let ((ac, as_), (bc, bs)) = (c[0][h], c[1][h]);
-                    let (ac, as_, bc, bs) = (0.5 * ac as f64, 0.5 * as_ as f64, 0.5 * bc as f64, 0.5 * bs as f64);
+                    let pf = 3.0 / (4.0 + 2.0 * (std::f64::consts::TAU * h as f64 / l as f64).cos());
+                    let (ac, as_, bc, bs) = (pf * ac as f64, pf * as_ as f64, pf * bc as f64, pf * bs as f64);
                     re[h] = ac + bs;
                     im[h] = bc - as_;
                     re[l - h] = ac - bs;
@@ -219,20 +227,20 @@ impl Tables {
                 for si in 0..SHIFTS {
                     let ratio = 2f64.powf((si as i32 + SHIFT_LO) as f64 / 12.0);
                     let mut m = 0;
-                    while m < MIPS - 1 && (HMAX >> m) as f64 * ratio.max(1.0) > HARM {
+                    while m < MIPS - 1 && harmonics(m) as f64 * ratio.max(1.0) > HARM {
                         m += 1;
                     }
                     let f = self.frame(t, g, m);
                     if ref_ms[m] < 0.0 {
                         ref_ms[m] = f.iter().map(|&v| v as f64 * v as f64).sum::<f64>() / f.len() as f64;
                     }
-                    let (amp, scale) = (marker_amp(ratio), (f.len() / N) as f64);
+                    let (amp, scale) = (marker_amp(ratio), f.len() as f64 / N as f64);
                     let (mut s1, mut s2) = (0f64, 0f64);
                     for k in 0..S {
                         let u = k as f64 / S as f64;
                         let mk = amp * sn[k];
-                        let a = hermite(f, ((u - 1.0) * n * ratio + mk).rem_euclid(n) * scale) as f64;
-                        let b = hermite(f, (u * n * ratio + mk).rem_euclid(n) * scale) as f64;
+                        let a = bspline(f, ((u - 1.0) * n * ratio + mk).rem_euclid(n) * scale) as f64;
+                        let b = bspline(f, (u * n * ratio + mk).rem_euclid(n) * scale) as f64;
                         let y = w[k] * a + (1.0 - w[k]) * b;
                         s1 += y;
                         s2 += y * y;
@@ -244,7 +252,7 @@ impl Tables {
         }
         // Trims: K-weighted power of the index-64 mix at C2 (65.41 Hz, 48 kHz, the C2 mip).
         let f0 = 65.406;
-        let m = mip_for(f0 / 48_000.0, TOP_HZ / 48_000.0);
+        let m = mip_for(f0 / 48_000.0, TOP);
         let l = mip_len(m);
         let gp = 64.0 / 127.0 * (GRAINS - 1) as f64;
         let (g0, gf) = (gp as usize, gp.fract());
@@ -285,7 +293,7 @@ impl Tables {
         a + (at(g1) - a) * gf
     }
 
-    /// 4-point Hermite read of mip `mip` at frame position `p` (any real; wrapped to `[0, N)`) and
+    /// Cubic B-spline read of mip `mip` at frame position `p` (any real; wrapped to `[0, N)`) and
     /// grain position `gp` in `[0, GRAINS)` (the fraction crossfades to the next grain, wrapping
     /// 31 -> 0 for forward Motion scans).
     #[inline]
@@ -294,26 +302,28 @@ impl Tables {
         let gf = gp - g0 as f32;
         let g1 = (g0 + 1) % GRAINS;
         let (fa, fb) = (self.frame(table, g0, mip), self.frame(table, g1, mip));
-        // Positions >= N wrap through the index mask in `hermite`; only negatives need folding.
+        // Positions >= N wrap through the index mask in `bspline`; only negatives need folding.
         let p = if p < 0.0 { p.rem_euclid(N as f64) } else { p };
-        let q = p * (fa.len() / N) as f64;
-        let sa = hermite(fa, q);
-        let sb = hermite(fb, q);
+        let q = p * (fa.len() as f64 / N as f64);
+        let sa = bspline(fa, q);
+        let sb = bspline(fb, q);
         sa + (sb - sa) * gf
     }
 }
 
-/// 4-point, 3rd-order Hermite (Catmull-Rom) at position `q` in `[0, len)` of a power-of-two frame.
+/// Uniform cubic B-spline at position `q` in `[0, len)` of a power-of-two frame of prefiltered
+/// samples (see `generate_table`), which makes it an exact interpolator of the band-limited cycle.
 #[inline]
-fn hermite(f: &[f32], q: f64) -> f32 {
+fn bspline(f: &[f32], q: f64) -> f32 {
     let mask = f.len() - 1;
     let i = q as usize;
     let t = (q - i as f64) as f32;
     let (ym, y0, y1, y2) = (f[i.wrapping_sub(1) & mask], f[i & mask], f[(i + 1) & mask], f[(i + 2) & mask]);
+    let c0 = (ym + 4.0 * y0 + y1) * (1.0 / 6.0);
     let c1 = 0.5 * (y1 - ym);
-    let c2 = ym - 2.5 * y0 + 2.0 * y1 - 0.5 * y2;
-    let c3 = 0.5 * (y2 - ym) + 1.5 * (y0 - y1);
-    ((c3 * t + c2) * t + c1) * t + y0
+    let c2 = 0.5 * (ym + y1) - y0;
+    let c3 = (y2 - ym) * (1.0 / 6.0) + 0.5 * (y0 - y1);
+    ((c3 * t + c2) * t + c1) * t + c0
 }
 
 /// Radix-2 complex FFT with a precomputed twiddle table, for power-of-two lengths up to `max`.
@@ -507,5 +517,35 @@ fn grit(x: f32, rnd: &Coefs, c: &mut Coefs) {
         let (a, ph) = rnd[h];
         let a = a * (-d * d).exp();
         c[h] = (a * ph.sin(), a * ph.cos());
+    }
+}
+
+/// Basic shapes: sine (grain 0) -> triangle (10) -> saw (21) -> square (31), textbook series with
+/// h1 = 1: triangle odd 1/h^2 cosines, saw 1/h sines, square odd 1/h sines (the relative phases of
+/// a cosine square, 0/pi, a quarter period over so its odd harmonics match the saw's). Sine,
+/// triangle, saw and square share phases except triangle -> saw: their relative phases differ by
+/// pi on h = 3, 7, 11, ..., which no time alignment removes, so the triangle sits a quarter cycle
+/// off on every odd harmonic and the grains in between interpolate each harmonic in amplitude and
+/// phase. Nothing cancels along the scan.
+fn basic(x: f32, c: &mut Coefs) {
+    const KEYS: [f32; 4] = [0.0, 10.0, 21.0, 31.0];
+    let g = (x * (GRAINS - 1) as f32).round();
+    let k = if g < KEYS[1] { 0 } else if g < KEYS[2] { 1 } else { 2 };
+    let u = (g - KEYS[k]) / (KEYS[k + 1] - KEYS[k]);
+    // (amplitude, phase) of harmonic h of key shape s, as a cos(h t - phase).
+    let shape = |s: usize, h: usize| {
+        let (hf, odd) = (h as f32, h % 2 == 1);
+        match s {
+            0 => (if h == 1 { 1.0 } else { 0.0 }, 0.0),
+            1 => (if odd { 1.0 / (hf * hf) } else { 0.0 }, 0.0),
+            2 => (1.0 / hf, FRAC_PI_2),
+            _ => (if odd { 1.0 / hf } else { 0.0 }, FRAC_PI_2),
+        }
+    };
+    for (h, ch) in c.iter_mut().enumerate().skip(1) {
+        let ((a0, p0), (a1, p1)) = (shape(k, h), shape(k + 1, h));
+        let p = if a0 == 0.0 { p1 } else if a1 == 0.0 { p0 } else { p0 + u * (p1 - p0) };
+        let a = a0 + u * (a1 - a0);
+        *ch = (a * p.cos(), a * p.sin());
     }
 }

@@ -14,7 +14,7 @@ We recreate behavior, never content: no third-party trademarks, no copied graint
 
 Two-oscillator graintable synth. Each oscillator has a table, Index (picks the grain), Motion (scans the table), Shift, tuning and an ADSR. Then two LFOs, a shaper, two multimode filters (including comb and AM modes) with a shared filter envelope, and mono/legato/portamento. See `SPEC.md` for the full parameter list.
 
-Tables (all generated procedurally): Square Morph, Saw Stack, Harmonic Rise, Vowel, FM Morph, Metal, Reed, Grit.
+Tables (all generated procedurally): Square Morph, Saw Stack, Harmonic Rise, Vowel, FM Morph, Metal, Reed, Grit, Basic.
 
 Notes:
 - **Shift** moves the spectrum/formants while the note pitch stays fixed.

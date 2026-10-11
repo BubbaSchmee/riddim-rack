@@ -41,14 +41,18 @@ comb and AM modes, shared filter envelope, mono/legato/portamento. Instrument: M
 pitch bend and CC1 to be delivered), stereo out, no audio in.
 
 ## Graintables (procedural, generated once, no allocation in `process`)
-Representation (v2 wave 1): a table = `G = 32` grains, each grain one cycle defined by harmonic
-coefficients 1..512 and rendered by inverse FFT into 10 mip levels, one per octave: mip `m` keeps
-harmonics `1..=512 >> m`. Positions are in units of the `N = 2048`-sample frame; a level stores at
-least 16 samples per top harmonic (8192 for mip 0, 4096 for mip 1, 2048 for the rest). The
-oscillator picks the mip from the effective read rate `f0·2^(shift/12)` so the highest kept
-harmonic stays at or below 17.5 kHz at the running sample rate (no regeneration on a rate change),
-re-chosen every 32 samples with a one-block crossfade, and reads it with 4-point Hermite
-interpolation. Index 0..127 maps linearly across the grains with a linear crossfade between
+Representation (v2.1): a table = `G = 32` grains, each grain one cycle defined by harmonic
+coefficients 1..512 and rendered by inverse FFT into 37 mip levels, four per octave: mip `m` keeps
+harmonics `1..=round(512·2^(-m/4))` (512, 431, 362, 304, 256, …, 1). Positions are in units of the
+`N = 2048`-sample frame; a level in octave `o` stores `4096 >> o` samples (at least 8 per top
+harmonic, never under 128), 39 MB for the 9 tables. The oscillator picks the mip from the effective
+read rate `f0·2^(shift/12)` so the highest kept harmonic stays at or below 0.46 × the running sample
+rate (20.3 kHz at 44.1 kHz, 22.1 kHz at 48 kHz; at a Shift other than 0 also at least 3·f0 under
+Nyquist, for the grain windows' sidebands), so at every note the top harmonic sits within a
+quarter octave of that limit. No regeneration on a rate change. The mip is re-chosen every 32
+samples with a one-block crossfade and read with a cubic B-spline on prefiltered samples (an exact
+interpolator; images 67 dB under the top harmonic at 8 samples per harmonic). (v2 wave 1 had one
+mip per octave under 17.5 kHz and 4-point Hermite reads: the top harmonic fell to 8.9 kHz at C#4.) Index 0..127 maps linearly across the grains with a linear crossfade between
 neighbours. The tables are generated once per plugin instance and shared with the editor's grain
 display.
 
@@ -62,12 +66,13 @@ display.
 | 5 | Metal | inharmonic partials (stretch factor 1.0 → 1.6) |
 | 6 | Reed | pulse + resonant peak sweeping 400 → 4000 Hz |
 | 7 | Grit | band-limited noise bursts, index = bandwidth narrow → wide (seeded, deterministic) |
+| 8 | Basic | sine (index 0) → triangle (41) → saw (86) → square (127): textbook series (triangle odd 1/k², saw 1/k, square odd 1/k), grains in between interpolate each harmonic in amplitude and phase so nothing cancels |
 
 Each grain is DC-free and normalized to RMS 0.25 on its 2048-sample level (all mips share that
 gain), then scaled down further only if its peak exceeds 1.0 (peak normalization gave a 12.7 dB
 spread between tables). Two gains are built at generate time per grain and per semitone of Shift
 (`Tables::level`): the level the grain scheme loses at a given Shift (SPEC v2 1.9), times a
-per-table K-weighted (BS.1770) loudness trim, so the 8 tables sit within 1.5 dB at C2 index 64.
+per-table K-weighted (BS.1770) loudness trim, so the 9 tables sit within 1.5 dB at C2 index 64.
 
 ## Oscillator playback (per voice, per osc)
 - Pitch: note + octave (-4..+4) + semi (0..12) + cent (-50..+50) + pitch bend + Mod A pitch.
@@ -131,8 +136,10 @@ cutoff, Mod amount. Velocity (bipolar amounts): Vol A, Vol B, Filter env, Attack
 ## Output
 Volume -24..+6 dB (default -5 dB: the v2 init note, C2 at velocity 100, peaks at -9 dBFS), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
 sum is scaled by 1/sqrt(poly) so chords do not live in the limiter (mono unchanged). Mono
-crossover 20..300 Hz (default 120): a Linkwitz-Riley 8 split in mid/side (side high-passed, mid
-through the matching allpass) makes the output mono below it. Shaper oversampling 1x/2x/4x
+crossover 20..300 Hz (default 20 = off): a Linkwitz-Riley 8 split in mid/side (side high-passed,
+mid through the matching allpass) makes the output mono below it. At 20 Hz it is a true bypass
+(no allpass on the mid, so a mono signal keeps its phases), crossfaded over ~5 ms when it turns on
+or off; wide presets set it (e.g. 120 Hz). Shaper oversampling 1x/2x/4x
 (default 2x) is a host-persisted setting outside the parameters; the plugin reports the shaper's
 latency (0 / 21 / 23 samples). Soft limiter
 (tanh above 0.95) as safety only.
@@ -141,7 +148,7 @@ latency (0 / 21 / 23 samples). Soft limiter
 Osc A/B each: `osc{a,b}_on` "Osc A On", `_table` (enum above), `_oct` (-4..4), `_semi` (0..12),
 `_cent` (-50..50), `_index` (0..127, default 64), `_motion` (-1..1, 0), `_shift` (-24..24, 0),
 `_vol` (0..1, 1.0), `_att` (1 ms..10 s, 5 ms), `_dec` (1 ms..10 s, 300 ms), `_sus` (0..1, 1.0),
-`_rel` (1 ms..10 s, 60 ms). Osc B default off, table Saw Stack.
+`_rel` (1 ms..10 s, 20 ms: -60 dB 18 ms after note-off). Osc B default off, table Saw Stack.
 Mod A/B each: `mod{a,b}_curve`, `_rate` (0.03..30 Hz, 4 Hz), `_sync` (bool, A: on), `_div`
 (enum, 1/8), `_oneshot` (bool, A: on), `_target` (A/B/Both). Mod A: `moda_pitch`, `moda_index`
 (default -0.5: the one-shot Decay then starts each note on the wide, loud pulse and narrows it,
@@ -160,12 +167,13 @@ bipolar -1..1), `spread` 0. Envelope times and portamento are stored in seconds.
 v2 parameters (ids stable from here): per osc `_curve` (-1..1, 0), `_unison` (1..7, 1),
 `_detune` (0..50 ct, 12), `_det_curve` (0..1, 0), `_blend` (0..1, 0.7), `_width` (0..1, 0.5),
 `_rand_phase` (0..1, 0), `_phase_reset` (bool, on); `fenv_curve` (-1..1, 0); `sub_on` (on),
-`sub_level` (-60..0 dB, -6), `sub_oct` (-2..-1, -1); `mono_xover` (20..300 Hz, 120). 108 in all.
+`sub_level` (-60..0 dB, -6), `sub_oct` (-2..-1, -1); `mono_xover` (20..300 Hz, 20 = off). 108 in all.
 Host state (not params): `oversampling` (1/2/4, default 2), `cv_sources`, `instance_label`.
 **v2 init patch (SPEC v2 1.12), which overrides the defaults above:** a clean bass. Osc A Square
 Morph index 40, unison 1, sub on -6 dB, Filter A LP12 2 kHz res 0.15 Kbd 0.5 Env on, Filter B LP12
 20 kHz res 0 (neutral), filter env Amt 0.4, no comb, shaper off, Mod A one-shot off and
-`moda_index` 0, routing Parallel, Volume -5 dB. The v1 riddim defaults (Comb- 880 Hz res 0.6,
+`moda_index` 0, routing Parallel, Volume -5 dB; v2.1: amp release 20 ms and the mono crossover off
+(it was 120 Hz, whose allpass rotated the phases of the mono init sound). The v1 riddim defaults (Comb- 880 Hz res 0.6,
 Mod A one-shot into Index -0.5, filter env 0.5, Filter B 2 kHz res 0.1, Volume 0) live on as the
 test/demo fixture `dsp::Patch::riddim_v1` until the factory bank exists. Kbd tracking pivots at C4 (note 60); wheel cutoff range is ±5 octaves like Mod B.
 

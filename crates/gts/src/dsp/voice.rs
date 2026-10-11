@@ -612,7 +612,7 @@ impl Voice {
             let table = op.table as usize;
             let gain = (1.0 + m.vol[i]).max(0.0);
             if o.uni.n == 1 {
-                let s = o.grain[0].next(tables, table, dphase, ratio, gp, ctl.sr);
+                let s = o.grain[0].next(tables, table, dphase, ratio, gp);
                 // DC blocker: negative Shift makes the grains a unipolar pulse train.
                 o.dc[0] += ctl.dc * (s - o.dc[0]);
                 let s = s - o.dc[0];
@@ -622,7 +622,7 @@ impl Voice {
                 let u = o.uni;
                 let (mut l, mut r) = (0.0, 0.0);
                 for k in 0..u.n {
-                    let s = o.grain[k].next(tables, table, dphase * u.ratio[k], ratio, gp, ctl.sr);
+                    let s = o.grain[k].next(tables, table, dphase * u.ratio[k], ratio, gp);
                     l += s * u.gl[k];
                     r += s * u.gr[k];
                 }

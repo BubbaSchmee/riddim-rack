@@ -23,7 +23,7 @@
 //! per grain, so any jump in Index (scan wrap, scan reset, stepped modulation) is crossfaded over
 //! one period by the windows.
 
-use super::tables::{mip_for, top_for, Tables, N};
+use super::tables::{mip_for, Tables, N, TOP};
 use std::f64::consts::{PI, TAU};
 
 /// Samples between mip / level updates, and the length of a mip crossfade.
@@ -93,9 +93,9 @@ impl GrainOsc {
     }
 
     /// One sample. `dphase` = f0 / sr (must stay below 1), `ratio` = 2^(shift/12), `gp` = grain
-    /// position for the next grain that starts, `sr` = running sample rate (mip selection).
+    /// position for the next grain that starts.
     #[inline]
-    pub fn next(&mut self, tables: &Tables, table: usize, dphase: f64, ratio: f64, gp: f32, sr: f32) -> f32 {
+    pub fn next(&mut self, tables: &Tables, table: usize, dphase: f64, ratio: f64, gp: f32) -> f32 {
         let n = N as f64;
         let step = n * ratio * dphase;
         self.phase += dphase;
@@ -114,7 +114,10 @@ impl GrainOsc {
         }
         if self.blk == 0 {
             self.marker = marker_amp(ratio);
-            let m = mip_for(ratio * dphase, top_for(sr)) as u8;
+            // Off Shift 0 the two readers' windows and the pitch marker spread every harmonic over
+            // about +-3 f0, so the top harmonic stays that far under Nyquist (SPEC-v2 1.1).
+            let top = if (ratio - 1.0).abs() < 1e-9 { TOP } else { TOP.min(0.5 - 3.0 * dphase) };
+            let m = mip_for(ratio * dphase, top) as u8;
             self.level_target = tables.level(table, self.gp[self.newest], 12.0 * ratio.log2());
             if !self.primed {
                 self.primed = true;

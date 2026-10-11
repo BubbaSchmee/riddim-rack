@@ -1,43 +1,43 @@
 //! Raw-tone renders for `tools/compare.py` against the owner's reference (a commercial synth's
 //! init patch, one held MIDI 60 note, wavetable position switched at each 4-bar line, 140 BPM,
 //! 44.1 kHz). The init patch made RAW: routing Bypass (no filters), shaper off, sub off, unison 1,
-//! amp env attack 1 ms / sustain 1 / release 60 ms, velocity 100, oversampling default (2x).
+//! amp env attack 1 ms / sustain 1 / init release (20 ms), velocity 100, init crossover (off),
+//! oversampling default (2x).
 //! Writes 32-bit float 44.1 kHz stereo WAVs to `docs/audits/renders/compare/` (gitignored):
 //! - `gts-sequence.wav`: one note held 20 bars, (table, index) switched at each 4-bar line in the
-//!   reference's order (saw, sine, triangle-class, odd blend, square), like the reference's gate;
-//! - one 4-bar note per candidate position (`gts-<table>-<index>.wav`).
+//!   reference's order (saw, sine, triangle, odd blend, square) on the Basic table, like the
+//!   reference's gate (the blend has no counterpart: it plays the square);
+//! - one 4-bar note per Basic key frame (`gts-Basic-<index>.wav`).
 //!
 //! Also prints, for every table and grain, the distance of its harmonics 1..40 (dB re h1, clipped
 //! at -100) to a textbook triangle (odd 1/k^2), to find the closest triangle-like position.
 //!
-//! cargo run -p gts --release --example compare_render [-- <midi note> [xover20]]
-use gts::dsp::tables::{mip_for, top_for, Fft, Tables, GRAINS};
+//! cargo run -p gts --release --example compare_render [-- <midi note> [xover120]]
+use gts::dsp::tables::{mip_for, mip_len, Fft, Tables, GRAINS, TOP};
 use gts::dsp::{Engine, Patch, Transport};
 use gts::params::{Routing, Table};
-use nih_plug::prelude::NoteEvent;
+use nih_plug::prelude::{Enum, NoteEvent};
 use std::io::Write;
 use std::path::Path;
 
 const SR: u32 = 44_100;
 const BPM: f64 = 140.0;
 const BLOCK: usize = 512;
-const TABLES: [Table; 8] = [
-    Table::SquareMorph,
-    Table::SawStack,
-    Table::HarmonicRise,
-    Table::Vowel,
-    Table::FmMorph,
-    Table::Metal,
-    Table::Reed,
-    Table::Grit,
-];
+/// Basic table key frames: grain 10 (triangle), 21 (saw), 31 (square) as Index values.
+const TRI: f32 = 10.0 * 127.0 / 31.0;
+const SAW: f32 = 21.0 * 127.0 / 31.0;
+const SQUARE: f32 = 127.0;
+
+fn diag() -> bool {
+    std::env::args().nth(2).as_deref() == Some("xover120")
+}
 
 fn raw() -> Patch {
     let mut p = Patch::default();
-    // Diagnostic only (`-- 60 xover20`): mono crossover at its lowest setting instead of the
-    // init's 120 Hz, to isolate the phase rotation of its LR8 allpass on the mid.
-    if std::env::args().nth(2).as_deref() == Some("xover20") {
-        p.mono_xover = 20.0;
+    // Diagnostic only (`-- 60 xover120`): the v2 init's 120 Hz mono crossover, whose LR8 allpass
+    // rotates the phases of the mid.
+    if diag() {
+        p.mono_xover = 120.0;
     }
     p.routing = Routing::Bypass;
     p.shaper_on = false;
@@ -46,7 +46,6 @@ fn raw() -> Patch {
     o.unison = 1;
     o.att = 0.001;
     o.sus = 1.0;
-    o.rel = 0.06;
     p.osc[1].on = false;
     p
 }
@@ -100,13 +99,24 @@ fn write_f32_wav(path: &Path, frames: &[[f32; 2]]) -> std::io::Result<()> {
     std::fs::File::create(path)?.write_all(&b)
 }
 
-/// Harmonics 1..40 of one grain at the mip the oscillator would read for `f0`, dB re h1.
-fn grain_harm(t: &Tables, table: Table, g: usize, f0: f64) -> Vec<f64> {
-    let m = mip_for(f0 / SR as f64, top_for(SR as f32));
+/// Spectrum of mip `m` of one grain with the B-spline prefilter undone: (re, im) per bin.
+fn mip_spectrum(t: &Tables, table: Table, g: usize, m: usize) -> (Vec<f64>, Vec<f64>) {
     let f = t.mip(table, g, m);
     let n = f.len();
     let (mut re, mut im): (Vec<f64>, Vec<f64>) = (f.iter().map(|&v| v as f64).collect(), vec![0.0; n]);
-    Fft::new(n).run(&mut re, &mut im, false);
+    Fft::new(mip_len(0)).run(&mut re, &mut im, false);
+    for h in 0..n {
+        let b = (4.0 + 2.0 * (std::f64::consts::TAU * h as f64 / n as f64).cos()) / 6.0;
+        (re[h], im[h]) = (re[h] * b, im[h] * b);
+    }
+    (re, im)
+}
+
+/// Harmonics 1..40 of one grain at the mip the oscillator would read for `f0`, dB re h1.
+fn grain_harm(t: &Tables, table: Table, g: usize, f0: f64) -> Vec<f64> {
+    let m = mip_for(f0 / SR as f64, TOP);
+    let (re, im) = mip_spectrum(t, table, g, m);
+    let n = re.len();
     let p: Vec<f64> = (1..=40).map(|h| if h < n / 2 { re[h] * re[h] + im[h] * im[h] } else { 0.0 }).collect();
     p.iter().map(|&v| (10.0 * (v / p[0].max(1e-30)).max(1e-30).log10()).max(-100.0)).collect()
 }
@@ -122,7 +132,7 @@ fn main() -> std::io::Result<()> {
     tables.generate();
     let tri: Vec<f64> = (1..=40).map(|k| if k % 2 == 1 { (-40.0 * (k as f64).log10()).max(-100.0) } else { -100.0 }).collect();
     let mut best: Vec<(f64, Table, usize)> = vec![];
-    for &tb in &TABLES {
+    for tb in (0..Table::variants().len()).map(Table::from_index) {
         for g in 0..GRAINS {
             let h = grain_harm(&tables, tb, g, f0);
             let d = h.iter().zip(&tri).map(|(a, b)| (a - b).abs()).sum::<f64>() / 40.0;
@@ -136,12 +146,9 @@ fn main() -> std::io::Result<()> {
     }
     // Stored phases of the candidate grains (harmonic k's phase minus k x h1's, as compare.py's
     // notes): a textbook sine-series saw steps by -pi/2, a cosine-series square by pi.
-    for (tb, g) in [(Table::HarmonicRise, 21), (Table::SquareMorph, 0)] {
-        let m = mip_for(f0 / SR as f64, top_for(SR as f32));
-        let f = tables.mip(tb, g, m);
-        let n = f.len();
-        let (mut re, mut im): (Vec<f64>, Vec<f64>) = (f.iter().map(|&v| v as f64).collect(), vec![0.0; n]);
-        Fft::new(n).run(&mut re, &mut im, false);
+    for g in [10, 21, 31] {
+        let (re, im) = mip_spectrum(&tables, Table::Basic, g, mip_for(f0 / SR as f64, TOP));
+        let tb = Table::Basic;
         let p1 = im[1].atan2(re[1]);
         let rel: Vec<String> = (1..=8)
             .map(|k| {
@@ -151,38 +158,21 @@ fn main() -> std::io::Result<()> {
             .collect();
         println!("table phases {tb:?} grain {g} (k=1..8): {}", rel.join(" "));
     }
-    let (_, tri_t, tri_g) = best[0];
-    let tri_idx = (tri_g as f64 * 127.0 / 31.0) as f32;
+    let m = mip_for(f0 / SR as f64, TOP);
+    println!("f0 {f0:.3} Hz: mip {m} keeps {} harmonics (top {:.0} Hz)", gts::dsp::tables::harmonics(m), gts::dsp::tables::harmonics(m) as f64 * f0);
 
-    // Harmonic Rise grain whose harmonic count first covers every harmonic the mip keeps at f0.
-    let kept = (gts::dsp::tables::HMAX >> mip_for(f0 / SR as f64, top_for(SR as f32))) as f64;
-    let g_saw = (0..GRAINS).find(|&g| (512f64).powf(g as f64 / 31.0) >= kept).unwrap();
-    let saw_idx = (g_saw as f64 * 127.0 / 31.0).ceil() as f32;
-    println!("f0 {f0:.3} Hz: the mip keeps {kept} harmonics; Harmonic Rise reaches that at grain {g_saw} -> index {saw_idx}");
-
-    let seq = [
-        (Table::HarmonicRise, saw_idx),
-        (Table::HarmonicRise, 0.0),
-        (tri_t, tri_idx),
-        (Table::SquareMorph, 0.0),
-        (Table::SquareMorph, 0.0),
-    ];
-    if std::env::args().nth(2).as_deref() == Some("xover20") {
-        write_f32_wav(&dir.join("gts-sequence-xover20.wav"), &render(note, &seq))?;
-        println!("wrote gts-sequence-xover20.wav (diagnostic)");
+    let b = Table::Basic;
+    let seq = [(b, SAW), (b, 0.0), (b, TRI), (b, SQUARE), (b, SQUARE)];
+    if diag() {
+        write_f32_wav(&dir.join("gts-sequence-xover120.wav"), &render(note, &seq))?;
+        println!("wrote gts-sequence-xover120.wav (diagnostic)");
         return Ok(());
     }
     write_f32_wav(&dir.join("gts-sequence.wav"), &render(note, &seq))?;
     println!("wrote gts-sequence.wav: {seq:?}");
-    for (t, idx) in [
-        (Table::HarmonicRise, 0.0),
-        (Table::HarmonicRise, saw_idx),
-        (Table::SawStack, 0.0),
-        (Table::SquareMorph, 0.0),
-        (tri_t, tri_idx),
-    ] {
-        let name = format!("gts-{t:?}-{idx:.0}.wav");
-        write_f32_wav(&dir.join(&name), &render(note, &[(t, idx)]))?;
+    for idx in [0.0, TRI, SAW, SQUARE] {
+        let name = format!("gts-Basic-{idx:.0}.wav");
+        write_f32_wav(&dir.join(&name), &render(note, &[(b, idx)]))?;
         println!("wrote {name}");
     }
     Ok(())

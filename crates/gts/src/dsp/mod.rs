@@ -252,7 +252,7 @@ impl Patch {
         p.filt[1] = FilterPatch { ty: FilterType::Lp12, freq: 2000.0, res: 0.1, kbd: 0.5, env: true };
         p.fenv_amt = 0.5;
         p.sub_on = false;
-        p.mono_xover = 20.0; // v1 had no crossover; 20 Hz is its lowest (off) setting
+        p.mono_xover = 20.0; // v1 had no crossover; 20 Hz is off
         p.volume_db = 0.0;
         p
     }
@@ -264,7 +264,9 @@ impl Patch {
 /// allpasses). LR high- and low-pass are in phase with that allpass at every frequency, so this is
 /// `L' = LP(M) + HP(L)`, `R' = LP(M) + HP(R)`: mono below the crossover, the stereo image intact
 /// above it, flat magnitude everywhere. The cutoff glides per sample; the TPT sections take moving
-/// coefficients without clicks.
+/// coefficients without clicks. At the 20 Hz minimum it is bypassed (the allpass would still
+/// rotate the phases of a mono signal: +3.9 dB of saw crest); the filters keep running and
+/// `mix` crossfades between dry and split, so switching it on or off does not click.
 struct MonoXover {
     /// Smoothed `tan(π fc / sr)` and its target.
     g: f64,
@@ -272,7 +274,13 @@ struct MonoXover {
     /// Side high-pass sections (Butterworth-4 twice), mid allpass sections.
     side: [[f64; 2]; 4],
     mid: [[f64; 2]; 2],
+    /// 1 = split, 0 = bypass (at `XOVER_OFF`), and the smoothed mix toward it.
+    on: f64,
+    mix: f64,
 }
+
+/// Mono crossover setting that means off.
+const XOVER_OFF: f32 = 20.0;
 
 /// 1/Q of the two sections of a 4th-order Butterworth.
 const BW4_K: [f64; 2] = [1.847_759, 0.765_367];
@@ -291,26 +299,40 @@ fn svf(s: &mut [f64; 2], x: f64, g: f64, k: f64) -> (f64, f64, f64) {
 impl MonoXover {
     fn set(&mut self, hz: f32, sr: f32) {
         self.g_target = (std::f64::consts::PI * (hz as f64).clamp(10.0, 0.45 * sr as f64) / sr as f64).tan();
+        self.on = if hz > XOVER_OFF { 1.0 } else { 0.0 };
+    }
+
+    /// Jump to the targets (nothing sounding).
+    fn settle(&mut self) {
+        (self.g, self.mix) = (self.g_target, self.on);
     }
 
     fn reset(&mut self) {
         (self.side, self.mid) = ([[0.0; 2]; 4], [[0.0; 2]; 2]);
-        self.g = self.g_target;
+        self.settle();
     }
 
-    /// (mid, side) -> (mid through the allpass, side through the high-pass).
+    /// (mid, side) -> (mid through the allpass, side through the high-pass), crossfaded with the
+    /// dry pair by `mix` (exactly dry at 0).
     #[inline]
-    fn process(&mut self, m: f64, s: f64, smooth: f64) -> (f64, f64) {
+    fn process(&mut self, m0: f64, s0: f64, smooth: f64) -> (f64, f64) {
         self.g = self.g_target + (self.g - self.g_target) * smooth;
+        self.mix = self.on + (self.mix - self.on) * smooth;
+        if (self.mix - self.on).abs() < 1e-6 {
+            self.mix = self.on;
+        }
         let g = self.g;
-        let (mut m, mut s) = (m, s);
+        let (mut m, mut s) = (m0, s0);
         for (i, st) in self.side.iter_mut().enumerate() {
             s = svf(st, s, g, BW4_K[i % 2]).2;
         }
         for (st, k) in self.mid.iter_mut().zip(BW4_K) {
             m -= 2.0 * k * svf(st, m, g, k).1;
         }
-        (m, s)
+        if self.mix == 0.0 {
+            return (m0, s0);
+        }
+        (m0 + (m - m0) * self.mix, s0 + (s - s0) * self.mix)
     }
 }
 
@@ -377,7 +399,7 @@ impl Engine {
     pub fn new() -> Self {
         let mut e = Self {
             tables: Arc::new(OnceLock::new()),
-            xover: MonoXover { g: 0.0, g_target: 0.0, side: [[0.0; 2]; 4], mid: [[0.0; 2]; 2] },
+            xover: MonoXover { g: 0.0, g_target: 0.0, side: [[0.0; 2]; 4], mid: [[0.0; 2]; 2], on: 0.0, mix: 0.0 },
             oversampling: 2,
             voices: std::array::from_fn(|_| Voice::default()),
             patch: Patch::default(),
@@ -494,7 +516,7 @@ impl Engine {
         self.xover.set(p.mono_xover, sr);
         if !self.voices.iter().any(|v| v.is_active()) {
             // Nothing sounding: take a new crossover at once instead of gliding into the next note.
-            self.xover.g = self.xover.g_target;
+            self.xover.settle();
         }
         // Portamento: one-pole in semitones, ~98 % of the way after `porta` seconds.
         self.ctl.glide = if p.porta > 0.0 { (-4.0 / (p.porta * sr)).exp() } else { 0.0 };

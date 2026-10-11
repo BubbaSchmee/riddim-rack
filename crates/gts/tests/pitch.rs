@@ -133,12 +133,14 @@ fn index_changes_spectrum_for_every_table() {
 
 #[test]
 fn shift_sweep_does_not_click() {
-    // Largest sample-to-sample step while Shift sweeps -24 -> +24 must stay within what the
-    // static extremes already produce: no discontinuities from the sweep itself.
+    // Largest sample-to-sample step while Shift sweeps -24 -> +24 must stay within what static
+    // Shifts across the range already produce: no discontinuities from the sweep itself. (Since
+    // the band limit went up to 0.45 sr, in-between Shifts such as +16 step up to 1.4x more
+    // than the extremes, so the extremes alone are no reference.)
     let max_step = |x: &[f32]| x.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0f32, f32::max);
-    let stat = [-24.0, 0.0, 24.0]
-        .iter()
-        .map(|&s| max_step(steady(&render(Table::SquareMorph, 64.0, s, 2.0))))
+    let stat = (-24..=24)
+        .step_by(4)
+        .map(|s| max_step(steady(&render(Table::SquareMorph, 64.0, s as f32, 1.5))))
         .fold(0f32, f32::max);
     let mut e = Engine::new();
     e.initialize(SR);

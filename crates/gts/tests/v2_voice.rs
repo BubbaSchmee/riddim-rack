@@ -170,9 +170,11 @@ fn phase_reset_repeats_the_note_start_and_free_run_does_not() {
 
 // ---- 1.5 sub + mono crossover ---------------------------------------------------------------
 
-/// Init patch with both oscillators at 7 voices, width 1.
+/// Init patch with both oscillators at 7 voices, width 1, the crossover on at 120 Hz (the init
+/// has it off).
 fn wide_patch() -> Patch {
     let mut p = Patch::default();
+    p.mono_xover = 120.0;
     p.osc[1].on = true;
     for o in &mut p.osc {
         o.unison = 7;
@@ -195,6 +197,30 @@ fn below_the_crossover_the_output_is_mono() {
     println!("width 1 on both oscs, C2: L-R vs L+R below 120 Hz {low:.1} dB, above 400 Hz {high:.1} dB");
     assert!(low <= -40.0, "below 120 Hz: {low:.1} dB");
     assert!(high > -15.0, "the crossover must leave the stereo image above it: {high:.1} dB");
+}
+
+#[test]
+fn crossover_off_is_a_true_bypass() {
+    // Raw Basic triangle at C3: with the crossover off (the init) the output keeps the table's
+    // phases, so its crest factor is the textbook band-limited triangle's; the 120 Hz split's
+    // allpass rotates them.
+    let crest = |x: &[f32]| db(peak(x) as f64 / power(x).sqrt());
+    let mut p = Patch::default();
+    (p.routing, p.sub_on, p.osc[0].table, p.osc[0].index) = (gts::params::Routing::Bypass, false, Table::Basic, 10.0 * 127.0 / 31.0);
+    let k = 152; // harmonics the C3 mip keeps at 48 kHz
+    let tri: Vec<f32> = (0..4800)
+        .map(|i| (1..=k).step_by(2).map(|h| (TAU * (h * i) as f64 / 4800.0).cos() / (h * h) as f64).sum::<f64>() as f32)
+        .collect();
+    let mut got = vec![];
+    for xo in [20.0, 120.0] {
+        p.mono_xover = xo;
+        let (l, r) = note(&p, C3, VEL100, 1.0);
+        assert_eq!(l, r);
+        got.push(crest(&l[sec(0.5)..]));
+    }
+    println!("triangle crest: textbook {:.2} dB, crossover off {:.2} dB, 120 Hz {:.2} dB", crest(&tri), got[0], got[1]);
+    assert!((got[0] - crest(&tri)).abs() < 0.1, "off: {:.2} dB vs {:.2}", got[0], crest(&tri));
+    assert!((got[1] - crest(&tri)).abs() > 0.3, "the 120 Hz split should rotate the phases");
 }
 
 #[test]
@@ -287,16 +313,19 @@ fn voices_ring_out_their_filters() {
     }
 }
 
-/// (steady max step before `event`, max step in the 20 ms after it), left channel.
+/// (steady max step before or after `event`, whichever is larger, max step in the 20 ms after
+/// it), left channel. The new notes' own steady state counts: a stolen voice's higher note steps
+/// more without any click.
 fn event_step(p: &Patch, before: impl Fn(&mut Engine), event: impl Fn(&mut Engine)) -> (f32, f32) {
     let mut e = engine(p);
     before(&mut e);
     let (a, _) = render(&mut e, p, 0.6);
     event(&mut e);
     let (b, _) = render(&mut e, p, 0.02);
+    let (c, _) = render(&mut e, p, 0.6);
     let mut joined = vec![a[a.len() - 1]];
     joined.extend_from_slice(&b);
-    (max_step(&a[sec(0.3)..]), max_step(&joined))
+    (max_step(&a[sec(0.3)..]).max(max_step(&c[sec(0.3)..])), max_step(&joined))
 }
 
 #[test]
