@@ -74,3 +74,17 @@ different from the demo at the init patch, the host integration is the suspect, 
 The GUI needs OpenGL 3.2. Opening the window over Remote Desktop, in a VM, or without a GPU
 driver can crash Live. Audio without the window is unaffected; Live's generic parameter panel
 still works. Click Live's window before pressing Space; set values by dragging.
+
+## pluginval loop (before any GTS commit that touches the editor, lib.rs or the engine)
+
+`tools/pluginval-loop.sh [runs=6] [bundle]` runs pluginval strictness 5 in-process with GUI tests
+N times and stops on the first non-SUCCESS run (log in `$TMPDIR/pv_loop_<n>.log`). Run it on the
+release bundle (6 runs) and on the debug bundle (`cargo xtask bundle gts`, 2 runs). One hang is a
+failure, never "flaky": take thread stacks of the hung pluginval.exe before killing it.
+
+Environment check first if it hangs at "Starting tests in: pluginval / Editor...": the bundle is on
+D: (Samsung T7 over USB) and the external monitor hangs off the same USB-C dock. On 2026-10-10 the
+two wave-2 Editor timeouts (23:16-23:19) came minutes before that dock dropped every device
+(System log: Kernel-PnP 1010 "surprise removed" for the T7, Focusrite and HP display, then Ntfs 50
+"Delayed Write Failed" on D: at 23:20). The same binary then passed 15/15 runs plus 2 debug runs.
+Check `Get-WinEvent` Kernel-PnP / Ntfs for the hang window before blaming the plugin.
