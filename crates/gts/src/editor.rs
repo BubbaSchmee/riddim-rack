@@ -416,10 +416,12 @@ pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>, link: Arc<B
             let now = ctx.input(|i| i.time);
             if now >= st.next_refresh {
                 st.next_refresh = now + 0.25;
+                link.refresh(&params);
                 st.view.sources = link.bus().list().iter().map(|s| s.persisted()).collect();
-                link.rebind_lost();
             }
-            st.view.label = rd(&params.instance_label);
+            if !ctx.wants_keyboard_input() {
+                st.view.label = rd(&params.instance_label); // not while the label is being typed
+            }
             st.view.bound = rd(&params.cv_sources);
             st.view.activity = std::array::from_fn(|i| link.activity(i));
             let before = st.view.clone();
@@ -430,8 +432,8 @@ pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>, link: Arc<B
             });
 
             if st.view.label != before.label {
-                link.set_label(&st.view.label);
-                wr(&params.instance_label, st.view.label.clone());
+                let live = link.set_label(&st.view.label);
+                wr(&params.instance_label, if live.is_empty() { st.view.label.clone() } else { live });
             }
             if st.view.bound != before.bound {
                 for i in 0..3 {

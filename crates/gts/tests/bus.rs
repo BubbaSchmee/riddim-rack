@@ -192,3 +192,35 @@ fn persisted_fields_round_trip() {
     assert_eq!(*q.cv_sources.read().unwrap(), *p.cv_sources.read().unwrap());
     assert_eq!(*q.instance_label.read().unwrap(), "Lead bass");
 }
+
+#[test]
+fn renamed_publisher_is_re_persisted_and_duplicate_labels_are_made_unique() {
+    let name = bus_name("rename");
+    let bus = Bus::open_named(&name);
+    let publisher = bus.register("TEST");
+    let src = publisher.publish("Mod A", Kind::Bipolar);
+    src.set(0.5);
+    let p = params(CvTarget::Volume, 1.0, &format!("{} · Mod A", publisher.label()));
+    let mut dev = DeviceBus::default();
+    dev.connect(&p, &name);
+    assert!(dev.process_block([0.0; 5], BLOCK, SR)[0] > 0.0);
+
+    // The publisher is renamed: the background/GUI refresh stores the new label, so a reload
+    // re-resolves it instead of losing the patch.
+    publisher.set_label("Bass");
+    dev.link.refresh(&p);
+    assert_eq!(p.cv_sources.read().unwrap()[0], "Bass · Mod A");
+    src.set(0.5);
+    assert!(dev.process_block([0.0; 5], BLOCK, SR)[0] > 0.0, "still bound after the refresh");
+
+    // A duplicated track: a second GTS whose state carries the first one's label.
+    let label = dev.link.set_label("Lead");
+    assert_eq!(label, "Lead");
+    let dup = GtsParams::default();
+    *dup.instance_label.write().unwrap() = "Lead".into();
+    let mut dev2 = DeviceBus::default();
+    dev2.connect(&dup, &name);
+    assert_eq!(*dup.instance_label.read().unwrap(), "Lead (2)");
+    let n = bus.list().iter().filter(|s| s.persisted() == "Lead · Mod A").count();
+    assert_eq!(n, 1, "only the original answers to \"Lead · Mod A\"");
+}

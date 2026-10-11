@@ -27,6 +27,15 @@ Notes:
 - The sustain pedal (CC64) is supported.
 - Windows only (x64).
 
+## Modulation bus (RR-BUS)
+
+Instances of GTS and VSS in the same host process can patch to each other, no host automation lanes needed. GTS publishes Mod A, Mod B, Gate, Filter Env and Amp Env; each instance has three PATCH rows (source | target | amount | activity LED) to pick any live source from any instance and a target to modulate.
+
+- The bus is control-rate: values update once per audio block, it is not audio-rate modulation.
+- Instance labels (default `GTS 1`, `GTS 2`) are editable in the PATCH header and appear in source names (`Lead · Mod A`). Names commit on Enter or when the box loses focus; empty names are rejected.
+- Bindings store the label text, so name your instances before patching. Renaming a source instance afterwards leaves other instances showing the old name dimmed until you re-pick it.
+- If an instance disappears (closed or crashed), its signals are reclaimed after 2 s and rows bound to it show their name dimmed; they reconnect when a source with that name returns.
+
 ## Build and install
 
 Requires Rust stable (MSVC).

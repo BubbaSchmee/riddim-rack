@@ -11,6 +11,9 @@ use std::sync::Arc;
 
 use params::GtsParams;
 
+/// Samples between CV-in re-applications inside a block.
+const CV_CHUNK: usize = 32;
+
 pub struct Gts {
     params: Arc<GtsParams>,
     engine: dsp::Engine,
@@ -64,6 +67,12 @@ impl Plugin for Gts {
 
     type SysExMessage = ();
     type BackgroundTask = ();
+
+    fn task_executor(&mut self) -> TaskExecutor<Self> {
+        // The one background task: refresh the bus bindings (see bus::BusLink::refresh).
+        let (link, params) = (self.bus.link.clone(), self.params.clone());
+        Box::new(move |()| link.refresh(&params))
+    }
 
     fn params(&self) -> Arc<dyn Params> {
         self.params.clone()
@@ -125,13 +134,27 @@ impl Plugin for Gts {
             util::permit_alloc(|| nih_log!("transport: tempo {:.2} bpm", transport.tempo));
         }
         self.engine.transport = transport;
-        let cv = self.bus.process_block(self.engine.bus_signals(), buffer.samples(), self.sample_rate);
-        let mut patch = dsp::Patch::from_params(&self.params);
-        bus::apply_cv(&mut patch, &self.params, cv);
+        let n = buffer.samples();
+        self.bus.exchange(self.engine.bus_signals());
+        if self.bus.refresh_due(n, self.sample_rate) {
+            context.execute_background(());
+        }
+        // CV targets are re-applied every CV_CHUNK samples so the 5 ms smoothing reaches the
+        // cutoff/index inside large blocks instead of stepping at block edges.
+        let cv_on = self.params.cv_slots().iter().any(|(t, _)| *t != params::CvTarget::Off);
+        let base = dsp::Patch::from_params(&self.params);
+        let mut patch = base;
+        let first = if cv_on { n.min(CV_CHUNK) } else { n };
+        bus::apply_cv(&mut patch, &self.params, self.bus.advance(first, self.sample_rate));
         self.engine.set_patch(&patch);
 
         let mut next_event = context.next_event();
         for (i, frame) in buffer.iter_samples().enumerate() {
+            if cv_on && i > 0 && i % CV_CHUNK == 0 {
+                let mut patch = base;
+                bus::apply_cv(&mut patch, &self.params, self.bus.advance((n - i).min(CV_CHUNK), self.sample_rate));
+                self.engine.set_cv_patch(&patch);
+            }
             while let Some(event) = next_event {
                 if event.timing() > i as u32 {
                     break;

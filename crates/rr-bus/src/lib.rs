@@ -56,6 +56,9 @@ pub const MAP_SIZE: usize = 64 * 1024;
 pub const STALE_MS: u64 = 2000;
 /// Persisted source strings are `"<label> · <name>"`.
 pub const SEPARATOR: &str = " · ";
+/// A subscription whose source's stamp has not advanced for this long reads `None` (publisher
+/// stopped processing: deactivated, frozen, paused), so a held Gate does not stick at 1.
+pub const IDLE_MS: u64 = 250;
 
 /// Instance id while its record is being filled in (never a real id: the counter skips u32::MAX).
 const CLAIMING: u64 = u64::MAX;
@@ -316,6 +319,36 @@ fn reclaim(s: &Shared) {
     }
 }
 
+/// Writes the first of `candidates` that no other live record holds into record `idx`, then
+/// re-checks (a concurrent register in another process may have picked the same one) and retries.
+/// GUI thread only. Returns the label written.
+fn claim_label(s: &Shared, idx: usize, candidates: impl Fn() -> Box<dyn Iterator<Item = String>>) -> String {
+    let taken = |l: &str| {
+        s.instances
+            .iter()
+            .enumerate()
+            .any(|(j, o)| j != idx && live(o.id.load(SeqCst)) && read_str(&o.label) == l)
+    };
+    let mut label = String::new();
+    for _ in 0..8 {
+        label = candidates().find(|l| !taken(l)).unwrap_or_default();
+        write_str(&s.instances[idx].label, &label);
+        if !taken(&label) {
+            break;
+        }
+    }
+    label
+}
+
+/// `wanted`, then `"wanted (2)"`, `"wanted (3)"`, ... each fitted to the label field.
+fn label_variants(wanted: &str) -> Box<dyn Iterator<Item = String>> {
+    let wanted = fit(wanted, LABEL_BYTES).to_owned();
+    Box::new(std::iter::once(wanted.clone()).chain((2..).map(move |n| {
+        let suffix = format!(" ({n})");
+        format!("{}{suffix}", fit(&wanted, LABEL_BYTES - suffix.len()))
+    })))
+}
+
 // ---- public API ----------------------------------------------------------------------------
 
 /// Signal range, for display and for subscribers that want to rescale.
@@ -405,20 +438,16 @@ impl Bus {
                 // Heartbeat is fresh before the id goes live, so a concurrent reclaim never
                 // sees a live id with a stale heartbeat.
                 r.heartbeat_ms.store(now_ms(), SeqCst);
-                let device = fit(device, DEVICE_BYTES);
-                write_str(&r.device, device);
-                let taken: Vec<String> = s
-                    .instances
-                    .iter()
-                    .filter(|o| live(o.id.load(SeqCst)))
-                    .map(|o| read_str(&o.label))
-                    .collect();
-                let label = (1..)
-                    .map(|n| format!("{device} {n}"))
-                    .find(|l| !taken.contains(l))
-                    .unwrap();
-                write_str(&r.label, &label);
+                let device = fit(device, DEVICE_BYTES).to_owned();
+                write_str(&r.device, &device);
+                // Label after the id is live, so a concurrent claimer in another process sees
+                // this record (claim_label re-checks after writing).
+                write_str(&r.label, "");
                 r.id.store(id, SeqCst);
+                claim_label(s, idx, || {
+                    let device = device.clone();
+                    Box::new((1..).map(move |n| format!("{device} {n}")))
+                });
                 return Instance {
                     bus: self.clone(),
                     idx,
@@ -518,18 +547,31 @@ impl Instance {
         (r.id.load(Acquire) == self.id).then_some(r)
     }
 
-    /// Audio thread, once per block: two atomic ops and one wall-clock read. May also be called
+    /// Audio thread, once per block: a few atomic ops and one wall-clock read. May also be called
     /// from the GUI thread when the host is not processing, to keep the record from going stale.
+    /// If the record was reclaimed (host paused `process` past [`STALE_MS`]) but nobody reused it,
+    /// it is taken back with one CAS, so the instance resumes without re-registering.
     pub fn heartbeat(&self) {
-        if let Some(r) = self.owned() {
+        let Some(s) = self.bus.shared().filter(|_| self.id != 0) else {
+            return;
+        };
+        let r = &s.instances[self.idx];
+        if r.id.load(Acquire) == self.id {
             r.heartbeat_ms.store(now_ms(), Release);
+        } else if r.id.compare_exchange(0, CLAIMING, SeqCst, Relaxed).is_ok() {
+            // ponytail: a resurrected record keeps its old label even if another instance took
+            // it meanwhile; re-registering (reset) is the fallback when the record was reused.
+            r.heartbeat_ms.store(now_ms(), SeqCst);
+            r.id.store(self.id, SeqCst);
         }
     }
 
-    /// GUI thread. Truncated to 24 bytes.
-    pub fn set_label(&self, label: &str) {
-        if let Some(r) = self.owned() {
-            write_str(&r.label, label);
+    /// GUI thread. Truncated to 24 bytes; if another live instance holds it, the next free
+    /// `"<label> (N)"` is used. Returns the label actually set (empty if disabled).
+    pub fn set_label(&self, label: &str) -> String {
+        match (self.owned(), self.bus.shared()) {
+            (Some(_), Some(s)) => claim_label(s, self.idx, || label_variants(label)),
+            _ => String::new(),
         }
     }
 
@@ -619,8 +661,23 @@ impl Source {
         (src.owner.load(Acquire) == self.owner && src.gen.load(Acquire) == self.gen).then_some(src)
     }
 
-    /// Audio thread, once per block. No-op if disabled or the slot was reclaimed.
+    /// Audio thread, once per block. No-op if disabled or the slot was reused. A slot freed by
+    /// reclaim (owner went stale) is taken back once the owner's record is live again (see
+    /// [`Instance::heartbeat`]); gen is unchanged then, so existing subscriptions resume.
     pub fn set(&self, value: f32) {
+        if self.owner != 0 && self.slot().is_none() {
+            if let Some(s) = self.bus.shared() {
+                let src = &s.sources[self.idx];
+                if src.gen.load(Acquire) == self.gen
+                    && s.instances.iter().any(|r| r.id.load(Acquire) == self.owner)
+                    && src.owner.compare_exchange(0, self.owner, SeqCst, Relaxed).is_ok()
+                    && src.gen.load(SeqCst) != self.gen
+                {
+                    // Reused and freed again in between: not ours after all.
+                    let _ = src.owner.compare_exchange(self.owner, 0, SeqCst, Relaxed);
+                }
+            }
+        }
         if let Some(src) = self.slot() {
             src.value.store(value.to_bits(), Release);
             src.stamp.fetch_add(1, Release);
@@ -647,6 +704,9 @@ pub struct Subscription {
     /// `(slot << 32) | gen`.
     slot_gen: AtomicU64,
     lost: AtomicBool,
+    /// Last source stamp seen by `read`, and when it changed (wall-clock ms).
+    seen_stamp: AtomicU64,
+    seen_ms: AtomicU64,
 }
 
 impl Subscription {
@@ -660,6 +720,8 @@ impl Subscription {
             owner: AtomicU64::new(0),
             slot_gen: AtomicU64::new(0),
             lost: AtomicBool::new(true),
+            seen_stamp: AtomicU64::new(0),
+            seen_ms: AtomicU64::new(0),
         };
         sub.rebind_if_lost();
         sub
@@ -690,8 +752,9 @@ impl Subscription {
         self.lost.load(Relaxed)
     }
 
-    /// Audio thread, once per block: atomic loads only. `None` when unbound or the source was
-    /// freed/reused, in which case the subscription is flagged lost.
+    /// Audio thread, once per block: atomic loads and one wall-clock read. `None` when unbound or
+    /// the source was freed/reused (the subscription is then flagged lost), or when the publisher
+    /// has not updated it for [`IDLE_MS`] (not flagged lost: it resumes when the publisher does).
     pub fn read(&self) -> Option<f32> {
         let owner = self.owner.load(Acquire);
         if owner == 0 {
@@ -704,7 +767,14 @@ impl Subscription {
             |src: &SourceRec| src.owner.load(Acquire) == owner && src.gen.load(Acquire) == gen;
         if valid(src) {
             let bits = src.value.load(Acquire);
+            let stamp = src.stamp.load(Acquire);
             if valid(src) {
+                let now = now_ms();
+                if self.seen_stamp.swap(stamp, Relaxed) != stamp {
+                    self.seen_ms.store(now, Relaxed);
+                } else if now.saturating_sub(self.seen_ms.load(Relaxed)) > IDLE_MS {
+                    return None;
+                }
                 return Some(f32::from_bits(bits));
             }
         }
@@ -722,11 +792,27 @@ impl Subscription {
             return false;
         };
         self.owner.store(0, Release);
+        if let Some(s) = self.bus.shared() {
+            self.seen_stamp.store(s.sources[slot].stamp.load(SeqCst), Relaxed);
+            self.seen_ms.store(now_ms(), Relaxed);
+        }
         self.slot_gen
             .store(((slot as u64) << 32) | u64::from(gen), Release);
         self.owner.store(owner, Release);
         self.lost.store(false, Relaxed);
         true
+    }
+
+    /// GUI thread: `"<label> · <name>"` with the bound owner's *current* label, or `None` when
+    /// unbound/lost. Differs from [`Subscription::persisted`] after the publisher was renamed;
+    /// devices store this so a saved set re-resolves the renamed publisher.
+    pub fn live_persisted(&self) -> Option<String> {
+        let owner = self.owner.load(Acquire);
+        if owner == 0 || self.is_lost() {
+            return None;
+        }
+        let rec = self.bus.shared()?.instances.iter().find(|r| r.id.load(SeqCst) == owner)?;
+        Some(format!("{}{SEPARATOR}{}", read_str(&rec.label), self.name))
     }
 }
 

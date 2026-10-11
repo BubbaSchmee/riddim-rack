@@ -325,6 +325,14 @@ impl Engine {
     }
 
     /// Call once per block, before rendering it.
+    /// Mid-block update for the RR-BUS CV targets (osc index/shift, filter freq, Mod A index,
+    /// volume), which voices read from the patch per sample. Unlike [`Engine::set_patch`] it leaves
+    /// envelopes, LFO configuration and voice count alone; `p` must otherwise equal the block's patch.
+    pub fn set_cv_patch(&mut self, p: &Patch) {
+        self.patch = *p;
+        self.gain_target = 10f32.powf(p.volume_db / 20.0) / (p.poly as f32).sqrt();
+    }
+
     pub fn set_patch(&mut self, p: &Patch) {
         if p.poly != self.patch.poly {
             // Only voices the new count no longer reaches are released.

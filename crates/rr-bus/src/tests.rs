@@ -258,3 +258,60 @@ fn four_thread_stress_has_no_torn_values() {
     let reads: usize = handles.into_iter().map(|h| h.join().unwrap()).sum();
     assert!(reads > 1000, "only {reads} reads");
 }
+
+#[test]
+fn labels_stay_unique_and_renames_are_visible_to_subscribers() {
+    let bus = unique_bus();
+    let g1 = bus.register("GTS");
+    let g2 = bus.register("GTS");
+    // A duplicated track / preset load asking for a label another instance holds.
+    assert_eq!(g2.set_label("GTS 1"), "GTS 1 (2)");
+    assert_eq!(g2.label(), "GTS 1 (2)");
+    assert_eq!(g1.set_label("GTS 1"), "GTS 1"); // own label is not a clash
+    let long = "A label that is far too long";
+    assert_eq!(g1.set_label(long), fit(long, LABEL_BYTES));
+    let v = g2.set_label(long);
+    assert!(v.ends_with(" (2)") && v.len() <= LABEL_BYTES, "{v}");
+    // The bound owner's current label, for re-persisting after a rename.
+    let src = g1.publish("Mod A", Kind::Bipolar);
+    src.set(0.5);
+    let sub = Subscription::bind(&bus, &g1.label(), "Mod A");
+    g1.set_label("Bass");
+    assert_eq!(sub.live_persisted().as_deref(), Some("Bass · Mod A"));
+    assert!(Subscription::bind(&bus, "nobody", "Mod A").live_persisted().is_none());
+}
+
+#[test]
+fn idle_publisher_reads_none_until_it_resumes() {
+    let bus = unique_bus();
+    let inst = bus.register("GTS");
+    let gate = inst.publish("Gate", Kind::Gate);
+    gate.set(1.0);
+    let sub = Subscription::bind(&bus, "GTS 1", "Gate");
+    assert_eq!(sub.read(), Some(1.0));
+    std::thread::sleep(Duration::from_millis(IDLE_MS + 60));
+    assert_eq!(sub.read(), None, "a publisher that stopped processing must not hold its gate");
+    assert!(!sub.is_lost());
+    gate.set(1.0);
+    assert_eq!(sub.read(), Some(1.0));
+}
+
+#[test]
+fn reclaimed_but_unused_record_is_taken_back_by_heartbeat() {
+    let bus = unique_bus();
+    let paused = bus.register("GTS");
+    let src = paused.publish("Mod A", Kind::Bipolar);
+    src.set(0.5);
+    let sub = Subscription::bind(&bus, "GTS 1", "Mod A");
+    let s = bus.shared().unwrap();
+    s.instances[paused.idx].heartbeat_ms.store(now_ms() - STALE_MS - 1000, SeqCst);
+    reclaim(s);
+    assert!(!paused.is_enabled() && !src.is_enabled());
+    assert_eq!(sub.read(), None);
+    // The host resumes process(): heartbeat + set take the record and slot back.
+    paused.heartbeat();
+    src.set(0.75);
+    assert!(paused.is_enabled() && src.is_enabled());
+    assert_eq!(sub.read(), Some(0.75));
+    assert_eq!(bus.list().len(), 1);
+}

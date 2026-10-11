@@ -3,7 +3,8 @@
 //!
 //! Threads: [`DeviceBus::connect`] / [`DeviceBus::ensure_registered`] run in `initialize` (and in
 //! `reset` only after the host paused long enough for the record to be reclaimed);
-//! [`DeviceBus::process_block`] and [`apply_cv`] run in `process`. The editor talks to the shared
+//! [`DeviceBus::exchange`], [`DeviceBus::advance`] and [`apply_cv`] run in `process`; `process`
+//! also schedules a background [`BusLink::refresh`] about every 250 ms. The editor talks to the shared
 //! [`BusLink`]: it swaps `Subscription`s under `subs`, which the audio thread only `try_lock`s
 //! (keeping the last values on contention), so the audio thread never blocks and never drops one.
 
@@ -55,18 +56,35 @@ impl BusLink {
         drop(old);
     }
 
-    /// GUI thread, ~4x/s: reconnects lost bindings by label + name.
-    pub fn rebind_lost(&self) {
-        for s in lock(&self.subs).iter().flatten() {
-            s.rebind_if_lost();
+    /// GUI thread (~4x/s while the editor is open) and background task (~4x/s from `process`):
+    /// keeps the record fresh while the host is not processing, reconnects lost bindings by
+    /// label + name, and re-persists bindings whose publisher was renamed so a saved set
+    /// re-resolves them.
+    pub fn refresh(&self, params: &GtsParams) {
+        if let Some(i) = lock(&self.instance).as_ref() {
+            i.heartbeat();
+        }
+        let bus = self.bus();
+        let mut subs = lock(&self.subs);
+        let mut saved = params.cv_sources.write().unwrap_or_else(PoisonError::into_inner);
+        for (slot, saved) in subs.iter_mut().zip(saved.iter_mut()) {
+            let Some(sub) = slot else { continue };
+            sub.rebind_if_lost();
+            if let Some(live) = sub.live_persisted() {
+                if live != sub.persisted() {
+                    *slot = Some(Subscription::bind_persisted(&bus, &live));
+                }
+                if *saved != live {
+                    *saved = live;
+                }
+            }
         }
     }
 
-    /// GUI thread.
-    pub fn set_label(&self, label: &str) {
-        if let Some(i) = lock(&self.instance).as_ref() {
-            i.set_label(label);
-        }
+    /// GUI thread. Returns the label actually set (made unique on the bus; empty if the instance
+    /// is not registered).
+    pub fn set_label(&self, label: &str) -> String {
+        lock(&self.instance).as_ref().map(|i| i.set_label(label)).unwrap_or_default()
     }
 
     pub fn activity(&self, i: usize) -> f32 {
@@ -82,11 +100,13 @@ pub struct DeviceBus {
     rt: Option<(Arc<Instance>, [Source; 5])>,
     raw: [f32; 3],
     smooth: [f32; 3],
+    /// Samples since the last background refresh was requested.
+    since_refresh: usize,
 }
 
 impl Default for DeviceBus {
     fn default() -> Self {
-        Self { link: Arc::default(), bus: Bus::disabled(), rt: None, raw: [0.0; 3], smooth: [0.0; 3] }
+        Self { link: Arc::default(), bus: Bus::disabled(), rt: None, raw: [0.0; 3], smooth: [0.0; 3], since_refresh: 0 }
     }
 }
 
@@ -100,9 +120,9 @@ impl DeviceBus {
         }
         self.ensure_registered(params);
         if let Some((inst, _)) = &self.rt {
-            let label = params.instance_label.read().unwrap_or_else(PoisonError::into_inner).clone();
+            let mut label = params.instance_label.write().unwrap_or_else(PoisonError::into_inner);
             if !label.is_empty() {
-                inst.set_label(&label);
+                *label = inst.set_label(&label); // unique on the bus (duplicated track, preset)
             }
         }
         let sources = params.cv_sources.read().unwrap_or_else(PoisonError::into_inner).clone();
@@ -123,10 +143,9 @@ impl DeviceBus {
         let sources = SIGNALS.map(|(name, kind)| inst.publish(name, kind));
         {
             let mut label = params.instance_label.write().unwrap_or_else(PoisonError::into_inner);
-            if label.is_empty() {
-                *label = inst.label();
-            } else {
-                inst.set_label(&label);
+            let live = if label.is_empty() { inst.label() } else { inst.set_label(&label) };
+            if !live.is_empty() {
+                *label = live;
             }
         }
         *lock(&self.link.instance) = Some(inst.clone());
@@ -138,9 +157,28 @@ impl DeviceBus {
         self.bus.is_enabled() && !self.rt.as_ref().is_some_and(|(i, _)| i.is_enabled())
     }
 
-    /// Audio thread, once per block of `n` samples: heartbeat, publish `signals`, read the three
-    /// CV-ins and return them smoothed (5 ms one-pole). No locks waited on, no allocation.
+    /// Audio thread, once per block of `n` samples: [`DeviceBus::exchange`] then
+    /// [`DeviceBus::advance`] over the whole block.
     pub fn process_block(&mut self, signals: [f32; 5], n: usize, sr: f32) -> [f32; 3] {
+        self.exchange(signals);
+        self.advance(n, sr)
+    }
+
+    /// Audio thread, once per block of `n` samples: true about every 250 ms, when `process`
+    /// should schedule a background [`BusLink::refresh`] (re-resolving lost sources must not wait
+    /// for the editor to be opened).
+    pub fn refresh_due(&mut self, n: usize, sr: f32) -> bool {
+        self.since_refresh += n;
+        let due = self.since_refresh as f32 >= 0.25 * sr;
+        if due {
+            self.since_refresh = 0;
+        }
+        due
+    }
+
+    /// Audio thread, once per block: heartbeat, publish `signals`, read the three CV-ins. No
+    /// locks waited on, no allocation.
+    pub fn exchange(&mut self, signals: [f32; 5]) {
         if let Some((inst, sources)) = &self.rt {
             inst.heartbeat();
             for (s, v) in sources.iter().zip(signals) {
@@ -157,10 +195,17 @@ impl DeviceBus {
                 *raw = s.as_ref().and_then(Subscription::read).unwrap_or(0.0);
             }
         }
+        for i in 0..3 {
+            self.link.activity[i].store(self.raw[i].abs().min(1.0).to_bits(), Ordering::Relaxed);
+        }
+    }
+
+    /// Audio thread: advances the 5 ms one-pole by `n` samples towards the last read CV-ins and
+    /// returns the smoothed values. `process` calls it per sub-block so cutoff/index do not step.
+    pub fn advance(&mut self, n: usize, sr: f32) -> [f32; 3] {
         let k = (-(n as f32) / (SMOOTH_S * sr)).exp();
         for i in 0..3 {
             self.smooth[i] = self.raw[i] + (self.smooth[i] - self.raw[i]) * k;
-            self.link.activity[i].store(self.raw[i].abs().min(1.0).to_bits(), Ordering::Relaxed);
         }
         self.smooth
     }

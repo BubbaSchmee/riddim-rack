@@ -762,8 +762,17 @@ pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> Pa
         |hui| {
             let (rect, _) = hui.allocate_exact_size(vec2(PATCH_LABEL_W, CONTROL_H), Sense::hover());
             paint::inset_box(hui.painter(), rect, false);
-            let edit = egui::TextEdit::singleline(label)
-                .id(base.with("label"))
+            // Edited in a buffer and committed on Enter / focus loss, so half-typed and empty
+            // names never reach the bus. An empty or blank result keeps the previous label.
+            let id = base.with("label");
+            let buf_id = id.with("buf");
+            let mut buf = if hui.memory(|m| m.has_focus(id)) {
+                hui.data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| label.clone())
+            } else {
+                label.clone()
+            };
+            let edit = egui::TextEdit::singleline(&mut buf)
+                .id(id)
                 .font(font::mono(PATCH_FONT))
                 .text_color(T.text)
                 .frame(false)
@@ -774,8 +783,15 @@ pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> Pa
             if r.hovered() {
                 hui.ctx().set_cursor_icon(CursorIcon::Text);
             }
-            if r.changed() {
-                out.label_changed = Some(label.clone());
+            if r.lost_focus() {
+                let t = buf.trim();
+                if !t.is_empty() && t != label.as_str() {
+                    *label = t.to_string();
+                    out.label_changed = Some(label.clone());
+                }
+                hui.data_mut(|d| d.remove::<String>(buf_id));
+            } else if r.has_focus() {
+                hui.data_mut(|d| d.insert_temp(buf_id, buf));
             }
         },
         |ui| {
@@ -790,12 +806,13 @@ pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> Pa
                 items.push("None".into());
                 items.extend(row.sources.iter().cloned());
                 let bound = row.source_idx.filter(|&s| s < row.sources.len());
+                let lost = row.lost_name.filter(|_| bound.is_none());
                 let (cur, dim) = match (bound, row.lost_name) {
                     (Some(s), _) => (row.sources[s].as_str(), false),
                     (None, Some(lost)) => (lost, true),
                     (None, None) => ("None", true),
                 };
-                if let Some(k) = patch_dropdown(ui, base.with((i, 0)), rc.src, cur, dim, Some(bound.map_or(0, |s| s + 1)), &items) {
+                if let Some(k) = patch_dropdown(ui, base.with((i, 0)), rc.src, cur, dim, bound.map(|s| s + 1).or(lost.is_none().then_some(0)), &items) {
                     ev.source_changed = Some(k.checked_sub(1));
                 }
                 let targets: Vec<String> = row.targets.iter().map(|s| s.to_string()).collect();
@@ -986,6 +1003,7 @@ mod tests {
                 egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
                     let mk = |s: Option<usize>| PatchRow { sources: &sources, source_idx: s, lost_name: None, targets: &["Cutoff", "Index", "Pitch"], target_idx: 0, amount01: 0.5, activity01: 0.6 };
                     let mut rows = [mk(None), mk(Some(0)), mk(None)];
+                    rows[0].lost_name = Some("Old \u{b7} Mod A"); // row 0 is a lost binding
                     let mut label = self.label.borrow().clone();
                     let r = ui.allocate_ui(vec2(292.0, PATCH_H), |ui| patch_strip(ui, &mut label, &mut rows)).inner;
                     *self.label.borrow_mut() = label;
@@ -1034,6 +1052,30 @@ mod tests {
     }
 
     #[test]
+    fn patch_lost_binding_can_be_cleared_with_none() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        let src = h.rects(0).src;
+        h.click(src.center(), 0.1);
+        h.click(pos2(src.center().x, src.bottom() + 8.0 + 12.0), 0.5);
+        assert_eq!(h.any(|r| r.rows[0].source_changed), Some(None));
+    }
+
+    #[test]
+    fn patch_empty_label_is_rejected() {
+        let h = PatchHarness::new();
+        h.frame(vec![], 0.0);
+        h.click(pos2(292.0 - 12.0 - 6.0, 8.0 + 12.0), 0.1);
+        let key = |k, m| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m };
+        h.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)], 0.5);
+        h.frame(vec![key(egui::Key::Backspace, Default::default())], 0.6);
+        h.frame(vec![key(egui::Key::Enter, Default::default())], 0.7);
+        h.frame(vec![], 0.8);
+        assert!(h.any(|r| r.label_changed.clone()).is_none());
+        assert_eq!(*h.label.borrow(), "GTS 1");
+    }
+
+    #[test]
     fn patch_target_combo_pick_maps_to_target_index() {
         let h = PatchHarness::new();
         h.frame(vec![], 0.0);
@@ -1070,6 +1112,10 @@ mod tests {
         h.click(at, 0.1);
         h.frame(vec![egui::Event::Text("b".into())], 0.5);
         h.frame(vec![], 0.6);
+        assert!(h.any(|r| r.label_changed.clone()).is_none(), "committed mid-typing");
+        let enter = |pressed| egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed, repeat: false, modifiers: Default::default() };
+        h.frame(vec![enter(true), enter(false)], 0.7);
+        h.frame(vec![], 0.8);
         assert_eq!(h.any(|r| r.label_changed.clone()).as_deref(), Some("GTS 1b"));
         assert_eq!(*h.label.borrow(), "GTS 1b");
     }

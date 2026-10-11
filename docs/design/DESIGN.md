@@ -312,7 +312,7 @@ header row.
 * Sequence: Rate combo (label above, 37 px cell), then a 76 px Steps slider 4 px below.
 
 Body: the Vowel pattern group at (44, 156), 976 x 384, ending at y 540. Header caption on the
-right reads "Step N . Vowel". The step grid fills the group body (940 x 340), grid block 612 x 272
+right reads "Step N . Vowel". The step grid fills the group body (940 x 340), grid block 612 x 272 (VSS stretches cells to fill)
 centred.
 
 ## 7. Accessibility
@@ -338,7 +338,7 @@ centred.
   that changes from `muted` to `text`; a selected cell has fill, stroke and ring; the playing
   step is also numbered in accent.
 * Minimum text is 11 px. Smallest targets: toggles and combos 24 px high, knob cells 44 x 67,
-  grid cells 32 px.
+  grid cells 32 px (VSS stretches its cells to fill the group).
 * Nothing is animated. Nothing depends on hover to be readable.
 
 ## 8. Using the kit
