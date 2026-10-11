@@ -230,8 +230,9 @@ owner gone), `sub.rebind_if_lost()` (GUI thread, cheap, called ~4×/s).
 - The device's own sources are listed too (self-patching is fine).
 
 ## GUI (rr-ui): PATCH strip
-A `PATCH` group in the rack panel (GTS: added to the bottom row, window stays 1000×760 by
-tightening the Velocity group; VSS: a fourth column in the header row, window 760×560): an
+A `PATCH` group in the rack panel (GTS: in the header band right of the grain display, which
+shrinks to 352 px; window stays 1000×760. VSS: a fourth header column; window widens to
+1064×560 and the step-grid cells stretch to fill the width): an
 editable instance label; three rows of `source combo | target combo | amount knob | activity
 LED` where the LED brightness follows |incoming value|. Source combos list `"<label> · <name>"`
 for every live source, refreshed ~4×/s; a lost source shows its persisted name dimmed.
