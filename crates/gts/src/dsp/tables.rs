@@ -2,7 +2,7 @@
 //!
 //! Every grain is one cycle built additively from harmonics 1..=64 (or, for FM, computed directly
 //! in the time domain where its sidebands already die out far below harmonic 64), then DC-removed
-//! and peak-normalized. Neighbouring grains share phase structure so Index crossfades never cancel.
+//! and RMS-normalized to 0.25 (peak capped at 1.0). Neighbouring grains share phase structure so Index crossfades never cancel.
 //! ponytail: harmonics stop at 64, so tables alias above ~C5 (64 * 523 Hz > 24 kHz at 48 kHz);
 //! upgrade path = per-octave mip tables.
 
@@ -136,19 +136,20 @@ fn synth(out: &mut [f32], c: &Coefs, sin: &[f32; N]) {
     }
 }
 
-/// DC removal + peak normalization to 1.0.
+/// Grain RMS after `finish` (unless the peak cap kicked in).
+pub const GRAIN_RMS: f32 = 0.25;
+
+/// DC removal, RMS normalization to `GRAIN_RMS`, then scaled down only if the peak exceeds 1.0.
 fn finish(out: &mut [f32]) {
     let mean = out.iter().sum::<f32>() / N as f32;
-    let mut peak = 0f32;
-    for o in out.iter_mut() {
-        *o -= mean;
-        peak = peak.max(o.abs());
+    out.iter_mut().for_each(|o| *o -= mean);
+    let rms = (out.iter().map(|o| o * o).sum::<f32>() / N as f32).sqrt();
+    if rms <= 0.0 {
+        return;
     }
-    if peak > 0.0 {
-        for o in out.iter_mut() {
-            *o /= peak;
-        }
-    }
+    let peak = out.iter().fold(0f32, |m, o| m.max(o.abs())) * GRAIN_RMS / rms;
+    let g = GRAIN_RMS / rms / peak.max(1.0);
+    out.iter_mut().for_each(|o| *o *= g);
 }
 
 /// Harmonic `h` of a band-limited centered pulse of width `w` (cosine series).

@@ -1,4 +1,4 @@
-//! egui editor per SPEC.md "GUI": fixed 1000x700 dark window, four rows of labelled groups.
+//! egui editor per SPEC.md "GUI": fixed 1000x760 dark window, four rows of labelled groups.
 //! Each group lays its params in a grid of at most 5 columns (here 2-5). Cell width =
 //! max(label, widget): label ~7 px per char at 12.5 px, sliders 80, combos 110, checkboxes 20.
 //! Item spacing 8 px; a group adds 16 px of frame. `Group::width` and `row_width` implement that
@@ -260,7 +260,7 @@ pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>) -> Option<B
         debug_assert!(row_width(r) < MAX_ROW, "editor row {} px >= {MAX_ROW}", row_width(r));
     }
     create_egui_editor(
-        EguiState::from_size(1000, 700),
+        EguiState::from_size(1000, 760),
         (),
         |ctx, _| ctx.set_visuals(egui::Visuals::dark()),
         move |ctx, setter, _| {
@@ -312,6 +312,6 @@ mod tests {
             assert!(r.iter().all(|g| g.cols <= 5));
             h += r.iter().map(Group::height).fold(0.0, f32::max) + SPACING;
         }
-        assert!(h < 700.0, "height {h}");
+        assert!(h < 760.0, "height {h}");
     }
 }

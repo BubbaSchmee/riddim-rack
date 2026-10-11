@@ -21,7 +21,7 @@ fn quant_2bit_levels() {
             lv.push(k);
         }
     }
-    assert!(lv.len() <= 4, "{lv:?}");
+    assert_eq!(lv.len(), 4, "{lv:?}");
 }
 
 #[test]
@@ -35,5 +35,15 @@ fn no_nan_at_extremes() {
                 assert!(y.is_finite(), "{m:?} {a} {x}");
             }
         }
+    }
+}
+
+#[test]
+fn quant_is_mid_tread() {
+    // Zero in -> zero out at every bit depth: no DC pedestal, no click at note end.
+    for i in 0..=20 {
+        let mut s = Shaper::new();
+        s.set(Quant, i as f32 / 20.0);
+        assert_eq!(s.process(0.0), 0.0, "amt {}", i as f32 / 20.0);
     }
 }

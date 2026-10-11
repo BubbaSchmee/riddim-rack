@@ -246,6 +246,9 @@ pub struct Engine {
     wheel_raw: f32,
     gain: f32,
     gain_target: f32,
+    /// Sustain pedal (CC64) down, and the notes whose note-off it is holding back.
+    sustain: bool,
+    pending: [bool; 128],
     pub transport: Transport,
     pub log_notes: bool,
 }
@@ -263,7 +266,7 @@ impl Engine {
             tables: Tables::new(),
             voices: std::array::from_fn(|_| Voice::default()),
             patch: Patch::default(),
-            ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0 },
+            ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0, dc: 0.0 },
             held: [(0, 0.0); MAX_HELD],
             n_held: 0,
             age: 0,
@@ -272,6 +275,8 @@ impl Engine {
             wheel_raw: 0.0,
             gain: 0.0,
             gain_target: 0.0,
+            sustain: false,
+            pending: [false; 128],
             transport: Transport::default(),
             log_notes: false,
         };
@@ -294,6 +299,7 @@ impl Engine {
     fn set_sample_rate(&mut self, sr: f32) {
         self.ctl.sr = sr;
         self.ctl.smooth = (-1.0 / (0.005 * sr)).exp();
+        self.ctl.dc = 1.0 - (-std::f32::consts::TAU * 8.0 / sr).exp();
         for v in &mut self.voices {
             v.set_sample_rate(sr);
         }
@@ -311,6 +317,8 @@ impl Engine {
             v.kill();
         }
         self.n_held = 0;
+        self.sustain = false;
+        self.pending = [false; 128];
         self.bend_raw = 0.0;
         self.ctl.bend = 0.0;
         self.gain = self.gain_target;
@@ -319,16 +327,24 @@ impl Engine {
     /// Call once per block, before rendering it.
     pub fn set_patch(&mut self, p: &Patch) {
         if p.poly != self.patch.poly {
-            for v in &mut self.voices {
+            // Only voices the new count no longer reaches are released.
+            for v in &mut self.voices[p.poly..] {
                 v.release();
             }
             self.n_held = 0;
+            // Into mono: voice 0's held key becomes the note stack, so its note-off still lands.
+            let v = &self.voices[0];
+            if p.poly <= 1 && v.gate {
+                self.held[0] = (v.note, v.velocity);
+                self.n_held = 1;
+            }
         }
         self.patch = *p;
         let sr = self.ctl.sr;
         // Portamento: one-pole in semitones, ~98 % of the way after `porta` seconds.
         self.ctl.glide = if p.porta > 0.0 { (-4.0 / (p.porta * sr)).exp() } else { 0.0 };
-        self.gain_target = 10f32.powf(p.volume_db / 20.0);
+        // 1/sqrt(poly) keeps chords out of the limiter (mono unchanged).
+        self.gain_target = 10f32.powf(p.volume_db / 20.0) / (p.poly as f32).sqrt();
         for v in &mut self.voices {
             v.update(p, sr);
             v.configure_mods(p, &self.transport);
@@ -342,6 +358,8 @@ impl Engine {
             NoteEvent::Choke { note, .. } => self.choke(note),
             NoteEvent::MidiPitchBend { value, .. } => self.pitch_bend(value),
             NoteEvent::MidiCC { cc: 1, value, .. } => self.mod_wheel(value),
+            NoteEvent::MidiCC { cc: 64, value, .. } => self.sustain_pedal(value >= 0.5),
+            NoteEvent::MidiCC { cc: 120 | 123, .. } => self.all_notes_off(),
             _ => {}
         }
     }
@@ -354,6 +372,27 @@ impl Engine {
     /// Mod wheel (CC1), 0..1.
     pub fn mod_wheel(&mut self, value: f32) {
         self.wheel_raw = value.clamp(0.0, 1.0);
+    }
+
+    /// Sustain pedal: while down, note-offs are deferred; lifting it flushes them.
+    pub fn sustain_pedal(&mut self, down: bool) {
+        self.sustain = down;
+        if !down {
+            for n in 0..128u8 {
+                if std::mem::take(&mut self.pending[n as usize]) {
+                    self.note_off(n);
+                }
+            }
+        }
+    }
+
+    /// CC120 / CC123: release every voice and forget held and sustained keys.
+    pub fn all_notes_off(&mut self) {
+        for v in &mut self.voices {
+            v.release();
+        }
+        self.n_held = 0;
+        self.pending = [false; 128];
     }
 
     /// Smoothed mod wheel, 0..1 (what the voices use; the filter/LFO stages read it too).
@@ -382,6 +421,8 @@ impl Engine {
     }
 
     pub fn note_on(&mut self, note: u8, velocity: f32) {
+        // A re-pressed key is held again; its deferred note-off no longer applies.
+        self.pending[note as usize & 127] = false;
         self.age += 1;
         let (patch, ctl, age) = (self.patch, self.ctl, self.age);
         if patch.poly <= 1 {
@@ -419,6 +460,10 @@ impl Engine {
     }
 
     pub fn note_off(&mut self, note: u8) {
+        if self.sustain {
+            self.pending[note as usize & 127] = true;
+            return;
+        }
         let (patch, ctl) = (self.patch, self.ctl);
         if patch.poly <= 1 {
             if !self.remove_held(note) {

@@ -156,7 +156,8 @@ fn output_is_bounded_with_eight_loud_voices() {
         assert!(l.is_finite() && r.is_finite());
         peak = peak.max(l.abs()).max(r.abs());
     }
-    assert!(peak <= 1.0 && peak > 0.9, "peak {peak}");
+    // 1/sqrt(poly) headroom (SPEC Output) keeps a chord mostly out of the limiter; still loud.
+    assert!(peak <= 1.0 && peak > 0.5, "peak {peak}");
 }
 
 #[test]
@@ -173,4 +174,59 @@ fn poly_stolen_voice_starts_on_pitch() {
     run(&mut e, 0.001);
     let v = (0..2).map(|i| e.voice(i)).find(|v| v.note == 64).unwrap();
     assert!((v.pitch() - 64.0).abs() < 1e-3, "stolen voice glides: {}", v.pitch());
+}
+
+fn cc(cc: u8, value: f32) -> NoteEvent<()> {
+    NoteEvent::MidiCC { timing: 0, channel: 0, cc, value }
+}
+
+#[test]
+fn sustain_pedal_defers_note_off_and_cc123_silences() {
+    for poly in [1, 4] {
+        let mut p = Patch::default();
+        p.poly = poly;
+        let mut e = engine(&p);
+        e.handle_event(&cc(64, 1.0));
+        e.handle_event(&on(40));
+        run(&mut e, 0.05);
+        e.handle_event(&off(40));
+        run(&mut e, 0.2);
+        assert_eq!(e.active_voices(), 1, "poly {poly}: pedal should hold the note");
+        assert_ne!(e.voice(0).amp_env(0).stage(), Stage::Release);
+        e.handle_event(&cc(64, 0.0));
+        assert_eq!(e.voice(0).amp_env(0).stage(), Stage::Release, "poly {poly}: pedal up releases");
+        run(&mut e, 0.1);
+        assert_eq!(e.active_voices(), 0);
+
+        // CC123 releases everything, pedal or not.
+        e.handle_event(&cc(64, 1.0));
+        for n in [40, 44, 47] {
+            e.handle_event(&on(n));
+        }
+        run(&mut e, 0.05);
+        e.handle_event(&cc(123, 0.0));
+        run(&mut e, 0.1);
+        assert_eq!(e.active_voices(), 0, "poly {poly}: CC123 should silence all");
+    }
+}
+
+#[test]
+fn lowering_polyphony_keeps_voice_zero() {
+    let mut p = Patch::default();
+    p.poly = 4;
+    let mut e = engine(&p);
+    for n in [40, 44, 47] {
+        e.handle_event(&on(n));
+    }
+    run(&mut e, 0.05);
+    assert_eq!(e.voice(0).note, 40);
+    p.poly = 1;
+    e.set_patch(&p);
+    run(&mut e, 0.2);
+    assert_eq!(e.active_voices(), 1, "only voices >= new poly are released");
+    assert!(e.voice(0).gate && e.voice(0).note == 40);
+    // The kept note still releases on its own note-off in mono.
+    e.handle_event(&off(40));
+    run(&mut e, 0.1);
+    assert_eq!(e.active_voices(), 0);
 }

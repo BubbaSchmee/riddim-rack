@@ -1,4 +1,4 @@
-//! SPEC Verification 1, tables: every grain peak <= 1.0, |DC| < 1e-3, no NaN; generation < 50 ms.
+//! SPEC Verification 1, tables: every grain RMS within 1 % of 0.25 unless peak-capped, peak <= 1.0, |DC| < 1e-3, no NaN; generation < 50 ms.
 use gts::dsp::tables::{Tables, GRAINS, N};
 use gts::params::Table;
 use nih_plug::prelude::Enum;
@@ -23,7 +23,11 @@ fn grains_are_sane_and_generation_is_fast() {
             assert_eq!(grain.len(), N);
             assert!(grain.iter().all(|x| x.is_finite()), "{table:?} grain {g} has NaN/inf");
             let peak = grain.iter().fold(0f32, |m, x| m.max(x.abs()));
-            assert!(peak <= 1.0 && peak > 0.99, "{table:?} grain {g} peak {peak}");
+            assert!(peak <= 1.0 + 1e-6, "{table:?} grain {g} peak {peak}");
+            let rms = (grain.iter().map(|&x| x as f64 * x as f64).sum::<f64>() / N as f64).sqrt();
+            let capped = peak > 0.999;
+            assert!(capped || (rms / 0.25 - 1.0).abs() < 0.01, "{table:?} grain {g} RMS {rms}");
+            assert!(rms <= 0.25 * 1.01, "{table:?} grain {g} RMS {rms} above target");
             let dc = grain.iter().map(|&x| x as f64).sum::<f64>() / N as f64;
             assert!(dc.abs() < 1e-3, "{table:?} grain {g} DC {dc}");
         }

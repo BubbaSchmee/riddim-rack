@@ -30,9 +30,9 @@ impl Shaper {
                 x.clamp(-t, t) / t
             }
             ShaperMode::Quant => {
-                // Mid-rise: 2^bits levels, bits 16 -> 2 with amt.
+                // Mid-tread (zero -> zero): 2^bits levels, bits 16 -> 2 with amt.
                 let l = 2f32.powf(15.0 - a * 14.0); // 2^(bits-1)
-                ((x * l).floor().clamp(-l, l - 1.0) + 0.5) / l
+                (x * l).round().clamp(-l, l - 1.0) / l
             }
             ShaperMode::Noise => {
                 let mut r = self.rng;

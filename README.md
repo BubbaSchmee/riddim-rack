@@ -21,6 +21,10 @@ Notes:
 - **Mono + Legato**: a new note while one is held glides (Portamento) and does not retrigger envelopes or LFOs.
 - The GUI needs **OpenGL 3.2**. It can crash or fail to open over Remote Desktop (RDP) or in a VM without GPU acceleration.
 - HiDPI: the editor follows the host's scale where the host provides it.
+- Tables are band-limited to 64 harmonics. It is a bass synth: above ~C5 and with Shift up you will hear aliasing. Mip-mapped tables are a planned upgrade.
+- Negative **Shift** narrows grains into a pulse-like waveform by design.
+- At 150 % Windows display scaling the 1000x760 window plus Live's chrome does not fit a 1080p screen; 100 % and 125 % do.
+- The sustain pedal (CC64) is supported.
 - Windows only (x64).
 
 ## Build and install

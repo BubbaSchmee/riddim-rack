@@ -23,10 +23,10 @@ the plugin. Delete the plugin log first for a clean session.
 ## Checks (expected result)
 
 6. Loads with no warning; GUI opens, fits the screen, every group visible (no clipped rows).
-7. Default patch on F1: punchy square-type bass with a short downward "wobble" on each note
-   (Mod A one-shot into Index) and a metallic comb tone. Not thin, not clipping (Live meter < 0 dB).
+7. Default patch on F1: full square-type bass with a short downward "wobble" on each note
+   (Mod A one-shot into Index; the attack starts on the wide pulse) and a metallic comb tone. Not thin, not clipping (Live meter < 0 dB).
 8. Transport stopped, play keys live: same sound, legato glide when overlapping notes.
-9. Press Play: Mod B with Sync on and one-shot off locks to the grid; changing tempo to 140 follows.
+9. Set Mod B Sync on, Div 1/4, Mod B Cutoff 0.5 (Mod B group). Press Play: the filter sweep locks to the beat; change tempo to 140 and it follows.
 10. Shift knob on Osc A: formant/brightness moves, pitch does NOT change (compare with a tuner).
 11. Index and Motion: timbre morphs; Motion at +0.5 scans audibly.
 12. Table combo: each of the 8 tables sounds distinct; Vowel table speaks A→U across Index.
@@ -37,7 +37,8 @@ the plugin. Delete the plugin log first for a clean session.
 17. Save set, close, reopen: all knob values and combos restored.
 18. Automate Filter A Freq and Osc A Shift in Live: no zipper noise or clicks.
 19. CPU: Live's CPU meter with 8 held notes stays well under 50 % on this machine.
-20. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
+20. Hold the sustain pedal (or send CC64 127) and release keys: notes hold until the pedal is released.
+21. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 
 ## After a session, send back
 

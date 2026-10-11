@@ -225,7 +225,7 @@ impl OscParams {
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),
             motion: bipolar(n("Motion"), 0.0),
             shift: semitones(n("Shift"), 0.0, 24.0),
-            vol: unit(n("Vol"), 0.8),
+            vol: unit(n("Vol"), 1.0),
             att: time(n("Attack"), 0.005),
             dec: time(n("Decay"), 0.3),
             sus: unit(n("Sustain"), 1.0),
@@ -460,7 +460,7 @@ impl Default for GtsParams {
             moda: ModParams::new("A", Curve::Decay, true, true),
             moda_amt: ModAAmounts {
                 pitch: bipolar("Mod A Pitch".into(), 0.0),
-                index: bipolar("Mod A Index".into(), 0.5),
+                index: bipolar("Mod A Index".into(), -0.5),
                 shift: bipolar("Mod A Shift".into(), 0.0),
             },
             modb: ModParams::new("B", Curve::Sine, false, false),
@@ -511,7 +511,7 @@ impl Default for GtsParams {
                 mod_amt: bipolar("Vel Mod".into(), 0.0),
             },
 
-            volume: FloatParam::new("Volume", -6.0, FloatRange::Linear { min: -24.0, max: 6.0 })
+            volume: FloatParam::new("Volume", 0.0, FloatRange::Linear { min: -24.0, max: 6.0 })
                 .with_smoother(SmoothingStyle::Linear(10.0))
                 .with_unit(" dB")
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),

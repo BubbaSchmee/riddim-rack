@@ -109,14 +109,14 @@ defers note-offs and flushes them on release; CC120/123 (all sound/notes off) re
 cutoff, Mod amount. Velocity (bipolar amounts): Vol A, Vol B, Filter env, Attack, Shift, Mod amount.
 
 ## Output
-Volume -24..+6 dB (default -6), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
+Volume -24..+6 dB (default 0; raised with osc vol 1.0 on 2026-10-10 after RMS grain normalization left the default patch at -25 dBFS), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
 sum is scaled by 1/sqrt(poly) so chords do not live in the limiter (mono unchanged). Soft limiter
 (tanh above 0.95) as safety only.
 
 ## Parameters (~80; ids stable; display names in quotes)
 Osc A/B each: `osc{a,b}_on` "Osc A On", `_table` (enum above), `_oct` (-4..4), `_semi` (0..12),
 `_cent` (-50..50), `_index` (0..127, default 64), `_motion` (-1..1, 0), `_shift` (-24..24, 0),
-`_vol` (0..1, 0.8), `_att` (1 ms..10 s, 5 ms), `_dec` (1 ms..10 s, 300 ms), `_sus` (0..1, 1.0),
+`_vol` (0..1, 1.0), `_att` (1 ms..10 s, 5 ms), `_dec` (1 ms..10 s, 300 ms), `_sus` (0..1, 1.0),
 `_rel` (1 ms..10 s, 60 ms). Osc B default off, table Saw Stack.
 Mod A/B each: `mod{a,b}_curve`, `_rate` (0.03..30 Hz, 4 Hz), `_sync` (bool, A: on), `_div`
 (enum, 1/8), `_oneshot` (bool, A: on), `_target` (A/B/Both). Mod A: `moda_pitch`, `moda_index`

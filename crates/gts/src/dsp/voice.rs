@@ -48,6 +48,8 @@ pub struct Controls {
     pub glide: f32,
     /// One-pole coefficient for Shift de-zippering (~5 ms).
     pub smooth: f32,
+    /// One-pole coefficient of the 8 Hz per-osc DC blocker, `1 - exp(-2π·8/sr)`.
+    pub dc: f32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -61,6 +63,8 @@ struct Osc {
     vel_gain: f32,
     /// Last f0 in Hz (for tests / inspection).
     freq: f32,
+    /// DC blocker state: running mean of the grain oscillator output.
+    dc: f32,
 }
 
 #[derive(Default)]
@@ -322,6 +326,7 @@ impl Voice {
                 let o = &mut self.osc[i];
                 o.shift = shift;
                 o.grain.reset(2f64.powf(shift as f64 / 12.0), gp);
+                o.dc = 0.0;
             }
         }
 
@@ -348,6 +353,9 @@ impl Voice {
             }
             let ratio = 2f64.powf(o.shift as f64 / 12.0);
             let s = o.grain.next(tables, op.table as usize, o.freq as f64 / ctl.sr as f64, ratio, gp);
+            // DC blocker: negative Shift makes the grains a unipolar pulse train.
+            o.dc += ctl.dc * (s - o.dc);
+            let s = s - o.dc;
             out[i] = s * env * op.vol * o.vel_gain * (1.0 + m.vol[i]).max(0.0);
         }
 
