@@ -40,11 +40,17 @@ Two LFO modulators with tempo sync and one-shot mode, a shaper, two multimode fi
 comb and AM modes, shared filter envelope, mono/legato/portamento. Instrument: MIDI in (`MidiConfig::MidiCCs`, required for
 pitch bend and CC1 to be delivered), stereo out, no audio in.
 
-## Graintables (procedural, generated at `initialize`, no allocation in `process`)
-Representation: a table = `G` grains × `N = 2048` f32 samples, each grain exactly one cycle at a
-reference pitch, band-limited additive synthesis with harmonics up to 64 (`// ponytail:` aliasing
-ceiling above ~C5; upgrade path = per-octave mip tables). Index 0..127 maps linearly across the
-grains with linear crossfade between neighbours. `G = 32` for all tables.
+## Graintables (procedural, generated once, no allocation in `process`)
+Representation (v2 wave 1): a table = `G = 32` grains, each grain one cycle defined by harmonic
+coefficients 1..512 and rendered by inverse FFT into 10 mip levels, one per octave: mip `m` keeps
+harmonics `1..=512 >> m`. Positions are in units of the `N = 2048`-sample frame; a level stores at
+least 16 samples per top harmonic (8192 for mip 0, 4096 for mip 1, 2048 for the rest). The
+oscillator picks the mip from the effective read rate `f0·2^(shift/12)` so the highest kept
+harmonic stays at or below 17.5 kHz at the running sample rate (no regeneration on a rate change),
+re-chosen every 32 samples with a one-block crossfade, and reads it with 4-point Hermite
+interpolation. Index 0..127 maps linearly across the grains with a linear crossfade between
+neighbours. The tables are generated once per plugin instance and shared with the editor's grain
+display.
 
 | # | Name | Index morphs… |
 |---|---|---|
@@ -57,9 +63,11 @@ grains with linear crossfade between neighbours. `G = 32` for all tables.
 | 6 | Reed | pulse + resonant peak sweeping 400 → 4000 Hz |
 | 7 | Grit | band-limited noise bursts, index = bandwidth narrow → wide (seeded, deterministic) |
 
-Each grain DC-removed and normalized to RMS 0.25, then scaled down further only if its peak
-exceeds 1.0 (revised 2026-10-10: peak normalization gave a 12.7 dB loudness spread between tables
-and 12 dB across Square Morph's index range).
+Each grain is DC-free and normalized to RMS 0.25 on its 2048-sample level (all mips share that
+gain), then scaled down further only if its peak exceeds 1.0 (peak normalization gave a 12.7 dB
+spread between tables). Two gains are built at generate time per grain and per semitone of Shift
+(`Tables::level`): the level the grain scheme loses at a given Shift (SPEC v2 1.9), times a
+per-table K-weighted (BS.1770) loudness trim, so the 8 tables sit within 1.5 dB at C2 index 64.
 
 ## Oscillator playback (per voice, per osc)
 - Pitch: note + octave (-4..+4) + semi (0..12) + cent (-50..+50) + pitch bend + Mod A pitch.
@@ -70,7 +78,15 @@ and 12 dB across Square Morph's index range).
 - Index: param 0..127 + Motion scan + Mod A index + wheel index + velocity. Motion -1..+1: 0 = static;
   >0 scans forward (wraps), <0 scans forward-backward (ping-pong); magnitude = scan speed, 1.0 =
   full table per 0.25 s. Scan position resets on note-on.
-- Per-osc ADSR amp envelope (A 1 ms..10 s log, D, S, R), per-osc Vol, On/Off.
+- Per-osc ADSR amp envelope (A 1 ms..10 s log, D, S, R, Curve -1 log / 0 exponential / +1 linear),
+  per-osc Vol, On/Off. Release ends at ~0.92·R from full level and earlier from a lower sustain.
+- Unison per osc (v2): 1..7 grain oscillators detuned symmetrically around the note (Detune
+  0..50 cents for the outer voices, Detune Curve 0 linear .. 1 power spacing), Blend = side-voice
+  level against the centre voice, gain 1/sqrt(sum of squares) (= 1/sqrt(N) at Blend 1), stereo
+  Width pans mirrored voice pairs to opposite sides (constant power), Rand Phase draws start
+  phases from a xorshift; Phase Reset on = the same (seeded) phases every note, off = free-running.
+- Sub (v2): sine on Osc A's pitch and amp envelope, -1/-2 octaves, level -60..0 dB (0 dB = grain
+  RMS), phase 0 at note-on, 25 Hz 2-pole low-cut; joins after the filters (mono, undistorted).
 - Per-osc one-pole DC blocker (8 Hz) after the grain oscillator: negative Shift turns grains into a
   unipolar pulse train (measured DC up to 98 % of RMS at shift -24 without it).
 
@@ -101,6 +117,10 @@ the log domain. Clamp cutoff to [20 Hz, 0.45 sr].
 Shaper sits before FA in Parallel too (applies to A only, as in the original lineage).
 
 ## Voice management
+A voice stays alive after its amp envelopes end until its output stays below -90 dBFS for a
+64-sample block (filter tails ring out), capped at 8 s with a 5 ms fade (a self-oscillating LP12
+holds a voice that long). Retriggering a sounding voice (poly steal, mono non-legato) resets the
+oscillator phases and fades the resulting step out over 3 ms.
 Polyphony 1..8 (default 1). Legato on/off (default on): in mono, a new note while one is held
 does not retrigger envelopes/LFOs. Portamento 0..2 s (default 0.08 s in mono). Pitch bend range
 0..24 st (default 12). Voice stealing: oldest. Changing Polyphony releases only the voices
@@ -109,8 +129,12 @@ defers note-offs and flushes them on release; CC120/123 (all sound/notes off) re
 cutoff, Mod amount. Velocity (bipolar amounts): Vol A, Vol B, Filter env, Attack, Shift, Mod amount.
 
 ## Output
-Volume -24..+6 dB (default 0; raised with osc vol 1.0 on 2026-10-10 after RMS grain normalization left the default patch at -25 dBFS), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
-sum is scaled by 1/sqrt(poly) so chords do not live in the limiter (mono unchanged). Soft limiter
+Volume -24..+6 dB (default -5 dB: the v2 init note, C2 at velocity 100, peaks at -9 dBFS), Spread 0..1 (A left / B right stereo offset, 0 = mono). The voice
+sum is scaled by 1/sqrt(poly) so chords do not live in the limiter (mono unchanged). Mono
+crossover 20..300 Hz (default 120): a Linkwitz-Riley 8 split in mid/side (side high-passed, mid
+through the matching allpass) makes the output mono below it. Shaper oversampling 1x/2x/4x
+(default 2x) is a host-persisted setting outside the parameters; the plugin reports the shaper's
+latency (0 / 21 / 23 samples). Soft limiter
 (tanh above 0.95) as safety only.
 
 ## Parameters (~80; ids stable; display names in quotes)
@@ -133,11 +157,21 @@ Defaults not listed above (fixed by the scaffold): `moda_curve` Decay, `modb_cur
 `modb_sync` off, `modb_oneshot` off, both `_target` Both, both `_div` 1/8, `shaper_on` off,
 `shaper_mode` Saturate, `filtb_res` 0.1, all `wheel_*`, `vel_*` and `modb_*` amounts 0 (all
 bipolar -1..1), `spread` 0. Envelope times and portamento are stored in seconds.
-Defaults are chosen so an init patch on a low note already sounds like a riddim bass:
-Square Morph, mono legato, Mod A one-shot 1/8 sync into Index, Comb- filter A at 880 Hz. Kbd tracking pivots at C4 (note 60); wheel cutoff range is ±5 octaves like Mod B.
+v2 parameters (ids stable from here): per osc `_curve` (-1..1, 0), `_unison` (1..7, 1),
+`_detune` (0..50 ct, 12), `_det_curve` (0..1, 0), `_blend` (0..1, 0.7), `_width` (0..1, 0.5),
+`_rand_phase` (0..1, 0), `_phase_reset` (bool, on); `fenv_curve` (-1..1, 0); `sub_on` (on),
+`sub_level` (-60..0 dB, -6), `sub_oct` (-2..-1, -1); `mono_xover` (20..300 Hz, 120). 108 in all.
+Host state (not params): `oversampling` (1/2/4, default 2), `cv_sources`, `instance_label`.
+**v2 init patch (SPEC v2 1.12), which overrides the defaults above:** a clean bass. Osc A Square
+Morph index 40, unison 1, sub on -6 dB, Filter A LP12 2 kHz res 0.15 Kbd 0.5 Env on, Filter B LP12
+20 kHz res 0 (neutral), filter env Amt 0.4, no comb, shaper off, Mod A one-shot off and
+`moda_index` 0, routing Parallel, Volume -5 dB. The v1 riddim defaults (Comb- 880 Hz res 0.6,
+Mod A one-shot into Index -0.5, filter env 0.5, Filter B 2 kHz res 0.1, Volume 0) live on as the
+test/demo fixture `dsp::Patch::riddim_v1` until the factory bank exists. Kbd tracking pivots at C4 (note 60); wheel cutoff range is ±5 octaves like Mod B.
 
 ## GUI (nih_plug_egui, functional, dark)
-Fixed window 1000×760 logical px (fits 1080p at 100 % and 125 % OS scaling; at 150 % Live's
+Fixed window 1000×832 logical px since v2 (a Unison knob row under each osc; 1000×760 before;
+fits 1080p at 100 % and 125 % OS scaling; at 150 % Live's
 chrome pushes it off screen, documented in README). The functional egui layout is v1; the
 designed look is specified in `docs/design/DESIGN.md` (Variant B mint) and replaces it. Sections as labelled groups: Osc A | Osc B (top row),
 Mod A | Mod B | Shaper (second row), Filter A | Filter B | Filter Env (third row), Voice | Wheel |

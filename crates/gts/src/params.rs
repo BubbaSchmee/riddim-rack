@@ -193,11 +193,14 @@ fn time(name: String, default_s: f32) -> FloatParam {
     }))
 }
 
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, RwLock};
 
 // ---- nested groups -------------------------------------------------------------------------
 
-/// One oscillator. Ids: `osc{a,b}_{on,table,oct,semi,cent,index,motion,shift,vol,att,dec,sus,rel}`.
+/// One oscillator. Ids: `osc{a,b}_{on,table,oct,semi,cent,index,motion,shift,vol,att,dec,sus,rel}`,
+/// v2: `_curve` (amp envelope curve) and the unison set `_{unison,detune,det_curve,blend,width,
+/// rand_phase,phase_reset}`.
 #[derive(Params)]
 pub struct OscParams {
     #[id = "on"]
@@ -232,10 +235,34 @@ pub struct OscParams {
     pub sus: FloatParam,
     #[id = "rel"]
     pub rel: FloatParam,
+    /// Amp envelope curve, -1 log .. 0 exponential (the v1 shape) .. +1 linear.
+    #[id = "curve"]
+    pub curve: FloatParam,
+    /// Unison voices, 1..7.
+    #[id = "unison"]
+    pub unison: IntParam,
+    /// Unison detune of the outermost voices in cents, 0..50.
+    #[id = "detune"]
+    pub detune: FloatParam,
+    /// Detune spacing, 0 linear .. 1 power (inner voices cluster, outer ones spread).
+    #[id = "det_curve"]
+    pub det_curve: FloatParam,
+    /// Side-voice level against the centre voice, 0 (centre only) .. 1 (all equal).
+    #[id = "blend"]
+    pub blend: FloatParam,
+    /// Stereo width of the unison voices, 0..1.
+    #[id = "width"]
+    pub width: FloatParam,
+    /// Random start phase per unison voice, 0..1 of a cycle.
+    #[id = "rand_phase"]
+    pub rand_phase: FloatParam,
+    /// On: every note starts the oscillator at the same (seeded) phases. Off: free-running.
+    #[id = "phase_reset"]
+    pub phase_reset: BoolParam,
 }
 
 impl OscParams {
-    fn new(letter: &str, on: bool, table: Table) -> Self {
+    fn new(letter: &str, on: bool, table: Table, index: f32) -> Self {
         let n = |s: &str| format!("Osc {letter} {s}");
         Self {
             on: BoolParam::new(n("On"), on),
@@ -245,7 +272,7 @@ impl OscParams {
             cent: FloatParam::new(n("Cent"), 0.0, FloatRange::Linear { min: -50.0, max: 50.0 })
                 .with_unit(" ct")
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),
-            index: FloatParam::new(n("Index"), 64.0, FloatRange::Linear { min: 0.0, max: 127.0 })
+            index: FloatParam::new(n("Index"), index, FloatRange::Linear { min: 0.0, max: 127.0 })
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),
             motion: bipolar(n("Motion"), 0.0),
             shift: semitones(n("Shift"), 0.0, 24.0),
@@ -254,6 +281,16 @@ impl OscParams {
             dec: time(n("Decay"), 0.3),
             sus: unit(n("Sustain"), 1.0),
             rel: time(n("Release"), 0.06),
+            curve: bipolar(n("Env Curve"), 0.0),
+            unison: IntParam::new(n("Unison"), 1, IntRange::Linear { min: 1, max: 7 }),
+            detune: FloatParam::new(n("Detune"), 12.0, FloatRange::Linear { min: 0.0, max: 50.0 })
+                .with_unit(" ct")
+                .with_value_to_string(formatters::v2s_f32_rounded(1)),
+            det_curve: unit(n("Detune Curve"), 0.0),
+            blend: unit(n("Blend"), 0.7),
+            width: unit(n("Width"), 0.5),
+            rand_phase: unit(n("Rand Phase"), 0.0),
+            phase_reset: BoolParam::new(n("Phase Reset"), true),
         }
     }
 }
@@ -374,7 +411,7 @@ impl FilterParams {
     }
 }
 
-/// Shared filter envelope. Ids: `fenv_{att,dec,sus,rel,amt,inv}`.
+/// Shared filter envelope. Ids: `fenv_{att,dec,sus,rel,amt,inv,curve}`.
 #[derive(Params)]
 pub struct FilterEnvParams {
     #[id = "att"]
@@ -390,6 +427,22 @@ pub struct FilterEnvParams {
     pub amt: FloatParam,
     #[id = "inv"]
     pub inv: BoolParam,
+    /// -1 log .. 0 exponential (the v1 shape) .. +1 linear.
+    #[id = "curve"]
+    pub curve: FloatParam,
+}
+
+/// Sine sub oscillator (SPEC v2 1.5). Ids: `sub_{on,level,oct}`.
+#[derive(Params)]
+pub struct SubParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    /// dB, -60..0 (0 dB = the RMS of a full-level oscillator).
+    #[id = "level"]
+    pub level: FloatParam,
+    /// Octaves below Osc A, -2..-1.
+    #[id = "oct"]
+    pub oct: IntParam,
 }
 
 /// Mod wheel (CC1) amounts, bipolar. Ids: `wheel_{index,shift,cutoff,mod}`.
@@ -447,6 +500,8 @@ pub struct GtsParams {
     pub filtb: FilterParams,
     #[nested(id_prefix = "fenv", group = "Filter Env")]
     pub fenv: FilterEnvParams,
+    #[nested(id_prefix = "sub", group = "Sub")]
+    pub sub: SubParams,
 
     #[id = "routing"]
     pub routing: EnumParam<Routing>,
@@ -473,6 +528,9 @@ pub struct GtsParams {
     /// Stereo spread, 0..1 (A left / B right, 0 = mono).
     #[id = "spread"]
     pub spread: FloatParam,
+    /// Mono crossover in Hz, 20..300: the output is mono below it (SPEC v2 1.5).
+    #[id = "mono_xover"]
+    pub mono_xover: FloatParam,
 
     /// RR-BUS CV-in slots: target and bipolar amount. Ids `cv{1,2,3}_{target,amount}`.
     #[id = "cv1_target"]
@@ -494,6 +552,10 @@ pub struct GtsParams {
     /// This instance's bus label (GUI thread only).
     #[persist = "instance_label"]
     pub instance_label: RwLock<String>,
+    /// Shaper oversampling 1 / 2 / 4 (SPEC v2 1.2): a host-side quality setting, never a preset
+    /// value. Written by the editor, applied by `process` at a block start.
+    #[persist = "oversampling"]
+    pub oversampling: AtomicUsize,
 }
 
 impl GtsParams {
@@ -510,13 +572,15 @@ impl GtsParams {
 impl Default for GtsParams {
     fn default() -> Self {
         Self {
-            osca: OscParams::new("A", true, Table::SquareMorph),
-            oscb: OscParams::new("B", false, Table::SawStack),
+            // SPEC v2 1.12: the init patch is a clean bass. The v1 riddim patch lives on as the
+            // `dsp::Patch::riddim_v1` fixture.
+            osca: OscParams::new("A", true, Table::SquareMorph, 40.0),
+            oscb: OscParams::new("B", false, Table::SawStack, 64.0),
 
-            moda: ModParams::new("A", Curve::Decay, true, true),
+            moda: ModParams::new("A", Curve::Decay, true, false),
             moda_amt: ModAAmounts {
                 pitch: bipolar("Mod A Pitch".into(), 0.0),
-                index: bipolar("Mod A Index".into(), -0.5),
+                index: bipolar("Mod A Index".into(), 0.0),
                 shift: bipolar("Mod A Shift".into(), 0.0),
             },
             modb: ModParams::new("B", Curve::Sine, false, false),
@@ -533,15 +597,23 @@ impl Default for GtsParams {
                 amt: unit("Shaper Amt".into(), 0.3),
             },
 
-            filta: FilterParams::new("A", FilterType::CombMinus, 880.0, 0.6),
-            filtb: FilterParams::new("B", FilterType::Lp12, 2000.0, 0.1),
+            filta: FilterParams::new("A", FilterType::Lp12, 2000.0, 0.15),
+            filtb: FilterParams::new("B", FilterType::Lp12, 20000.0, 0.0),
             fenv: FilterEnvParams {
                 att: time("Filter Env Attack".into(), 0.005),
                 dec: time("Filter Env Decay".into(), 0.25),
                 sus: unit("Filter Env Sustain".into(), 0.2),
                 rel: time("Filter Env Release".into(), 0.1),
-                amt: unit("Filter Env Amt".into(), 0.5),
+                amt: unit("Filter Env Amt".into(), 0.4),
                 inv: BoolParam::new("Filter Env Invert", false),
+                curve: bipolar("Filter Env Curve".into(), 0.0),
+            },
+            sub: SubParams {
+                on: BoolParam::new("Sub On", true),
+                level: FloatParam::new("Sub Level", -6.0, FloatRange::Linear { min: -60.0, max: 0.0 })
+                    .with_unit(" dB")
+                    .with_value_to_string(formatters::v2s_f32_rounded(1)),
+                oct: IntParam::new("Sub Octave", -1, IntRange::Linear { min: -2, max: -1 }),
             },
 
             routing: EnumParam::new("Routing", Routing::Parallel),
@@ -567,11 +639,19 @@ impl Default for GtsParams {
                 mod_amt: bipolar("Vel Mod".into(), 0.0),
             },
 
-            volume: FloatParam::new("Volume", 0.0, FloatRange::Linear { min: -24.0, max: 6.0 })
+            // SPEC v2 1.10: the init note (C2, velocity 100) peaks at about -9 dBFS.
+            volume: FloatParam::new("Volume", -5.0, FloatRange::Linear { min: -24.0, max: 6.0 })
                 .with_smoother(SmoothingStyle::Linear(10.0))
                 .with_unit(" dB")
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),
             spread: unit("Spread".into(), 0.0),
+            mono_xover: FloatParam::new(
+                "Mono Crossover",
+                120.0,
+                FloatRange::Skewed { min: 20.0, max: 300.0, factor: FloatRange::skew_factor(-1.0) },
+            )
+            .with_unit(" Hz")
+            .with_value_to_string(formatters::v2s_f32_rounded(0)),
 
             cv1_target: EnumParam::new("CV 1 Target", CvTarget::Off),
             cv1_amount: bipolar("CV 1 Amount".into(), 0.0),
@@ -581,6 +661,8 @@ impl Default for GtsParams {
             cv3_amount: bipolar("CV 3 Amount".into(), 0.0),
             cv_sources: RwLock::new(Default::default()),
             instance_label: RwLock::new(String::new()),
+            oversampling: AtomicUsize::new(2),
         }
+
     }
 }

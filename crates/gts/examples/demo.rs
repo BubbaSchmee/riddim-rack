@@ -1,6 +1,7 @@
-//! SPEC Verification 1 "demo": 8 bars at 150 BPM on the default patch, a riddim call-and-response
-//! mono line on F1 / G1 / A#1 in 1/8 notes, rendered through the full engine (MIDI events, transport
-//! playing) to `demo/gts-demo.wav` (16-bit, 48 kHz, stereo).
+//! SPEC Verification 1 "demo": 8 bars at 150 BPM, a riddim call-and-response mono line on
+//! F1 / G1 / A#1 in 1/8 notes, rendered through the full engine (MIDI events, transport playing)
+//! to `demo/gts-demo.wav` on the v2 init patch (clean bass) and to `demo/gts-riddim-v1.wav` on the
+//! v1 wobble patch (`Patch::riddim_v1`), both 16-bit, 48 kHz, stereo.
 //!
 //! cargo run -p gts --release --example demo
 use gts::dsp::{Engine, Patch, Transport};
@@ -54,9 +55,13 @@ fn events() -> Vec<(usize, u8, bool)> {
     ev
 }
 
-/// Interleaved stereo frames: 8 bars plus a short release tail.
+/// The init patch: interleaved stereo frames, 8 bars plus a short release tail.
 pub fn render() -> Vec<[f32; 2]> {
-    let patch = Patch::default();
+    render_patch(&Patch::default())
+}
+
+pub fn render_patch(patch: &Patch) -> Vec<[f32; 2]> {
+    let patch = *patch;
     let mut e = Engine::new();
     e.initialize(SR as f32);
     e.transport = Transport { tempo: BPM, playing: true, pos_beats: 0.0 };
@@ -108,12 +113,14 @@ pub fn write_wav(path: &std::path::Path, frames: &[[f32; 2]]) -> std::io::Result
 
 #[allow(dead_code)] // tests/demo.rs includes this file for `render` only
 fn main() -> std::io::Result<()> {
-    let frames = render();
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../demo/gts-demo.wav");
-    write_wav(&path, &frames)?;
-    let flat: Vec<f32> = frames.iter().flatten().copied().collect();
-    let rms = (flat.iter().map(|v| v * v).sum::<f32>() / flat.len() as f32).sqrt();
-    let peak = flat.iter().fold(0f32, |m, v| m.max(v.abs()));
-    println!("wrote {} ({:.2} s): RMS {:.1} dBFS, peak {:.3}", path.display(), frames.len() as f32 / SR as f32, 20.0 * rms.log10(), peak);
+    for (name, patch) in [("gts-demo.wav", Patch::default()), ("gts-riddim-v1.wav", Patch::riddim_v1())] {
+        let frames = render_patch(&patch);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../demo").join(name);
+        write_wav(&path, &frames)?;
+        let flat: Vec<f32> = frames.iter().flatten().copied().collect();
+        let rms = (flat.iter().map(|v| v * v).sum::<f32>() / flat.len() as f32).sqrt();
+        let peak = flat.iter().fold(0f32, |m, v| m.max(v.abs()));
+        println!("wrote {} ({:.2} s): RMS {:.1} dBFS, peak {:.3}", path.display(), frames.len() as f32 / SR as f32, 20.0 * rms.log10(), peak);
+    }
     Ok(())
 }

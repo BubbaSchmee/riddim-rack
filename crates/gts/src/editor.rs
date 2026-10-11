@@ -1,5 +1,6 @@
 //! GTS editor in the shared Riddim Rack look (`docs/design/DESIGN.md`, widgets from `rr-ui`).
-//! Fixed 1000x760 window, laid out exactly like `crates/rr-ui/examples/preview.rs`.
+//! Fixed [`WINDOW`] (1000x832: v2 added a unison row to each oscillator), laid out like
+//! `crates/rr-ui/examples/preview.rs`.
 //!
 //! The UI is a plain function over the [`Ctl`] trait, so the plugin (over `ParamSetter`), the
 //! screenshot example and the id-coverage test all render the same code. Every control talks to
@@ -11,13 +12,19 @@ use rr_ui::theme::metrics::*;
 use rr_ui::widgets::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, PoisonError, RwLock};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use crate::bus::BusLink;
 use crate::dsp::shaper::Shaper;
 use crate::dsp::tables::{Tables, GRAINS, N};
 use crate::params::*;
-use egui::{vec2, Id, Ui};
+use egui::{vec2, Id, Ui, Vec2};
+
+/// Window size in logical px (fits 1080p at 125 % OS scaling: 864 px minus the host title bar).
+pub const WINDOW: (u32, u32) = (1000, 832);
+
+/// Header quality choice: shaper oversampling factors.
+const QUALITY: [usize; 3] = [1, 2, 4];
 
 /// What the editor needs from its host. All values are normalized 0..1.
 pub trait Ctl {
@@ -168,6 +175,8 @@ fn wave(tables: &Tables, table: Table, g: usize) -> Vec<f32> {
 /// Transfer curve of the shaper as it is currently set, y in 0..1 over x in -1..1.
 fn shaper_curve(c: &dyn Ctl) -> Vec<f32> {
     let mut s = Shaper::new();
+    // 1x: the oversampled paths delay by their latency, which would shift the plotted curve.
+    s.set_oversampling(1);
     s.set(ShaperMode::from_index(enum_idx::<ShaperMode>(c, "shaper_mode")), c.get01("shaper_amt"));
     (0..=32).map(|i| (s.process(i as f32 / 16.0 - 1.0) * 0.5 + 0.5).clamp(0.0, 1.0)).collect()
 }
@@ -185,6 +194,8 @@ pub struct BusView {
     pub bound: [String; 3],
     /// |incoming value| per slot.
     pub activity: [f32; 3],
+    /// Header settings row: shaper oversampling 1 / 2 / 4 (persisted host state, not a param).
+    pub oversampling: usize,
 }
 
 const CV: [(&str, &str); 3] = [("cv1_target", "cv1_amount"), ("cv2_target", "cv2_amount"), ("cv3_target", "cv3_amount")];
@@ -219,13 +230,16 @@ fn patch(ui: &mut Ui, c: &dyn Ctl, bv: &mut BusView) {
 
 // ---- layout (mirrors rr-ui/examples/preview.rs) -------------------------------------------
 
-/// Draws the whole panel into `ui` (the full 1000x760 window).
-pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mut BusView) {
+/// Draws the whole panel into `ui` (the full [`WINDOW`]). Returns how far the body's content
+/// reached past the space it was given (zero when everything fits; the layout test checks it).
+pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mut BusView) -> Vec2 {
     let status = format!("Two-osc graintable \u{b7} v{}", env!("CARGO_PKG_VERSION"));
     rr_ui::panel::rack_panel(ui, "GTS", "Graintable Synth", &status, vec2(232.0, 124.0), |hui, bui| {
         header(hui, c, tables, current_index, bv);
+        let room = bui.max_rect();
         body(bui, c);
-    });
+        (bui.min_rect().max - room.max).max(Vec2::ZERO)
+    })
 }
 
 fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mut BusView) {
@@ -236,11 +250,11 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
     let main = wave(tables, table, g);
     let prev = wave(tables, table, g.saturating_sub(1));
     let next = wave(tables, table, (g + 1).min(GRAINS - 1));
-    // Grain display shrinks to 352 px; the PATCH strip takes the right 300 px.
+    // Grain display 276 px | settings column 64 px | PATCH strip 300 px.
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = GAP;
-        let pw = 300.0;
-        ui.allocate_ui(vec2(ui.available_width() - pw - GAP, DISPLAY_H), |ui| {
+        let (pw, qw) = (300.0, 64.0);
+        ui.allocate_ui(vec2(ui.available_width() - pw - qw - 2.0 * GAP, DISPLAY_H), |ui| {
             waveform_display_ex(
                 ui,
                 &main,
@@ -250,6 +264,12 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
                 &format!("Index {idx}"),
             );
         });
+        ui.allocate_ui(vec2(qw, DISPLAY_H), |ui| {
+            let sel = QUALITY.iter().position(|&q| q == bv.oversampling).unwrap_or(1);
+            if let Some(i) = combo_stacked(ui, "Quality", sel, &["1x", "2x", "4x"]) {
+                bv.oversampling = QUALITY[i];
+            }
+        });
         ui.allocate_ui(vec2(pw, PATCH_H), |ui| patch(ui, c, bv));
     });
 }
@@ -258,33 +278,59 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
     let sig = KnobStyle::default();
     let bip = KnobStyle::default().bipolar();
     ui.spacing_mut().item_spacing = vec2(GAP, GAP);
-    let (h1, h2, h3, h4) = (184.0, 141.0, 111.0, 111.0);
+    // Row 1 is three knob rows tall: 44 chrome + 3 x 67 + 2 x 6.
+    let (h1, h2, h3, h4) = (257.0, 141.0, 111.0, 111.0);
 
-    // Row 1: oscillators
+    // Row 1: oscillators (2 x 400: 7 x 52 = 364 of 376 inner) + Sub (88) = 912 with gaps.
     ui.horizontal_top(|ui| {
+        let d = KnobStyle::default().cell(52.0);
+        let u = KnobStyle::default().cell(50.0);
         for (title, p) in [("Osc A", "osca"), ("Osc B", "oscb")] {
             let k = |s: &str| format!("{p}_{s}");
-            group_ext(ui, vec2(450.0, h1), title, |ui| {
+            group_ext(ui, vec2(400.0, h1), title, |ui| {
                 tg(ui, c, &k("on"), "");
                 cb::<Table>(ui, c, &k("table"), "");
             }, |ui| {
                 knob_row(ui, |ui| {
-                    kn(ui, c, &k("oct"), "Oct", bip);
-                    kn(ui, c, &k("semi"), "Semi", sig);
-                    kn(ui, c, &k("cent"), "Cent", bip);
-                    kn(ui, c, &k("index"), "Index", sig);
-                    kn(ui, c, &k("motion"), "Motion", bip);
-                    kn(ui, c, &k("shift"), "Shift", bip);
-                    kn(ui, c, &k("vol"), "Vol", sig);
+                    kn(ui, c, &k("oct"), "Oct", d.bipolar());
+                    kn(ui, c, &k("semi"), "Semi", d);
+                    kn(ui, c, &k("cent"), "Cent", d.bipolar());
+                    kn(ui, c, &k("index"), "Index", d);
+                    kn(ui, c, &k("motion"), "Motion", d.bipolar());
+                    kn(ui, c, &k("shift"), "Shift", d.bipolar());
+                    kn(ui, c, &k("vol"), "Vol", d);
                 });
                 knob_row(ui, |ui| {
-                    kn(ui, c, &k("att"), "Att", sig);
-                    kn(ui, c, &k("dec"), "Dec", sig);
-                    kn(ui, c, &k("sus"), "Sus", sig);
-                    kn(ui, c, &k("rel"), "Rel", sig);
+                    kn(ui, c, &k("att"), "Att", d);
+                    kn(ui, c, &k("dec"), "Dec", d);
+                    kn(ui, c, &k("sus"), "Sus", d);
+                    kn(ui, c, &k("rel"), "Rel", d);
+                    kn(ui, c, &k("curve"), "Curve", d.bipolar());
+                });
+                // Unison: 6 x 50 + 8 + Reset LED (~66) = 374 of 376.
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 8.0;
+                    knob_row(ui, |ui| {
+                        kn(ui, c, &k("unison"), "Unison", u);
+                        kn(ui, c, &k("detune"), "Detune", u);
+                        kn(ui, c, &k("det_curve"), "D.Crv", u);
+                        kn(ui, c, &k("blend"), "Blend", u);
+                        kn(ui, c, &k("width"), "Width", u);
+                        kn(ui, c, &k("rand_phase"), "Rand", u);
+                    });
+                    ui.vertical(|ui| {
+                        ui.add_space(KNOB_LABEL_H + (KNOB_D - CONTROL_H) / 2.0);
+                        tg(ui, c, &k("phase_reset"), "Reset");
+                    });
                 });
             });
         }
+        // Sub: one knob column, Level / Oct / Xover (the mono crossover lives with the sub).
+        group_ext(ui, vec2(88.0, h1), "Sub", |ui| tg(ui, c, "sub_on", ""), |ui| {
+            kn(ui, c, "sub_level", "Level", sig);
+            kn(ui, c, "sub_oct", "Oct", bip);
+            kn(ui, c, "mono_xover", "Xover", sig);
+        });
     });
 
     // Row 2: modulators + shaper
@@ -327,11 +373,11 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
         });
     });
 
-    // Row 3: filters
+    // Row 3: filters (2 x 276: type cell 80 + 3 x 56 + 24) + Filter Env (6 x 52 + 24 = 336).
     ui.horizontal_top(|ui| {
         for (title, p) in [("Filter A", "filta"), ("Filter B", "filtb")] {
             let k = |s: &str| format!("{p}_{s}");
-            group_ext(ui, vec2(300.0, h3), title, |ui| tg(ui, c, &k("env"), "Env"), |ui| {
+            group_ext(ui, vec2(276.0, h3), title, |ui| tg(ui, c, &k("env"), "Env"), |ui| {
                 knob_row(ui, |ui| {
                     cb::<FilterType>(ui, c, &k("type"), "Type");
                     kn(ui, c, &k("freq"), "Freq", sig);
@@ -340,12 +386,13 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
                 });
             });
         }
-        group_ext(ui, vec2(288.0, h3), "Filter Env", |ui| tg(ui, c, "fenv_inv", "Inv"), |ui| {
+        group_ext(ui, vec2(336.0, h3), "Filter Env", |ui| tg(ui, c, "fenv_inv", "Inv"), |ui| {
             knob_row(ui, |ui| {
                 let d = KnobStyle::default().cell(52.0);
                 for (id, l) in [("att", "Att"), ("dec", "Dec"), ("sus", "Sus"), ("rel", "Rel"), ("amt", "Amt")] {
                     kn(ui, c, &format!("fenv_{id}"), l, d);
                 }
+                kn(ui, c, "fenv_curve", "Curve", d.bipolar());
             });
         });
     });
@@ -394,23 +441,25 @@ fn wr<T>(l: &RwLock<T>, v: T) {
     *l.write().unwrap_or_else(PoisonError::into_inner) = v;
 }
 
-/// Editor-side state: display tables, bus view and its refresh clock.
+/// Editor-side state: bus view and its refresh clock.
 pub struct EditorState {
-    tables: Tables,
     view: BusView,
     next_refresh: f64,
 }
 
-pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>, link: Arc<BusLink>) -> Option<Box<dyn Editor>> {
+/// `tables` is the engine's own slot: the display reads the audio tables (no second 29 MB copy).
+/// If the editor opens before `initialize`, the GUI thread generates them and the engine reuses them.
+pub fn create(
+    params: Arc<GtsParams>,
+    current_index: Arc<AtomicU32>,
+    link: Arc<BusLink>,
+    tables: Arc<OnceLock<Tables>>,
+) -> Option<Box<dyn Editor>> {
     let table = ParamTable::new(params.clone());
     create_egui_editor(
-        EguiState::from_size(1000, 760),
-        // Display copy of the graintables (~12 ms), generated on the GUI thread when the editor opens.
-        EditorState { tables: Tables::new(), view: BusView::default(), next_refresh: 0.0 },
-        |ctx, st| {
-            rr_ui::theme::apply(ctx);
-            st.tables.generate();
-        },
+        EguiState::from_size(WINDOW.0, WINDOW.1),
+        EditorState { view: BusView::default(), next_refresh: 0.0 },
+        |ctx, _| rr_ui::theme::apply(ctx),
         move |ctx, setter, st| {
             // Sources list + lost-binding reconnects, ~4x/s on egui time.
             let now = ctx.input(|i| i.time);
@@ -424,12 +473,23 @@ pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>, link: Arc<B
             }
             st.view.bound = rd(&params.cv_sources);
             st.view.activity = std::array::from_fn(|i| link.activity(i));
+            st.view.oversampling = params.oversampling.load(Ordering::Relaxed);
             let before = st.view.clone();
 
             let ctl = PlugCtl { table: &table, setter };
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-                draw(ui, &ctl, &st.tables, current_index.load(Ordering::Relaxed), &mut st.view);
+            let tables = tables.get_or_init(|| {
+                let mut t = Tables::new();
+                t.generate();
+                t
             });
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+                draw(ui, &ctl, tables, current_index.load(Ordering::Relaxed), &mut st.view);
+            });
+
+            if st.view.oversampling != before.oversampling {
+                params.oversampling.store(st.view.oversampling, Ordering::Relaxed);
+            }
+
 
             if st.view.label != before.label {
                 let live = link.set_label(&st.view.label);

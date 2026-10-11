@@ -24,6 +24,8 @@ pub struct Gts {
     /// RR-BUS publisher + CV-in slots.
     bus: bus::DeviceBus,
     sample_rate: f32,
+    /// Last oversampling value read from the persisted setting.
+    oversampling: usize,
 }
 
 /// Writes one engine frame to the plugin's output channels: channel 0 = left, the rest = right.
@@ -43,7 +45,9 @@ impl Default for Gts {
             logged_tempo: dsp::Transport::default().tempo,
             bus: bus::DeviceBus::default(),
             sample_rate: 44100.0,
+            oversampling: 2,
         }
+
     }
 }
 
@@ -79,14 +83,14 @@ impl Plugin for Gts {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone(), self.current_index.clone(), self.bus.link.clone())
+        editor::create(self.params.clone(), self.current_index.clone(), self.bus.link.clone(), self.engine.tables_handle())
     }
 
     fn initialize(
         &mut self,
         _audio_io_layout: &AudioIOLayout,
         buffer_config: &BufferConfig,
-        _context: &mut impl InitContext<Self>,
+        context: &mut impl InitContext<Self>,
     ) -> bool {
         nih_log!(
             "initialize: sample_rate={} max_buffer_size={}",
@@ -97,6 +101,11 @@ impl Plugin for Gts {
             nih_log!("initialize: graintables generated in {:.2} ms", t.as_secs_f64() * 1000.0);
         }
         self.engine.log_notes = std::env::var_os("NIH_LOG").is_some();
+        // Quality setting (host state, SPEC v2 1.2) and the latency it implies.
+        self.oversampling = self.params.oversampling.load(Ordering::Relaxed);
+        self.engine.set_oversampling(self.oversampling);
+        context.set_latency_samples(self.engine.latency() as u32);
+        nih_log!("initialize: oversampling {}x, reported latency {} samples", self.engine.oversampling(), self.engine.latency());
         self.sample_rate = buffer_config.sample_rate;
         // The bus mapping is opened here, never in process.
         self.bus.connect(&self.params, rr_bus::DEFAULT_NAME);
@@ -134,6 +143,16 @@ impl Plugin for Gts {
             util::permit_alloc(|| nih_log!("transport: tempo {:.2} bpm", transport.tempo));
         }
         self.engine.transport = transport;
+        // Quality change from the editor: applied between blocks, never inside note processing.
+        let os = self.params.oversampling.load(Ordering::Relaxed);
+        if os != self.oversampling {
+            self.oversampling = os;
+            let latency = self.engine.latency();
+            self.engine.set_oversampling(os);
+            if self.engine.latency() != latency {
+                context.set_latency_samples(self.engine.latency() as u32);
+            }
+        }
         let n = buffer.samples();
         self.bus.exchange(self.engine.bus_signals());
         if self.bus.refresh_due(n, self.sample_rate) {

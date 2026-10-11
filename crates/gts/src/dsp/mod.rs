@@ -13,6 +13,7 @@ use crate::params::{
     Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
 };
 use nih_plug::prelude::NoteEvent;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tables::Tables;
 use voice::{Controls, Voice};
@@ -38,6 +39,17 @@ pub struct OscPatch {
     pub dec: f32,
     pub sus: f32,
     pub rel: f32,
+    /// Amp envelope curve, -1..1 (0 = the v1 exponential shape).
+    pub curve: f32,
+    /// Unison voices 1..7, detune in cents, detune curve 0..1, blend 0..1, width 0..1, random
+    /// phase 0..1, phase reset.
+    pub unison: usize,
+    pub detune: f32,
+    pub det_curve: f32,
+    pub blend: f32,
+    pub width: f32,
+    pub rand_phase: f32,
+    pub phase_reset: bool,
 }
 
 impl OscPatch {
@@ -56,6 +68,14 @@ impl OscPatch {
             dec: p.dec.value(),
             sus: p.sus.value(),
             rel: p.rel.value(),
+            curve: p.curve.value(),
+            unison: p.unison.value().clamp(1, voice::MAX_UNISON as i32) as usize,
+            detune: p.detune.value(),
+            det_curve: p.det_curve.value(),
+            blend: p.blend.value(),
+            width: p.width.value(),
+            rand_phase: p.rand_phase.value(),
+            phase_reset: p.phase_reset.value(),
         }
     }
 }
@@ -132,6 +152,14 @@ pub struct Patch {
     /// 0..1 = up to +8 octaves.
     pub fenv_amt: f32,
     pub fenv_inv: bool,
+    /// Filter envelope curve, -1..1.
+    pub fenv_curve: f32,
+    /// Sub: on, level in dB, octave (-1 / -2).
+    pub sub_on: bool,
+    pub sub_level_db: f32,
+    pub sub_oct: i32,
+    /// Mono crossover, Hz.
+    pub mono_xover: f32,
     pub routing: Routing,
     pub poly: usize,
     pub legato: bool,
@@ -178,6 +206,11 @@ impl Patch {
             fenv_rel: p.fenv.rel.value(),
             fenv_amt: p.fenv.amt.value(),
             fenv_inv: p.fenv.inv.value(),
+            fenv_curve: p.fenv.curve.value(),
+            sub_on: p.sub.on.value(),
+            sub_level_db: p.sub.level.value(),
+            sub_oct: p.sub.oct.value(),
+            mono_xover: p.mono_xover.value(),
             routing: p.routing.value(),
             poly: p.poly.value().clamp(1, MAX_VOICES as i32) as usize,
             legato: p.legato.value(),
@@ -202,6 +235,82 @@ impl Patch {
 impl Default for Patch {
     fn default() -> Self {
         Self::from_params(&GtsParams::default())
+    }
+}
+
+impl Patch {
+    /// The v1 default patch, the riddim wobble (SPEC v2 1.12 moved it out of the init): Osc A
+    /// Square Morph index 64, Mod A one-shot Decay 1/8 into Index -0.5, Filter A Comb- 880 Hz res
+    /// 0.6, Filter B LP12 2 kHz res 0.1, filter env 0.5, no sub, crossover off, 0 dB. Test fixture and demo
+    /// patch until presets exist.
+    pub fn riddim_v1() -> Self {
+        let mut p = Self::default();
+        p.osc[0].index = 64.0;
+        p.moda.oneshot = true;
+        p.moda_index = -0.5;
+        p.filt[0] = FilterPatch { ty: FilterType::CombMinus, freq: 880.0, res: 0.6, kbd: 0.5, env: true };
+        p.filt[1] = FilterPatch { ty: FilterType::Lp12, freq: 2000.0, res: 0.1, kbd: 0.5, env: true };
+        p.fenv_amt = 0.5;
+        p.sub_on = false;
+        p.mono_xover = 20.0; // v1 had no crossover; 20 Hz is its lowest (off) setting
+        p.volume_db = 0.0;
+        p
+    }
+}
+
+/// Mono crossover (SPEC v2 1.5), a Linkwitz-Riley 8 (24 dB/oct x 2) split done in mid/side:
+/// the side is high-passed (LR8 high-pass), the mid goes through the LR8 allpass (low-pass +
+/// high-pass of the same split, which equals the cascade of the two Butterworth-4 sections'
+/// allpasses). LR high- and low-pass are in phase with that allpass at every frequency, so this is
+/// `L' = LP(M) + HP(L)`, `R' = LP(M) + HP(R)`: mono below the crossover, the stereo image intact
+/// above it, flat magnitude everywhere. The cutoff glides per sample; the TPT sections take moving
+/// coefficients without clicks.
+struct MonoXover {
+    /// Smoothed `tan(π fc / sr)` and its target.
+    g: f64,
+    g_target: f64,
+    /// Side high-pass sections (Butterworth-4 twice), mid allpass sections.
+    side: [[f64; 2]; 4],
+    mid: [[f64; 2]; 2],
+}
+
+/// 1/Q of the two sections of a 4th-order Butterworth.
+const BW4_K: [f64; 2] = [1.847_759, 0.765_367];
+
+/// One TPT state-variable section: (low, band, high).
+#[inline]
+fn svf(s: &mut [f64; 2], x: f64, g: f64, k: f64) -> (f64, f64, f64) {
+    let hp = (x - (k + g) * s[0] - s[1]) / (1.0 + k * g + g * g);
+    let bp = g * hp + s[0];
+    s[0] = g * hp + bp;
+    let lp = g * bp + s[1];
+    s[1] = g * bp + lp;
+    (lp, bp, hp)
+}
+
+impl MonoXover {
+    fn set(&mut self, hz: f32, sr: f32) {
+        self.g_target = (std::f64::consts::PI * (hz as f64).clamp(10.0, 0.45 * sr as f64) / sr as f64).tan();
+    }
+
+    fn reset(&mut self) {
+        (self.side, self.mid) = ([[0.0; 2]; 4], [[0.0; 2]; 2]);
+        self.g = self.g_target;
+    }
+
+    /// (mid, side) -> (mid through the allpass, side through the high-pass).
+    #[inline]
+    fn process(&mut self, m: f64, s: f64, smooth: f64) -> (f64, f64) {
+        self.g = self.g_target + (self.g - self.g_target) * smooth;
+        let g = self.g;
+        let (mut m, mut s) = (m, s);
+        for (i, st) in self.side.iter_mut().enumerate() {
+            s = svf(st, s, g, BW4_K[i % 2]).2;
+        }
+        for (st, k) in self.mid.iter_mut().zip(BW4_K) {
+            m -= 2.0 * k * svf(st, m, g, k).1;
+        }
+        (m, s)
     }
 }
 
@@ -232,7 +341,11 @@ pub fn limit(x: f32) -> f32 {
 }
 
 pub struct Engine {
-    tables: Tables,
+    /// Generated once (by `initialize`, or by the editor if it opens first) and shared with it.
+    tables: Arc<OnceLock<Tables>>,
+    xover: MonoXover,
+    /// Shaper oversampling factor (1 / 2 / 4) set on every voice.
+    oversampling: usize,
     voices: [Voice; MAX_VOICES],
     patch: Patch,
     ctl: Controls,
@@ -263,10 +376,12 @@ impl Engine {
     /// Allocates everything (tables are filled by `initialize`).
     pub fn new() -> Self {
         let mut e = Self {
-            tables: Tables::new(),
+            tables: Arc::new(OnceLock::new()),
+            xover: MonoXover { g: 0.0, g_target: 0.0, side: [[0.0; 2]; 4], mid: [[0.0; 2]; 2] },
+            oversampling: 2,
             voices: std::array::from_fn(|_| Voice::default()),
             patch: Patch::default(),
-            ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0, dc: 0.0 },
+            ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0, dc: 0.0, sub_g: 0.0 },
             held: [(0, 0.0); MAX_HELD],
             n_held: 0,
             age: 0,
@@ -288,28 +403,54 @@ impl Engine {
     /// when it ran.
     pub fn initialize(&mut self, sr: f32) -> Option<Duration> {
         self.set_sample_rate(sr);
-        if self.tables.is_ready() {
+        if self.tables.get().is_some() {
             return None;
         }
         let t = Instant::now();
-        self.tables.generate();
+        self.tables.get_or_init(generate_tables);
         Some(t.elapsed())
+    }
+
+    /// The shared table slot, for the editor's grain display.
+    pub fn tables_handle(&self) -> Arc<OnceLock<Tables>> {
+        self.tables.clone()
+    }
+
+    /// Shaper oversampling 1 / 2 / 4 on every voice (SPEC v2 1.2). Call at a block start; a change
+    /// restarts the shapers with their warm-up crossfade.
+    pub fn set_oversampling(&mut self, factor: usize) {
+        for v in &mut self.voices {
+            v.set_oversampling(factor);
+        }
+        self.oversampling = self.voices[0].shaper().oversampling();
+    }
+
+    pub fn oversampling(&self) -> usize {
+        self.oversampling
+    }
+
+    /// Processing latency in samples (the shaper's constant delay at the current oversampling).
+    pub fn latency(&self) -> usize {
+        self.voices[0].shaper().latency()
     }
 
     fn set_sample_rate(&mut self, sr: f32) {
         self.ctl.sr = sr;
         self.ctl.smooth = (-1.0 / (0.005 * sr)).exp();
         self.ctl.dc = 1.0 - (-std::f32::consts::TAU * 8.0 / sr).exp();
+        self.ctl.sub_g = (std::f32::consts::PI * 25.0 / sr).tan();
         for v in &mut self.voices {
             v.set_sample_rate(sr);
         }
         let p = self.patch;
         self.set_patch(&p);
         self.gain = self.gain_target;
+        self.xover.reset();
     }
 
+    /// The graintables (panics before `initialize`).
     pub fn tables(&self) -> &Tables {
-        &self.tables
+        self.tables.get().expect("Engine::initialize generates the tables")
     }
 
     pub fn reset(&mut self) {
@@ -322,6 +463,7 @@ impl Engine {
         self.bend_raw = 0.0;
         self.ctl.bend = 0.0;
         self.gain = self.gain_target;
+        self.xover.reset();
     }
 
     /// Call once per block, before rendering it.
@@ -349,6 +491,11 @@ impl Engine {
         }
         self.patch = *p;
         let sr = self.ctl.sr;
+        self.xover.set(p.mono_xover, sr);
+        if !self.voices.iter().any(|v| v.is_active()) {
+            // Nothing sounding: take a new crossover at once instead of gliding into the next note.
+            self.xover.g = self.xover.g_target;
+        }
         // Portamento: one-pole in semitones, ~98 % of the way after `porta` seconds.
         self.ctl.glide = if p.porta > 0.0 { (-4.0 / (p.porta * sr)).exp() } else { 0.0 };
         // 1/sqrt(poly) keeps chords out of the limiter (mono unchanged).
@@ -420,7 +567,7 @@ impl Engine {
     /// held, the rest come from the most recently triggered active voice (0 when none).
     pub fn bus_signals(&self) -> [f32; 5] {
         let gate = if self.voices.iter().any(|v| v.gate) { 1.0 } else { 0.0 };
-        match self.voices.iter().filter(|v| v.is_active()).max_by_key(|v| v.age) {
+        match self.voices.iter().filter(|v| v.sounding()).max_by_key(|v| v.age) {
             Some(v) => [v.lfo_out[0], v.lfo_out[1], gate, v.filter_env().level(), v.amp_level()],
             None => [0.0, 0.0, gate, 0.0, 0.0],
         }
@@ -435,7 +582,7 @@ impl Engine {
         // Fingered portamento with legato on (glide only between overlapping notes), always
         // glide from a sounding voice with legato off. Mono only: in poly a reused voice's pitch
         // belongs to an unrelated note.
-        self.patch.poly <= 1 && v.is_active() && (!self.patch.legato || v.gate)
+        self.patch.poly <= 1 && v.sounding() && (!self.patch.legato || v.gate)
     }
 
     pub fn note_on(&mut self, note: u8, velocity: f32) {
@@ -541,15 +688,28 @@ impl Engine {
         if self.transport.playing {
             self.transport.pos_beats += self.transport.tempo / 60.0 / self.ctl.sr as f64;
         }
+        let Some(tables) = self.tables.get() else {
+            return (0.0, 0.0);
+        };
         let (mut l, mut r) = (0.0, 0.0);
         for v in &mut self.voices {
             if !v.is_active() {
                 continue;
             }
-            let (a, b) = v.next(&self.tables, &self.patch, &self.ctl);
+            let (a, b) = v.next(tables, &self.patch, &self.ctl);
             l += a;
             r += b;
         }
+        // Mono below the crossover.
+        let (m, s) = self.xover.process(0.5 * (l as f64 + r as f64), 0.5 * (l as f64 - r as f64), self.ctl.smooth as f64);
+        let (l, r) = ((m + s) as f32, (m - s) as f32);
         (limit(l * self.gain), limit(r * self.gain))
     }
 }
+
+fn generate_tables() -> Tables {
+    let mut t = Tables::new();
+    t.generate();
+    t
+}
+

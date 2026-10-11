@@ -24,7 +24,7 @@ fn hz(note: u8) -> f64 {
 fn render(table: Table, index: f32, shift: f32, note: u8, secs: f32) -> Vec<f64> {
     let mut e = Engine::new();
     e.initialize(SR);
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.routing = Routing::Bypass;
     p.moda_index = 0.0;
     p.shaper_on = false;
@@ -256,7 +256,7 @@ fn glide_across_mips_does_not_click() {
     let stat = max_step(&render(Table::SawStack, 0.0, 0.0, 84, 0.6)[STEADY..]);
     let mut e = Engine::new();
     e.initialize(SR);
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.routing = Routing::Bypass;
     p.moda_index = 0.0;
     p.shaper_on = false;

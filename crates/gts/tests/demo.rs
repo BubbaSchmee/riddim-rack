@@ -11,8 +11,13 @@ fn rms_db(x: &[[f32; 2]]) -> f64 {
 
 #[test]
 fn demo_render_level_and_bars() {
-    let frames = demo::render();
-    let rms = rms_db(&frames);
+    check(&demo::render(), "init");
+    check(&demo::render_patch(&gts::dsp::Patch::riddim_v1()), "riddim_v1");
+}
+
+fn check(frames: &[[f32; 2]], name: &str) {
+    println!("{name}:");
+    let rms = rms_db(frames);
     let peak = frames.iter().flatten().fold(0f32, |m, v| m.max(v.abs()));
     println!("demo: RMS {rms:.1} dBFS, peak {peak:.3}");
     assert!((-30.0..=-8.0).contains(&rms), "RMS {rms} dBFS");

@@ -51,6 +51,7 @@ impl Curve {
     }
 }
 
+#[derive(Clone)]
 pub struct Shaper {
     mode: ShaperMode,
     amt: f32,

@@ -1,7 +1,9 @@
 //! Audit helper (docs/audits/gts-v1-audit.md): renders jobs through the real Engine to raw f32.
 //! Job file lines: `<out.f32> <secs> key=val ...`; `base=raw` starts from a measurement patch
-//! (Bypass routing, Mod A index 0, shaper off, -12 dB so the limiter never engages).
-//! A line `bench <voices> <secs>` times the default patch with N voices held;
+//! (the v1 default patch = `Patch::riddim_v1`, Bypass routing, Mod A index 0, shaper off, -12 dB
+//! so the limiter never engages).
+//! A line `bench <voices> <secs> [unison] [v1]` times the init patch (or `v1` = the riddim_v1
+//! fixture) with N voices held and Osc A at `unison` voices;
 //! `bench_shaper <factor> <secs>` times one voice's shaper at 1x / 2x / 4x oversampling.
 //! cargo run -p gts --release --example audit_render -- jobs.txt
 use gts::dsp::{Engine, Patch};
@@ -12,7 +14,7 @@ use std::io::Write;
 const SR: f32 = 48000.0;
 
 fn patch(kv: &[(&str, &str)]) -> Patch {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     let f = |v: &str| v.parse::<f32>().unwrap();
     for &(k, v) in kv {
         match k {
@@ -79,9 +81,13 @@ fn main() {
         let mut it = line.split_whitespace();
         let out = it.next().unwrap();
         if out == "bench" {
+            // bench <voices> <secs> [unison] [v1]: the v2 init patch (or the riddim_v1 fixture),
+            // Osc A at `unison` voices (default 1) with width 0.5.
             let nv: usize = it.next().unwrap().parse().unwrap();
             let secs: f32 = it.next().unwrap().parse().unwrap();
-            let mut p = Patch::default();
+            let uni: usize = it.next().map(|v| v.parse().unwrap()).unwrap_or(1);
+            let mut p = if it.next() == Some("v1") { Patch::riddim_v1() } else { Patch::default() };
+            p.osc[0].unison = uni;
             p.poly = nv.max(1);
             let mut e = Engine::new();
             e.initialize(SR);
@@ -96,7 +102,7 @@ fn main() {
                 acc += e.next_frame().0;
             }
             let el = t.elapsed().as_secs_f64();
-            println!("bench voices={} active={} realtime_pct={:.4} ns_per_sample={:.1} ({})", nv, e.active_voices(), 100.0 * el / secs as f64, el * 1e9 / n as f64, acc.is_finite());
+            println!("bench voices={} unison={} active={} realtime_pct={:.4} ns_per_sample={:.1} ({})", nv, uni, e.active_voices(), 100.0 * el / secs as f64, el * 1e9 / n as f64, acc.is_finite());
             continue;
         }
         if out == "bench_shaper" {

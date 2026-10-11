@@ -27,7 +27,7 @@ fn run(e: &mut Engine, secs: f32) -> Vec<f32> {
 
 #[test]
 fn note_on_and_off() {
-    let mut e = engine(&Patch::default());
+    let mut e = engine(&Patch::riddim_v1());
     e.handle_event(&on(40));
     let x = run(&mut e, 0.1);
     assert_eq!(e.active_voices(), 1);
@@ -40,7 +40,7 @@ fn note_on_and_off() {
 
 #[test]
 fn mono_legato_glides_without_retrigger() {
-    let mut e = engine(&Patch::default()); // poly 1, legato on, porta 80 ms
+    let mut e = engine(&Patch::riddim_v1()); // poly 1, legato on, porta 80 ms
     e.handle_event(&on(40));
     run(&mut e, 0.2);
     assert_eq!(e.voice(0).amp_env(0).stage(), Stage::Sustain);
@@ -71,7 +71,7 @@ fn mono_legato_glides_without_retrigger() {
 
 #[test]
 fn mono_without_legato_retriggers() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.legato = false;
     let mut e = engine(&p);
     e.handle_event(&on(40));
@@ -82,7 +82,7 @@ fn mono_without_legato_retriggers() {
 
 #[test]
 fn ninth_note_steals_the_oldest() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 8;
     let mut e = engine(&p);
     for n in 0..8 {
@@ -103,7 +103,7 @@ fn ninth_note_steals_the_oldest() {
 
 #[test]
 fn pitch_bend_follows_range() {
-    let mut e = engine(&Patch::default()); // bend range 12
+    let mut e = engine(&Patch::riddim_v1()); // bend range 12
     e.handle_event(&on(33)); // 55 Hz
     run(&mut e, 0.05);
     assert!((e.voice(0).freq(0) - 55.0).abs() < 0.01);
@@ -118,7 +118,7 @@ fn pitch_bend_follows_range() {
 
 #[test]
 fn mod_wheel_drives_index() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.wheel_index = 0.5;
     p.moda_index = 0.0; // isolate the wheel from the default Mod A one-shot into Index
     let mut e = engine(&p);
@@ -139,7 +139,7 @@ fn mod_wheel_drives_index() {
 
 #[test]
 fn output_is_bounded_with_eight_loud_voices() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 8;
     p.volume_db = 6.0;
     p.osc[1].on = true;
@@ -163,7 +163,7 @@ fn output_is_bounded_with_eight_loud_voices() {
 #[test]
 fn poly_stolen_voice_starts_on_pitch() {
     // Defaults: legato on, porta 80 ms. Stealing a held voice must not glide from its old note.
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 2;
     let mut e = engine(&p);
     e.handle_event(&on(40));
@@ -183,7 +183,7 @@ fn cc(cc: u8, value: f32) -> NoteEvent<()> {
 #[test]
 fn sustain_pedal_defers_note_off_and_cc123_silences() {
     for poly in [1, 4] {
-        let mut p = Patch::default();
+        let mut p = Patch::riddim_v1();
         p.poly = poly;
         let mut e = engine(&p);
         e.handle_event(&cc(64, 1.0));
@@ -212,7 +212,7 @@ fn sustain_pedal_defers_note_off_and_cc123_silences() {
 
 #[test]
 fn lowering_polyphony_keeps_voice_zero() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 4;
     let mut e = engine(&p);
     for n in [40, 44, 47] {

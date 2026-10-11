@@ -5,7 +5,7 @@
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, ParamTable};
+use gts::editor::{draw, BusView, Ctl, ParamTable, WINDOW};
 use gts::params::GtsParams;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -52,7 +52,7 @@ struct App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        let (w, h) = (1000.0, 760.0);
+        let (w, h) = (WINDOW.0 as f32, WINDOW.1 as f32);
         if self.frame == 0 {
             // Render at 1 px per point regardless of OS scaling so the PNG is 1:1.
             let native = ctx.native_pixels_per_point().unwrap_or(1.0);
@@ -60,7 +60,9 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(w, h) / native));
         }
         self.frame += 1;
-        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &self.ctl, &self.tables, 64, &mut self.bus));
+        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+            draw(ui, &self.ctl, &self.tables, 64, &mut self.bus);
+        });
 
         let size = ctx.screen_rect().size();
         let ready = (size.x - w).abs() < 1.0 && (size.y - h).abs() < 1.0 && self.frame >= 3;
@@ -95,7 +97,7 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     let live = std::env::args().any(|a| a == "live");
     let opts = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1000.0, 760.0]).with_resizable(false).with_title("GTS editor preview"),
+        viewport: egui::ViewportBuilder::default().with_inner_size([WINDOW.0 as f32, WINDOW.1 as f32]).with_resizable(false).with_title("GTS editor preview"),
         ..Default::default()
     };
     eframe::run_native("GTS editor preview", opts, Box::new(move |cc| {
@@ -112,6 +114,7 @@ fn main() -> eframe::Result {
             sources: vec![s("GTS 1 · Mod A"), s("VSS 1 · Step Gate"), s("GTS 2 · Mod B")],
             bound: [s("VSS 1 · Step Gate"), s("GTS 2 · Mod B"), s("GTS 3 · Mod A")],
             activity: [0.92, 0.35, 0.0],
+            oversampling: 2,
         };
         Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false, bus }))
     }))

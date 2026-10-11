@@ -182,7 +182,7 @@ const F1: u8 = 29;
 
 /// Default patch with Mod A Index off (static timbre, as in the audit), note F1, left channel.
 fn render(edit: impl Fn(&mut Patch)) -> Vec<f32> {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda_index = 0.0;
     edit(&mut p);
     let mut e = Engine::new();

@@ -23,8 +23,16 @@ the plugin. Delete the plugin log first for a clean session.
 ## Checks (expected result)
 
 6. Loads with no warning; GUI opens, fits the screen, every group visible (no clipped rows).
-7. Default patch on F1: full square-type bass with a short downward "wobble" on each note
-   (Mod A one-shot into Index; the attack starts on the wide pulse) and a metallic comb tone. Not thin, not clipping (Live meter < 0 dB).
+7. Default (init) patch on C2 and F1: a clean, round square bass with a sine sub under it and a
+   short filter-envelope "pluck" (LP12 opening on each note); no wobble, no comb, no grit. Live's
+   meter peaks around -9 dBFS on a single C2 note. Turn Osc A Unison to 5 and Width to 1: wide and
+   thick above the low end, while the low end stays centred (mono crossover 120 Hz).
+   Until presets exist, load the riddim_v1 fixture by hand to hear the old wobble patch: Osc A
+   Index 64; Mod A One-Shot on (Decay, Sync 1/8) with Mod A Index -0.50; Filter A Comb- 880 Hz
+   Res 0.60 Kbd 0.50; Filter B LP12 2 kHz Res 0.10; Filter Env Amt 0.50; Sub off; Mono Crossover
+   20 Hz; Volume 0 dB. Expected on F1: full square-type bass with a short downward "wobble" on
+   each note (the attack starts on the wide pulse) and a metallic comb tone; matches
+   `demo/gts-riddim-v1.wav`.
 8. Transport stopped, play keys live: same sound, legato glide when overlapping notes.
 9. Set Mod B Sync on, Div 1/4, Mod B Cutoff 0.5 (Mod B group). Press Play: the filter sweep locks to the beat; change tempo to 140 and it follows.
 10. Shift knob on Osc A: formant/brightness moves, pitch does NOT change (compare with a tuner).
@@ -34,7 +42,7 @@ the plugin. Delete the plugin log first for a clean session.
 14. Routing: Parallel / Series / Bypass change the sound; Shaper on with Saturate adds grit.
 15. Pitch bend wheel (range 12) and mod wheel (set Wheel > Index to 1.0) respond.
 16. Polyphony 4, play chords: 4 notes sound; 5th steals the oldest.
-17. Save set, close, reopen: all knob values and combos restored.
+17. Save set, close, reopen: all knob values and combos restored, and the header Quality (1x/2x/4x) setting.
 18. Automate Filter A Freq and Osc A Shift in Live: no zipper noise or clicks.
 19. CPU: Live's CPU meter with 8 held notes stays well under 50 % on this machine.
 20. Hold the sustain pedal (or send CC64 127) and release keys: notes hold until the pedal is released.
@@ -57,9 +65,9 @@ the plugin. Delete the plugin log first for a clean session.
 
 ## Reference
 
-`demo/gts-demo.wav` is the default patch rendered offline by the engine itself (8 bars @150 BPM).
-If Live sounds different from the demo at the default patch, the host integration is the suspect,
-not the DSP.
+`demo/gts-demo.wav` is the init patch rendered offline by the engine itself (8 bars @150 BPM);
+`demo/gts-riddim-v1.wav` is the same line on the riddim_v1 fixture (item 7). If Live sounds
+different from the demo at the init patch, the host integration is the suspect, not the DSP.
 
 ## GUI / GPU warning
 

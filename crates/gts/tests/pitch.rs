@@ -11,7 +11,7 @@ const A1: u8 = 33;
 fn render(table: Table, index: f32, shift: f32, secs: f32) -> Vec<f32> {
     let mut e = Engine::new();
     e.initialize(SR);
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.osc[0].table = table;
     p.osc[0].index = index;
     p.osc[0].shift = shift;
@@ -142,7 +142,7 @@ fn shift_sweep_does_not_click() {
         .fold(0f32, f32::max);
     let mut e = Engine::new();
     e.initialize(SR);
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     e.set_patch(&p);
     e.note_on(A1, 1.0);
     let mut x = vec![];

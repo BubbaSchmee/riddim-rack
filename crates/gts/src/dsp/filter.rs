@@ -203,6 +203,12 @@ impl MultiFilter {
     pub fn process(&mut self, x: f32) -> f32 {
         match self.kind {
             FilterType::Lp12 | FilterType::Bp12 => {
+                // Silent in, (practically) silent state: output 0 without the work. An unused
+                // filter (Osc B off in Parallel) then costs nothing.
+                if x == 0.0 && self.ic1.abs() < 1e-15 && self.ic2.abs() < 1e-15 {
+                    (self.ic1, self.ic2, self.v1, self.bp) = (0.0, 0.0, 0.0, 0.0);
+                    return 0.0;
+                }
                 let x = x as f64;
                 let b = self.bp;
                 // Secant gain of the nonlinear damping k*b + kn*(b - S*tanh(b/S)) at the last band value.

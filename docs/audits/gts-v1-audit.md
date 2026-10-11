@@ -1,5 +1,14 @@
 # GTS v1 measurement audit (2026-10-10)
 
+> **v2 numbers live in the test output, not here.** This file records the v1 baseline. The
+> SPEC-v2 acceptance figures are printed by the tests that gate them: `cargo test -p gts --release
+> -- --nocapture` (`tests/alias.rs`, `tests/shaper.rs`, `tests/filter.rs` for wave 1;
+> `tests/v2_voice.rs` for wave 2: unison, sub + mono crossover, voice tails, envelope curves, init
+> level) and the CPU benches by `cargo run -p gts --release --example audit_render -- <jobs>` with
+> `bench <voices> <secs> [unison]` lines. The v1 default patch used below is the
+> `dsp::Patch::riddim_v1` fixture since v2 (the init patch is now a clean bass), and
+> `base=raw` in `audit_render` still starts from it.
+
 Every number below comes from rendering through the real `gts::dsp::Engine` (or, for filter
 impulse responses, the real `MultiFilter`) at 48 kHz:
 

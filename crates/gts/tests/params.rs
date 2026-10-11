@@ -5,7 +5,9 @@ use nih_plug::prelude::Params;
 fn spec_ids() -> Vec<String> {
     let mut v: Vec<String> = vec![];
     for o in ["osca", "oscb"] {
-        for s in ["on", "table", "oct", "semi", "cent", "index", "motion", "shift", "vol", "att", "dec", "sus", "rel"] {
+        for s in ["on", "table", "oct", "semi", "cent", "index", "motion", "shift", "vol", "att", "dec", "sus", "rel",
+            // v2: envelope curve, unison
+            "curve", "unison", "detune", "det_curve", "blend", "width", "rand_phase", "phase_reset"] {
             v.push(format!("{o}_{s}"));
         }
     }
@@ -23,11 +25,13 @@ fn spec_ids() -> Vec<String> {
             v.push(format!("{f}_{s}"));
         }
     }
-    for s in ["att", "dec", "sus", "rel", "amt", "inv"] {
+    for s in ["att", "dec", "sus", "rel", "amt", "inv", "curve"] {
         v.push(format!("fenv_{s}"));
     }
     for s in ["routing", "poly", "legato", "porta", "bend_range", "wheel_index", "wheel_shift", "wheel_cutoff",
-        "wheel_mod", "vel_vol_a", "vel_vol_b", "vel_fenv", "vel_att", "vel_shift", "vel_mod", "volume", "spread"] {
+        "wheel_mod", "vel_vol_a", "vel_vol_b", "vel_fenv", "vel_att", "vel_shift", "vel_mod", "volume", "spread",
+        // v2: sub oscillator, mono crossover
+        "sub_on", "sub_level", "sub_oct", "mono_xover"] {
         v.push(s.into());
     }
     for n in 1..=3 {

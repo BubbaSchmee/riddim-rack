@@ -17,8 +17,8 @@
 //! |W(-f)| = |W(f)|. Only a variable-rate (warped) read avoids it, and that quantises the
 //! formant to integer ratios, so it was measured and rejected.
 //!
-//! Every `BLOCK` samples the mip is chosen from the effective read rate `f0 * ratio`; a change
-//! crossfades over the next block. At ratio 1 both readers read the same table position and the
+//! Every `BLOCK` samples the mip is chosen from the effective read rate `f0 * ratio` (and the
+//! pitch-marker depth refreshed); a mip change crossfades over the next block. At ratio 1 both readers read the same table position and the
 //! output is plain single-cycle playback, periodic at f0. The grain position (Index) is latched
 //! per grain, so any jump in Index (scan wrap, scan reset, stepped modulation) is crossfaded over
 //! one period by the windows.
@@ -63,19 +63,29 @@ pub struct GrainOsc {
     level_target: f32,
     /// False until the first sample after `reset` set mip and level without fades.
     primed: bool,
+    /// `marker_amp(ratio)`, refreshed per block.
+    marker: f64,
 }
 
 impl GrainOsc {
     /// Restart at phase 0 (fresh note on an idle voice).
     pub fn reset(&mut self, ratio: f64, gp: f32) {
-        self.phase = 0.0;
+        self.reset_at(ratio, gp, 0.0);
+    }
+
+    /// Restart at master phase `phase` (0..1 of a period; unison random phase).
+    pub fn reset_at(&mut self, ratio: f64, gp: f32, phase: f64) {
+        let n = N as f64;
+        self.phase = phase;
         self.newest = 0;
-        // Newest reader at age 0, the other at age 1 (grain centre, table position 0).
-        self.pos = [(-(N as f64) * ratio).rem_euclid(N as f64), 0.0];
+        // Newest reader at age `phase`, the other at age 1 + `phase`; age 1 = grain centre =
+        // table position 0. Phase 0 gives (-N * ratio, 0).
+        self.pos = [((phase - 1.0) * n * ratio).rem_euclid(n), (phase * n * ratio).rem_euclid(n)];
         self.gp = [gp; 2];
         self.blk = 0;
         self.primed = false;
     }
+
 
     /// Grain position of the newest grain (what the GUI shows).
     pub fn grain_pos(&self) -> f32 {
@@ -103,6 +113,7 @@ impl GrainOsc {
             self.gp[self.newest] = gp;
         }
         if self.blk == 0 {
+            self.marker = marker_amp(ratio);
             let m = mip_for(ratio * dphase, top_for(sr)) as u8;
             self.level_target = tables.level(table, self.gp[self.newest], 12.0 * ratio.log2());
             if !self.primed {
@@ -116,11 +127,16 @@ impl GrainOsc {
         self.level += (self.level_target - self.level) * (1.0 / BLOCK as f32);
 
         let (a, b) = (self.newest, self.newest ^ 1);
-        let w = (0.5 - 0.5 * (PI * self.phase).cos()) as f32;
-        let amp = marker_amp(ratio);
-        let mk = if amp > 0.0 { amp * (TAU * self.phase).sin() } else { 0.0 };
+        let mk = if self.marker > 0.0 { self.marker * (TAU * self.phase).sin() } else { 0.0 };
         let (pa, pb, ga, gb) = (self.pos[a] + mk, self.pos[b] + mk, self.gp[a], self.gp[b]);
-        let mix = |m: u8| w * tables.read(table, m as usize, ga, pa) + (1.0 - w) * tables.read(table, m as usize, gb, pb);
+        // Both readers on the same grain and table position (Shift 0, steady Index): the windows
+        // sum to 1, so one read is the whole sample (half the work; the unison hot path).
+        let same = ga == gb && (pa - pb).abs() < 1e-6;
+        let w = if same { 1.0 } else { (0.5 - 0.5 * (PI * self.phase).cos()) as f32 };
+        let mix = |m: u8| {
+            let sa = tables.read(table, m as usize, ga, pa);
+            if same { sa } else { w * sa + (1.0 - w) * tables.read(table, m as usize, gb, pb) }
+        };
         let mut s = mix(self.mip);
         if self.fade < 1.0 {
             self.fade = (self.fade + 1.0 / BLOCK as f32).min(1.0);

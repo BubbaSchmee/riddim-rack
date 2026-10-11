@@ -74,7 +74,7 @@ fn rms(x: &[f32]) -> f64 {
 
 #[test]
 fn mod_a_one_shot_into_index_changes_spectrum() {
-    let mut p = Patch::default(); // Mod A one-shot Decay 1/8 into Index +0.5
+    let mut p = Patch::riddim_v1(); // Mod A one-shot Decay 1/8 into Index +0.5
     p.routing = Routing::Bypass; // the index alone, no filter movement
     let (n, f0) = (45, hz(45));
     let d = |p: &Patch| {
@@ -90,7 +90,7 @@ fn mod_a_one_shot_into_index_changes_spectrum() {
 
 #[test]
 fn filter_env_moves_lp12_cutoff() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda_index = 0.0;
     p.filt[0].ty = FilterType::Lp12;
     p.filt[0].freq = 200.0;
@@ -114,7 +114,7 @@ fn comb_minus_peaks_follow_the_voice_harmonics() {
     // The osc two octaves down puts a dense harmonic comb under the voice; Comb- at Freq C4 with
     // Kbd 1 sits exactly on the voice pitch, so harmonics at k * f(note) stand out of the ones
     // between, for every note.
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda_index = 0.0;
     p.osc[0].table = Table::SawStack;
     p.osc[0].index = 0.0;
@@ -143,7 +143,7 @@ fn comb_minus_peaks_follow_the_voice_harmonics() {
 
 #[test]
 fn routings_sound_different() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.osc[1].on = true;
     p.shaper_on = true;
     let outs: Vec<Vec<f32>> = [Routing::Parallel, Routing::Series, Routing::Bypass]
@@ -165,7 +165,7 @@ fn routings_sound_different() {
 fn lfo_sync_follows_transport_tempo() {
     // 150 BPM, 1/8 -> 0.2 s = 9600 samples, with the transport playing (beat-locked) and stopped
     // (free-running at host tempo).
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda.curve = Curve::Sine;
     p.moda.oneshot = false;
     p.routing = Routing::Bypass;
@@ -204,7 +204,7 @@ fn lfo_sync_follows_transport_tempo() {
 
 #[test]
 fn eight_voices_at_extremes_stay_finite_and_bounded() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 8;
     p.volume_db = 6.0;
     p.osc[1].on = true;
@@ -252,7 +252,7 @@ fn eight_voices_at_extremes_stay_finite_and_bounded() {
 #[test]
 #[ignore]
 fn cpu_eight_voices() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.poly = 8;
     p.osc[1].on = true;
     p.shaper_on = true;
@@ -281,7 +281,7 @@ fn cpu_eight_voices() {
 fn synced_lfo_does_not_step_after_an_off_grid_note_on() {
     // Sine 1/8 at 150 BPM into pitch, note-on mid-block and off the division grid: the pitch
     // must move smoothly across the next block boundary (no re-lock jump).
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda.curve = Curve::Sine;
     p.moda.oneshot = false;
     p.moda_pitch = 0.25;
@@ -333,7 +333,7 @@ fn assert_no_click(name: &str, before: &Patch, after: &Patch) {
 }
 
 fn click_patch() -> Patch {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda_index = 0.0;
     p.fenv_amt = 0.0;
     p
@@ -375,7 +375,7 @@ fn filter_type_and_routing_changes_do_not_click() {
 
 #[test]
 fn switched_off_osc_does_not_hold_the_voice() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.osc[0].rel = 0.05;
     p.osc[1].on = false;
     p.osc[1].rel = 5.0;
@@ -391,7 +391,7 @@ fn switched_off_osc_does_not_hold_the_voice() {
 fn synced_lfo_relock_on_play_is_smooth() {
     // Transport stopped at note-on (free-running at host tempo), then play starts off-grid: the
     // re-lock must glide, not jump.
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.moda.curve = Curve::Sine;
     p.moda.oneshot = false;
     p.moda_pitch = 0.25;
@@ -425,7 +425,7 @@ fn synced_lfo_relock_on_play_is_smooth() {
 
 #[test]
 fn spread_puts_osc_a_on_the_left() {
-    let mut p = Patch::default();
+    let mut p = Patch::riddim_v1();
     p.spread = 1.0;
     p.osc[1].on = false;
     let energy = |x: &[f32]| x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>();
@@ -457,7 +457,7 @@ fn spread_puts_osc_a_on_the_left() {
 #[test]
 fn motion_ping_pongs_negative_and_wraps_positive() {
     let trace = |motion: f32| {
-        let mut p = Patch::default();
+        let mut p = Patch::riddim_v1();
         p.moda_index = 0.0;
         p.osc[0].motion = motion;
         let mut e = engine(&p);

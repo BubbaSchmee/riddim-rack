@@ -1,6 +1,6 @@
 //! The editor must bind every parameter, and only real ones.
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, ParamTable};
+use gts::editor::{draw, BusView, Ctl, ParamTable, WINDOW};
 use gts::params::GtsParams;
 use nih_plug::prelude::Params;
 use nih_plug_egui::egui;
@@ -52,7 +52,7 @@ impl Ctl for Recorder {
 fn editor_binds_every_param_exactly() {
     let params = Arc::new(GtsParams::default());
     let want: BTreeSet<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
-    assert_eq!(want.len(), 87); // 81 + six RR-BUS CV-in params
+    assert_eq!(want.len(), 108); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover)
 
     let ctl = Recorder { table: ParamTable::new(params), seen: RefCell::new(BTreeSet::new()) };
     let mut tables = Tables::new();
@@ -62,16 +62,19 @@ fn editor_binds_every_param_exactly() {
     let ctx = egui::Context::default();
     rr_ui::theme::apply(&ctx);
     let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 760.0))),
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(WINDOW.0 as f32, WINDOW.1 as f32))),
         ..Default::default()
     };
     // Two passes: the first one only loads the fonts.
-    let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], ..Default::default() };
+    let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], oversampling: 2, ..Default::default() };
+    let mut overflow = egui::Vec2::ZERO;
     for _ in 0..2 {
         let _ = ctx.run(input.clone(), |ctx| {
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &ctl, &tables, 64, &mut bv));
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| overflow = draw(ui, &ctl, &tables, 64, &mut bv));
         });
     }
+    // Layout: every row fits the window's body area (no clipped groups).
+    assert_eq!(overflow, egui::Vec2::ZERO, "body content overflows the {WINDOW:?} window by {overflow:?}");
     // (an unknown id would already have panicked inside ParamTable)
     assert_eq!(*ctl.seen.borrow(), want, "editor ids differ from the param map");
 }

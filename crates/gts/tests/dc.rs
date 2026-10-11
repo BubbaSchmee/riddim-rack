@@ -14,7 +14,7 @@ fn negative_shift_has_no_dc() {
         for shift in [-12.0, -24.0] {
             let mut e = Engine::new();
             e.initialize(SR);
-            let mut p = Patch::default();
+            let mut p = Patch::riddim_v1();
             p.routing = Routing::Bypass;
             p.osc[0].table = table;
             p.osc[0].shift = shift;
