@@ -1,7 +1,8 @@
 //! Audit helper (docs/audits/gts-v1-audit.md): renders jobs through the real Engine to raw f32.
 //! Job file lines: `<out.f32> <secs> key=val ...`; `base=raw` starts from a measurement patch
 //! (Bypass routing, Mod A index 0, shaper off, -12 dB so the limiter never engages).
-//! A line `bench <voices> <secs>` times the default patch with N voices held.
+//! A line `bench <voices> <secs>` times the default patch with N voices held;
+//! `bench_shaper <factor> <secs>` times one voice's shaper at 1x / 2x / 4x oversampling.
 //! cargo run -p gts --release --example audit_render -- jobs.txt
 use gts::dsp::{Engine, Patch};
 use gts::params::*;
@@ -96,6 +97,21 @@ fn main() {
             }
             let el = t.elapsed().as_secs_f64();
             println!("bench voices={} active={} realtime_pct={:.4} ns_per_sample={:.1} ({})", nv, e.active_voices(), 100.0 * el / secs as f64, el * 1e9 / n as f64, acc.is_finite());
+            continue;
+        }
+        if out == "bench_shaper" {
+            // bench_shaper <factor> <secs>: one voice's shaper (Saturate 0.7) on a C3 saw, SPEC v2 1.2.
+            let factor: usize = it.next().unwrap().parse().unwrap();
+            let secs: f32 = it.next().unwrap().parse().unwrap();
+            let mut s = gts::dsp::shaper::Shaper::new();
+            s.set_oversampling(factor);
+            s.set(ShaperMode::Saturate, 0.7);
+            let n = (secs * SR) as usize;
+            let x: Vec<f32> = (0..n).map(|i| 0.43 * (2.0 * (i as f32 * 130.81 / SR).fract() - 1.0)).collect();
+            let t = std::time::Instant::now();
+            let acc: f32 = x.iter().map(|&v| s.process(v)).sum();
+            let el = t.elapsed().as_secs_f64();
+            println!("bench_shaper factor={} latency={} realtime_pct={:.4} ns_per_sample={:.1} ({})", s.oversampling(), s.latency(), 100.0 * el / secs as f64, el * 1e9 / n as f64, acc.is_finite());
             continue;
         }
         if out == "impulse" {
