@@ -1,0 +1,18 @@
+[package]
+name = "rr-ui"
+version = "0.1.0"
+edition = "2021"
+authors = ["Riddim Rack Open Source"]
+license = "GPL-3.0-or-later"
+description = "Riddim Rack shared egui look: theme, fonts, rack panel and instrument widgets"
+repository = "https://github.com/BubbaSchmee/riddim-rack"
+homepage = "https://github.com/BubbaSchmee/riddim-rack"
+
+[dependencies]
+# Exact pin: the version nih_plug_egui resolves to in Cargo.lock. No nih-plug here, so the
+# plugin editors adapt these widgets to their param setters.
+egui = { version = "=0.31.1", default-features = false }
+
+[dev-dependencies]
+eframe = { version = "=0.31.1" }
+png = "0.17"
