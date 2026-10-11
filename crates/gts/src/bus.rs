@@ -63,6 +63,11 @@ impl BusLink {
     pub fn refresh(&self, params: &GtsParams) {
         if let Some(i) = lock(&self.instance).as_ref() {
             i.heartbeat();
+            // A record resurrected by the heartbeat may clash with a label taken meanwhile.
+            let l = i.label();
+            if !l.is_empty() {
+                i.set_label(&l);
+            }
         }
         let bus = self.bus();
         let mut subs = lock(&self.subs);
@@ -192,7 +197,7 @@ impl DeviceBus {
         };
         if let Some(subs) = subs {
             for (raw, s) in self.raw.iter_mut().zip(subs.iter()) {
-                *raw = s.as_ref().and_then(Subscription::read).unwrap_or(0.0);
+                *raw = s.as_ref().and_then(Subscription::read).filter(|v| v.is_finite()).unwrap_or(0.0);
             }
         }
         for i in 0..3 {
@@ -236,5 +241,26 @@ pub fn apply_cv(patch: &mut Patch, params: &GtsParams, cv: [f32; 3]) {
             CvTarget::ModAAmount => patch.moda_index = m(&params.moda_amt.index, o),
             CvTarget::Volume => patch.volume_db = m(&params.volume, o),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nan_on_the_bus_never_reaches_the_cv_offset() {
+        let mut gts = DeviceBus::default();
+        gts.bus = Bus::open_named(&format!("gts-nan-test-{}", std::process::id()));
+        let publisher = gts.bus.register("VSS");
+        let src = publisher.publish("Mod", Kind::Bipolar);
+        *lock(&gts.link.subs) = [Some(Subscription::bind(&gts.bus, "VSS 1", "Mod")), None, None];
+        src.set(f32::NAN);
+        gts.exchange([0.0; 5]);
+        assert!(gts.advance(512, 48_000.0).iter().all(|v| v.is_finite()));
+        src.set(0.5);
+        gts.exchange([0.0; 5]);
+        let cv = gts.advance(48_000, 48_000.0);
+        assert!(cv[0].is_finite() && (cv[0] - 0.5).abs() < 0.01);
     }
 }

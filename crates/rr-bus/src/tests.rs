@@ -315,3 +315,20 @@ fn reclaimed_but_unused_record_is_taken_back_by_heartbeat() {
     assert_eq!(sub.read(), Some(0.75));
     assert_eq!(bus.list().len(), 1);
 }
+
+#[test]
+fn resurrected_record_is_deduplicated_against_a_label_taken_meanwhile() {
+    let bus = unique_bus();
+    let a = bus.register("GTS");
+    assert_eq!(a.set_label("Lead"), "Lead");
+    let b = bus.register("VSS");
+    let s = bus.shared().unwrap();
+    s.instances[a.idx].heartbeat_ms.store(now_ms() - STALE_MS - 1000, SeqCst);
+    s.instances[b.idx].heartbeat_ms.store(now_ms(), SeqCst);
+    reclaim(s); // A's record is free and unused
+    assert_eq!(b.set_label("Lead"), "Lead");
+    a.heartbeat(); // resurrects with the old label
+    let l = a.label();
+    assert_eq!(a.set_label(&l), "Lead (2)");
+    assert_eq!(b.label(), "Lead");
+}

@@ -137,6 +137,10 @@ impl Plugin for Gts {
         let n = buffer.samples();
         self.bus.exchange(self.engine.bus_signals());
         if self.bus.refresh_due(n, self.sample_rate) {
+            // Rate-limited here: a reclaimed-and-reused record otherwise only recovers on reset().
+            if self.bus.needs_register() {
+                util::permit_alloc(|| self.bus.ensure_registered(&self.params));
+            }
             context.execute_background(());
         }
         // CV targets are re-applied every CV_CHUNK samples so the 5 ms smoothing reaches the
