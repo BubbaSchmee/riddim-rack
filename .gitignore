@@ -4,3 +4,4 @@ sessions/*
 *.log
 __pycache__/
 *.pyc
+docs/audits/renders/
