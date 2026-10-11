@@ -237,7 +237,11 @@ the MIT notice form is the same as the egui text reproduced above.
 | ahash | 0.8.12 | MIT OR Apache-2.0 |
 | bytemuck | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 |
-| serde | 1.0.229 | MIT OR Apache-2.0 |
+| serde, serde_core | 1.0.229 | MIT OR Apache-2.0 |
+| serde_json | 1.0.151 | MIT OR Apache-2.0 |
+| itoa | 1.0.18 | MIT OR Apache-2.0 |
+| memchr | 2.8.3 | Unlicense OR MIT |
+| zmij | 1.0.23 | MIT |
 | log | 0.4.34 | MIT OR Apache-2.0 |
 | windows (and windows-sys / windows-targets) | 0.44 / 0.52 / 0.59 / 0.61 | MIT OR Apache-2.0 |
 

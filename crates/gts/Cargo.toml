@@ -16,6 +16,8 @@ nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["a
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }
 rr-ui = { path = "../rr-ui" }
 rr-bus = { path = "../rr-bus" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [dev-dependencies]
 # Same pins as rr-ui's preview example: only the screenshot example needs a window.

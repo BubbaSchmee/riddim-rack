@@ -4,6 +4,7 @@ pub mod bus;
 pub mod dsp;
 pub mod editor;
 pub mod params;
+pub mod preset;
 
 use nih_plug::prelude::*;
 use std::sync::atomic::{AtomicU32, Ordering};

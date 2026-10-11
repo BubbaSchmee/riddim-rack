@@ -1634,6 +1634,8 @@ dependencies = [
  "png 0.17.16",
  "rr-bus",
  "rr-ui",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
