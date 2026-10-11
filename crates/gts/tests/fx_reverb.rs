@@ -1,10 +1,6 @@
-//! FX 4.7 Reverb acceptance (SPEC v2 Track 4; fx-section.md test 8). The module is included by
-//! path until the integration wave declares `dsp::fx` in `dsp/mod.rs`. Numbers print with
-//! `--nocapture`; run `cargo test --release --test fx_reverb -- --nocapture` for the CPU figure.
-#[allow(dead_code)]
-#[path = "../src/dsp/fx/reverb.rs"]
-mod reverb;
-use reverb::*;
+//! FX 4.7 Reverb acceptance (SPEC v2 Track 4; fx-section.md test 8). Numbers print with `--nocapture`;
+//! run `cargo test --release --test fx_reverb -- --nocapture` for the CPU figure.
+use gts::dsp::fx::reverb::*;
 
 const SR: f32 = 48000.0;
 

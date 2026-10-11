@@ -1,10 +1,6 @@
-//! FX 4.6 Delay acceptance (SPEC v2 Track 4; fx-section.md test 7). The module is included by
-//! path until the integration wave declares `dsp::fx` in `dsp/mod.rs`. Numbers print with
+//! FX 4.6 Delay acceptance (SPEC v2 Track 4; fx-section.md test 7). Numbers print with
 //! `--nocapture`; run `cargo test --release --test fx_delay -- --nocapture` for the CPU figure.
-#[allow(dead_code)]
-#[path = "../src/dsp/fx/delay.rs"]
-mod delay;
-use delay::*;
+use gts::dsp::fx::delay::*;
 
 fn params() -> DelayParams {
     DelayParams {

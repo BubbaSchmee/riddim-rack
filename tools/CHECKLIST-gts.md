@@ -54,7 +54,29 @@ the plugin. Delete the plugin log first for a clean session.
     No host automation lanes move; setting a row's source to `None` stops its modulation. Now rename GTS 1 to `Lead bass`: GTS 2's row shows the old name dimmed with a dead LED (expected,
     rebind via the source list). Save the set, close, reopen: both patches, targets, amounts and the
     labels hold. (With VSS installed also: VSS `Step Gate` → GTS 1 `Filter A Freq` chops in time.)
-22. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
+22. FX chain (no FX page yet: use Live's device parameter list, "Configure" or the generic view; the
+    parameters are grouped Distortion, Multiband, EQ, Chorus, Dimension, Delay, Reverb, Limiter).
+    On the init patch, switch each module on alone and back off, holding an F1 note:
+    - Dist On: Tube adds warmth at Drive 0, grit at +12 dB with no big level jump (Autogain);
+      Type Hard Clip / Fold Sine / Bit Crush each sound distinct; Filter Mode Post + LP tames fizz.
+    - MB On: OTT squash, quiet tails come up, the note sounds denser; Depth 0 returns to dry.
+    - EQ On: Peak Gain +12 dB at 1 kHz is an obvious honk; Low Cut On at 200 Hz thins the bass.
+    - Chorus On / Dimension On: wider above the low end, the sub stays centred (check a mono
+      button or Live's Utility Width 0: no level drop).
+    - Delay On: dotted-1/8 echoes at 150 BPM that follow a tempo change; Mode Ping-Pong alternates
+      left / right.
+    - Reverb On: tail after note-off; Type Hall is longer and smoother than Plate.
+    Switching any module off returns exactly to the dry sound (no level change, no click beyond
+    the module's own fade). Every module off: the sound is identical to before the FX existed.
+23. Limiter: set Volume +6 dB and Limiter Gain +12 dB, play F1 and chords: Live's peak meter
+    holds at -0.3 dBFS and never clips (no red), the sound gets denser but not crackly. Back to
+    Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
+24. Candidate presets with FX (no preset browser in the plugin yet): render them with
+    `cargo run -p gts --release --example render_preset` and play
+    `docs/audits/renders/presets-fx/*.wav` in Live next to the clip: each sounds like its
+    description including the FX sentence; Screech Lead's delay answers each phrase; Sub Weight
+    stays dry and mono; no file clips or pumps.
+25. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 
 ## After a session, send back
 

@@ -3,17 +3,7 @@
 //!
 //! Levels are dB re a full-scale sine (a sine of peak -8 dBFS is "-8 dB"), the detector's scale.
 
-// ponytail: compiled straight from source until the integration wave adds `pub mod fx;` to
-// dsp/mod.rs; switch to `gts::dsp::fx::multiband` then.
-#[allow(dead_code)]
-mod dsp {
-    pub mod fx {
-        #[path = "../../../src/dsp/fx/multiband.rs"]
-        pub mod multiband;
-    }
-}
-
-use dsp::fx::multiband::{Multiband, MultibandParams};
+use gts::dsp::fx::multiband::{Multiband, MultibandParams};
 use gts::dsp::tables::Fft;
 
 const SR: f32 = 48000.0;

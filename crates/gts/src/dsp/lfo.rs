@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 static SEED: AtomicU32 = AtomicU32::new(0x9E37_79B9);
 
 /// Cycle length in beats (quarter notes).
-fn beats(d: Division) -> f64 {
+pub(crate) fn beats(d: Division) -> f64 {
     use Division::*;
     match d {
         Bars4 => 16.0,

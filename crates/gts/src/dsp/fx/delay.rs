@@ -17,6 +17,8 @@
 //! - `on = false` returns the input untouched (sample-exact bypass); switching on clears the lines.
 //!   Latency 0. Denormals: relies on the host wrapper's flush-to-zero (nih-plug sets it).
 
+use nih_plug::prelude::Enum;
+
 /// Highest sample rate the lines are allocated for.
 pub const MAX_SR: f32 = 192_000.0;
 /// Longest free time, seconds.
@@ -30,28 +32,39 @@ const SMOOTH_S: f32 = 0.01;
 /// Delay time glide time constant, seconds.
 const GLIDE_S: f64 = 0.02;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Host enum names are part of the saved state and the preset format: append only.
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DelayMode {
     Mono,
     Stereo,
+    #[name = "Ping-Pong"]
     PingPong,
 }
 
 /// Note value of a synced delay, in whole notes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Div {
+    #[name = "1/64"]
     D1_64,
+    #[name = "1/32"]
     D1_32,
+    #[name = "1/16"]
     D1_16,
+    #[name = "1/8"]
     D1_8,
+    #[name = "1/4"]
     D1_4,
+    #[name = "1/2"]
     D1_2,
+    #[name = "1/1"]
     D1_1,
+    #[name = "2/1"]
     D2_1,
+    #[name = "4/1"]
     D4_1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Feel {
     Straight,
     Dotted,

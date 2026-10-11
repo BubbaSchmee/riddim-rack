@@ -1,17 +1,7 @@
 //! SPEC v2 4.8 Limiter acceptance, 48 kHz. Run with `--nocapture` for every figure; CPU:
 //! `cargo test --release --test fx_limiter -- --ignored --nocapture`.
 
-// ponytail: compiled straight from source until the integration wave adds `pub mod fx;` to
-// dsp/mod.rs; switch to `gts::dsp::fx::limiter` then.
-#[allow(dead_code)]
-mod dsp {
-    pub mod fx {
-        #[path = "../../../src/dsp/fx/limiter.rs"]
-        pub mod limiter;
-    }
-}
-
-use dsp::fx::limiter::{Limiter, LimiterParams, CEILING};
+use gts::dsp::fx::limiter::{Limiter, LimiterParams, CEILING};
 
 const SR: f32 = 48000.0;
 

@@ -15,6 +15,7 @@
 //! outside a host context); the browser wave pushes the loaded `Patch` into the host params via
 //! `ParamSetter`.
 
+use crate::dsp::fx::FxPatch;
 use crate::dsp::{FilterPatch, ModPatch, OscPatch, Patch};
 use crate::params::GtsParams;
 use nih_plug::prelude::{Enum, ParamPtr, Params};
@@ -85,6 +86,8 @@ enum Slot<'a> {
     I(&'a mut i32),
     /// An int param stored as `usize` (unison, poly).
     N(&'a mut usize),
+    /// An int param stored as `u32` (chorus voices).
+    U(&'a mut u32),
     /// An int param stored as `f32` (bend range).
     IF(&'a mut f32),
     B(&'a mut bool),
@@ -151,16 +154,73 @@ fn filt_slots<'a>(pre: &str, f: &'a mut FilterPatch, out: &mut Vec<(String, Slot
     prefixed(pre, [("type", E(ty)), ("freq", F(freq)), ("res", F(res)), ("kbd", F(kbd)), ("env", B(env))], out);
 }
 
+/// The FX section (SPEC v2 Track 4). `cho.sync_beats`, `dly.tempo` and `mb.single_band` are not
+/// parameters (the chain derives the first two; the last is a test hook), so they have no slot.
+fn fx_slots<'a>(f: &'a mut FxPatch, out: &mut Vec<(String, Slot<'a>)>) {
+    use Slot::*;
+    let FxPatch { dist: d, mb, eq, cho, cho_div, dim, dly, rev, lim_gain } = f;
+    #[rustfmt::skip]
+    prefixed("dist", [
+        ("on", B(&mut d.on)), ("type", E(&mut d.kind)), ("drive", F(&mut d.drive_db)), ("bias", F(&mut d.bias)),
+        ("filter_mode", E(&mut d.filter_mode)), ("filter_type", E(&mut d.filter_type)),
+        ("filter_freq", F(&mut d.filter_freq)), ("filter_q", F(&mut d.filter_q)), ("out", F(&mut d.out_db)),
+        ("autogain", B(&mut d.autogain)), ("mix", F(&mut d.mix)),
+    ], out);
+    let [up_lo, up_mid, up_hi] = &mut mb.up_db;
+    let [down_lo, down_mid, down_hi] = &mut mb.down_db;
+    let [gain_lo, gain_mid, gain_hi] = &mut mb.gain_db;
+    #[rustfmt::skip]
+    prefixed("mb", [
+        ("on", B(&mut mb.on)), ("depth", F(&mut mb.depth)), ("time", F(&mut mb.time)),
+        ("xover_lo", F(&mut mb.xover_lo)), ("xover_hi", F(&mut mb.xover_hi)),
+        ("up_lo", F(up_lo)), ("up_mid", F(up_mid)), ("up_hi", F(up_hi)),
+        ("down_lo", F(down_lo)), ("down_mid", F(down_mid)), ("down_hi", F(down_hi)),
+        ("gain_lo", F(gain_lo)), ("gain_mid", F(gain_mid)), ("gain_hi", F(gain_hi)),
+        ("in", F(&mut mb.in_db)), ("out", F(&mut mb.out_db)), ("mix", F(&mut mb.mix)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("eq", [
+        ("on", B(&mut eq.on)), ("low_freq", F(&mut eq.low_freq)), ("low_gain", F(&mut eq.low_gain)),
+        ("peak_freq", F(&mut eq.peak_freq)), ("peak_q", F(&mut eq.peak_q)), ("peak_gain", F(&mut eq.peak_gain)),
+        ("high_freq", F(&mut eq.high_freq)), ("high_gain", F(&mut eq.high_gain)), ("cut_on", B(&mut eq.cut_on)),
+        ("cut_freq", F(&mut eq.cut_freq)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("cho", [
+        ("on", B(&mut cho.on)), ("voices", U(&mut cho.voices)), ("rate", F(&mut cho.rate_hz)), ("sync", B(&mut cho.sync)),
+        ("div", E(cho_div)), ("depth", F(&mut cho.depth)), ("delay", F(&mut cho.delay_ms)),
+        ("feedback", F(&mut cho.feedback)), ("lpf", F(&mut cho.lpf_hz)), ("wet_lowcut", F(&mut cho.wet_lowcut_hz)),
+        ("mix", F(&mut cho.mix)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("dim", [
+        ("on", B(&mut dim.on)), ("size", F(&mut dim.size)), ("wet_lowcut", F(&mut dim.wet_lowcut_hz)), ("mix", F(&mut dim.mix)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("dly", [
+        ("on", B(&mut dly.on)), ("sync", B(&mut dly.sync)), ("time", F(&mut dly.time_ms)), ("div", E(&mut dly.div)),
+        ("feel", E(&mut dly.feel)), ("feedback", F(&mut dly.feedback)), ("mode", E(&mut dly.mode)),
+        ("hp", F(&mut dly.hp_hz)), ("lp", F(&mut dly.lp_hz)), ("mix", F(&mut dly.mix)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("rev", [
+        ("on", B(&mut rev.on)), ("type", E(&mut rev.ty)), ("size", F(&mut rev.size)), ("decay", F(&mut rev.decay)),
+        ("damp", F(&mut rev.damp)), ("predelay", F(&mut rev.predelay_ms)), ("lowcut", F(&mut rev.lowcut_hz)),
+        ("hicut", F(&mut rev.hicut_hz)), ("width", F(&mut rev.width)), ("mix", F(&mut rev.mix)),
+    ], out);
+    prefixed("lim", [("gain", F(lim_gain))], out);
+}
+
 /// Every preset parameter of `p` under its param id (all GtsParams ids except the CV slots).
 fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     use Slot::*;
-    let mut out = Vec::with_capacity(102);
+    let mut out = Vec::with_capacity(176);
     let Patch {
         osc: [osca, oscb], moda, modb, moda_pitch, moda_index, moda_shift, modb_motion, modb_vol, modb_cutoff,
         modb_moda, shaper_on, shaper_mode, shaper_amt, filt: [filta, filtb], fenv_att, fenv_dec, fenv_sus, fenv_rel,
         fenv_amt, fenv_inv, fenv_curve, sub_on, sub_level_db, sub_oct, mono_xover, routing, poly, legato, porta,
         bend_range, wheel_index, wheel_shift, wheel_cutoff, wheel_mod, vel_vol_a, vel_vol_b, vel_fenv, vel_att,
-        vel_shift, vel_mod, volume_db, spread,
+        vel_shift, vel_mod, volume_db, spread, fx,
     } = p;
     osc_slots("osca", osca, &mut out);
     osc_slots("oscb", oscb, &mut out);
@@ -168,6 +228,7 @@ fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     mod_slots("modb", modb, &mut out);
     filt_slots("filta", filta, &mut out);
     filt_slots("filtb", filtb, &mut out);
+    fx_slots(fx, &mut out);
     #[rustfmt::skip]
     let rest: Vec<(&str, Slot<'_>)> = vec![
         ("moda_pitch", F(moda_pitch)), ("moda_index", F(moda_index)), ("moda_shift", F(moda_shift)),
@@ -213,6 +274,7 @@ impl Preset {
                     Slot::F(x) => num_f32(*x),
                     Slot::I(x) => Value::from(*x),
                     Slot::N(x) => Value::from(*x as i32),
+                    Slot::U(x) => Value::from(*x),
                     Slot::IF(x) => Value::from(x.round() as i32),
                     Slot::B(x) => Value::from(*x),
                     Slot::E(x) => Value::from(x.name()),
@@ -277,6 +339,7 @@ impl Preset {
                 Slot::IF(x) => **x = num(true).unwrap_or(**x),
                 Slot::I(x) => **x = num(true).map_or(**x, |y| y as i32),
                 Slot::N(x) => **x = num(true).map_or(**x, |y| y as usize),
+                Slot::U(x) => **x = num(true).map_or(**x, |y| y as u32),
                 Slot::B(x) => match v.as_bool() {
                     Some(b) => **x = b,
                     None => warnings.push(format!("{id}: expected true/false, got {v}; default kept")),
@@ -325,7 +388,7 @@ mod tests {
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        assert_eq!(got.len(), 102);
+        assert_eq!(got.len(), 176); // 102 + 74 FX
     }
 
     #[test]
@@ -347,6 +410,7 @@ mod tests {
                     Slot::F(x) | Slot::IF(x) => x.to_bits() as u64,
                     Slot::I(x) => *x as u32 as u64,
                     Slot::N(x) => *x as u64,
+                    Slot::U(x) => *x as u64,
                     Slot::B(x) => *x as u64,
                     Slot::E(x) => x.names().iter().position(|n| *n == x.name()).unwrap() as u64,
                 };
@@ -376,6 +440,7 @@ mod tests {
                     Slot::F(x) => *x = (lo + (hi - lo) * r).clamp(lo, hi),
                     Slot::I(x) => *x = (lo + (hi - lo) * r).round() as i32,
                     Slot::N(x) => *x = (lo + (hi - lo) * r).round() as usize,
+                    Slot::U(x) => *x = (lo + (hi - lo) * r).round() as u32,
                     Slot::IF(x) => *x = (lo + (hi - lo) * r).round(),
                     Slot::B(x) => *x = r < 0.5,
                     Slot::E(x) => {
@@ -390,6 +455,51 @@ mod tests {
             assert_eq!(bits(&q.patch), bits(&p.patch));
             assert_eq!(q, p);
         }
+    }
+
+    /// Files written before the FX section (no FX ids at all) load without warnings, with every FX
+    /// module at its default (off, limiter at 0 dB), and the rest of the patch intact.
+    #[test]
+    fn pre_fx_files_load_with_fx_defaults() {
+        let mut p = Preset::default();
+        p.patch.osc[0].index = 77.0;
+        p.patch.volume_db = -7.5;
+        let mut v: Value = serde_json::from_str(&p.to_json()).unwrap();
+        let params = v["params"].as_object_mut().unwrap();
+        let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
+        params.retain(|k, _| !fx_prefixes.iter().any(|f| k.starts_with(f)));
+        assert_eq!(params.len(), 102);
+        let (q, w) = Preset::from_json(&serde_json::to_string(&v).unwrap()).unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(q.patch.fx, Patch::default().fx);
+        assert!(!q.patch.fx.dist.on && !q.patch.fx.rev.on && q.patch.fx.lim_gain == 0.0);
+        assert_eq!(q.patch, p.patch);
+    }
+
+    /// FX ids round-trip by name, including the enums and the chorus voice count.
+    #[test]
+    fn fx_values_round_trip() {
+        use crate::dsp::fx::{delay, distortion, reverb};
+        let mut p = Preset::default();
+        let fx = &mut p.patch.fx;
+        fx.dist.on = true;
+        fx.dist.kind = distortion::DistType::FoldSine;
+        fx.dist.filter_mode = distortion::FilterMode::Post;
+        fx.mb.up_db[2] = -40.5;
+        fx.cho.voices = 7;
+        fx.cho_div = crate::params::Division::QuarterT;
+        fx.dly.div = delay::Div::D1_16;
+        fx.dly.feel = delay::Feel::Triplet;
+        fx.dly.mode = delay::DelayMode::PingPong;
+        fx.rev.ty = reverb::ReverbType::Hall;
+        fx.lim_gain = -3.25;
+        let json = p.to_json();
+        for s in [r#""dist_type": "Fold Sine""#, r#""dly_mode": "Ping-Pong""#, r#""cho_voices": 7"#, r#""mb_up_hi": -40.5"#, r#""cho_div": "1/4T""#] {
+            assert!(json.contains(s), "{s} missing");
+        }
+        let (q, w) = Preset::from_json(&json).unwrap();
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(q, p);
     }
 
     #[test]

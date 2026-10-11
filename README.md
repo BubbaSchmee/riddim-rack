@@ -16,6 +16,8 @@ Two-oscillator graintable synth. Each oscillator has a table, Index (picks the g
 
 Tables (all generated procedurally): Square Morph, Saw Stack, Harmonic Rise, Vowel, FM Morph, Metal, Reed, Grit, Basic.
 
+**FX chain.** The summed output runs through eight built-in effects in a fixed order: Distortion (eight types, Pre/Post filter, autogain), an OTT-style three-band upward/downward compressor, a three-band EQ with a low cut, Chorus and Dimension (both keep the sub mono with a wet low cut), a tempo-syncable Delay (Mono, Stereo, Ping-Pong) and a Plate/Hall Reverb, then the master volume and an always-on lookahead limiter that holds every output sample at or below -0.3 dBFS. Each module is off until you switch it on; with all of them off the chain is a sample-exact pass-through apart from its constant latency (95 samples at 48 kHz, 89 at 44.1 kHz, reported to the host). FX settings are part of every preset. The FX page in the editor is still to come: until then the FX parameters are reachable from the host's generic parameter view, grouped per module.
+
 Notes:
 - **Shift** moves the spectrum/formants while the note pitch stays fixed.
 - **Mono + Legato**: a new note while one is held glides (Portamento) and does not retrigger envelopes or LFOs.

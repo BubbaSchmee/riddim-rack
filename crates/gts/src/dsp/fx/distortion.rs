@@ -20,17 +20,23 @@
 //! - Type changes are discrete (no crossfade): switching between a 4x and a 1x type mid-note can
 //!   click once while the oversampler refills.
 use crate::dsp::shaper::oversample::{latency as os_latency, Oversampler};
+use nih_plug::prelude::Enum;
 use std::cell::Cell;
 use std::f32::consts::PI;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Host enum names are part of the saved state and the preset format: append only.
+#[derive(Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DistType {
     Tube,
+    #[name = "Hard Clip"]
     HardClip,
     Overdrive,
     Diode,
+    #[name = "Fold Lin"]
     FoldLin,
+    #[name = "Fold Sine"]
     FoldSine,
+    #[name = "Bit Crush"]
     BitCrush,
     Downsample,
 }
@@ -53,17 +59,20 @@ impl DistType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilterMode {
     Off,
     Pre,
     Post,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Enum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilterType {
+    #[name = "LP"]
     Lp,
+    #[name = "BP"]
     Bp,
+    #[name = "HP"]
     Hp,
 }
 
@@ -420,7 +429,8 @@ impl Distortion {
         self.p = DistortionParams { drive_db: drive, bias, ..*p };
     }
 
-    #[inline]
+    /// Off, this is only the 23-sample delay (inlined, so a bypassed chain pays next to nothing).
+    #[inline(always)]
     pub fn process(&mut self, l: &mut f32, r: &mut f32) {
         let w = self.w;
         self.w = (w + 1) % DLY;
@@ -432,6 +442,11 @@ impl Distortion {
             (*l, *r) = (dry[0], dry[1]);
             return;
         }
+        self.process_wet(l, r, x, dry, w, rd);
+    }
+
+    #[inline]
+    fn process_wet(&mut self, l: &mut f32, r: &mut f32, x: [f32; 2], dry: [f32; 2], w: usize, rd: usize) {
         let a = self.a;
         let (drive, bias, comp, out, mix) =
             (self.drive.next(a), self.bias.next(a), self.comp.next(a), self.out.next(a), self.mix.next(a));

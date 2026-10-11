@@ -141,10 +141,13 @@ mid through the matching allpass) makes the output mono below it. At 20 Hz it is
 (no allpass on the mid, so a mono signal keeps its phases), crossfaded over ~5 ms when it turns on
 or off; wide presets set it (e.g. 120 Hz). Shaper oversampling 1x/2x/4x
 (default 2x) is a host-persisted setting outside the parameters; the plugin reports the shaper's
-latency (0 / 21 / 23 samples). Soft limiter
-(tanh above 0.95) as safety only.
+latency (0 / 21 / 23 samples) plus the FX chain's constant 89 samples at 44.1 kHz / 95 at
+48 kHz (distortion oversampler 23 + limiter lookahead 66 / 72). The output stage is the FX section
+below: modules 1..7 run on the voice sum (after the 1/sqrt(poly) scaling and the mono crossover),
+then the master volume, then the always-on lookahead limiter (ceiling -0.3 dBFS), which replaced
+the v1 tanh soft limiter.
 
-## Parameters (~80; ids stable; display names in quotes)
+## Parameters (182 with the FX section; ids stable; display names in quotes)
 Osc A/B each: `osc{a,b}_on` "Osc A On", `_table` (enum above), `_oct` (-4..4), `_semi` (0..12),
 `_cent` (-50..50), `_index` (0..127, default 64), `_motion` (-1..1, 0), `_shift` (-24..24, 0),
 `_vol` (0..1, 1.0), `_att` (1 ms..10 s, 5 ms), `_dec` (1 ms..10 s, 300 ms), `_sus` (0..1, 1.0),
@@ -168,6 +171,26 @@ v2 parameters (ids stable from here): per osc `_curve` (-1..1, 0), `_unison` (1.
 `_detune` (0..50 ct, 12), `_det_curve` (0..1, 0), `_blend` (0..1, 0.7), `_width` (0..1, 0.5),
 `_rand_phase` (0..1, 0), `_phase_reset` (bool, on); `fenv_curve` (-1..1, 0); `sub_on` (on),
 `sub_level` (-60..0 dB, -6), `sub_oct` (-2..-1, -1); `mono_xover` (20..300 Hz, 20 = off). 108 in all.
+FX section (SPEC v2 Track 4, ids stable from here; 74 params, 182 in all). Fixed chain order
+Distortion -> Multiband -> EQ -> Chorus -> Dimension -> Delay -> Reverb -> (volume) -> Limiter.
+Every module is off by default except the limiter (always on, no `on` param). Mix values are 0..1
+(shown as %); times in ms unless noted; enums by display name.
+
+| Module | Ids (prefix) and ranges (default) |
+|---|---|
+| Distortion `dist_` | `on` (off), `type` {Tube, Hard Clip, Overdrive, Diode, Fold Lin, Fold Sine, Bit Crush, Downsample} (Tube), `drive` -12..+36 dB (0), `bias` -1..1 (0), `filter_mode` {Off, Pre, Post} (Off), `filter_type` {LP, BP, HP} (LP), `filter_freq` 20 Hz..20 kHz (1 kHz), `filter_q` 0.3..8 (0.707), `out` -24..+12 dB (0), `autogain` (on), `mix` (1.0) |
+| Multiband (OTT-style) `mb_` | `on` (off), `depth` 0..2 = 0..200 % (1.0), `time` 0..1 (0.5: attack 10 ms, release 100 ms), `xover_lo` 60..400 Hz (120), `xover_hi` 1..8 kHz (2.5 k), `up_{lo,mid,hi}` -60..0 dB (-24), `down_{lo,mid,hi}` -60..0 dB (-12), `gain_{lo,mid,hi}` -12..+12 dB (0), `in` / `out` -24..+24 dB (0), `mix` (1.0) |
+| EQ `eq_` (no mix) | `on` (off), `low_freq` 30..500 Hz (100), `low_gain` ±15 dB (0), `peak_freq` 20 Hz..20 kHz (1 k), `peak_q` 0.2..10 (1.0), `peak_gain` ±15 dB (0), `high_freq` 1..20 kHz (8 k), `high_gain` ±15 dB (0), `cut_on` (off), `cut_freq` 20..500 Hz (30), 24 dB/oct |
+| Chorus `cho_` | `on` (off), `voices` 2..8 (4), `rate` 0.1..10 Hz (0.5), `sync` (off), `div` (the Mod divisions, 1/1), `depth` 0..1 (0.5), `delay` 1..20 ms (7), `feedback` -0.95..0.95 (0), `lpf` 200 Hz..20 kHz (20 k), `wet_lowcut` 20..500 Hz (120), `mix` (0.5) |
+| Dimension `dim_` | `on` (off), `size` 0..1 (0.5), `wet_lowcut` 20..500 Hz (120), `mix` (0.5) |
+| Delay `dly_` | `on` (off), `sync` (on), `time` 1..2000 ms (250), `div` {1/64 .. 4/1} (1/8), `feel` {Straight, Dotted, Triplet} (Dotted), `feedback` 0..0.95 (0.35), `mode` {Mono, Stereo, Ping-Pong} (Stereo), `hp` 20..2000 Hz (120), `lp` 200 Hz..20 kHz (8 k), `mix` (0.5) |
+| Reverb `rev_` | `on` (off), `type` {Plate, Hall} (Plate), `size` 0..1 (0.5), `decay` 0.1..20 s (1.5), `damp` 0..1 (0.3), `predelay` 0..300 ms (0), `lowcut` 20..1000 Hz (200), `hicut` 1..20 kHz (12 k), `width` 0..1 (1.0), `mix` (0.5) |
+| Limiter `lim_` | `gain` -24..+12 dB (0); ceiling fixed at -0.3 dBFS, lookahead 1.5 ms |
+
+Chorus and delay sync follow the host tempo; the chorus LFO phase locks to the beat position while
+the transport plays. With every module but the limiter off the chain is a sample-exact delay of
+its latency (the limiter's ceiling still applies). Presets carry every FX id; files without them
+load with the defaults above.
 Host state (not params): `oversampling` (1/2/4, default 2), `cv_sources`, `instance_label`.
 **v2 init patch (SPEC v2 1.12), which overrides the defaults above:** a clean bass. Osc A Square
 Morph index 40, unison 1, sub on -6 dB, Filter A LP12 2 kHz res 0.15 Kbd 0.5 Env on, Filter B LP12

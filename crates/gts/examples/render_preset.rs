@@ -1,6 +1,6 @@
 //! Preset render + QA (SPEC v2 2.5 subset, SQ-37/40): loads preset files, plays a 4-bar riddim
 //! pattern at 150 BPM through the real Engine with the transport playing, writes a 16-bit 48 kHz
-//! stereo WAV to `docs/audits/renders/presets/<name>.wav` (gitignored) and prints level and
+//! stereo WAV to `docs/audits/renders/presets-fx/<name>.wav` (gitignored) and prints level and
 //! listen-proxy figures:
 //! - peak / RMS dBFS (both channels, the 4 bars), crest factor, BS.1770 gated integrated LUFS;
 //! - on the held note: fundamental (strongest peak within ±6 % of the played pitch, parabolic
@@ -370,7 +370,7 @@ fn main() {
     if paths.is_empty() {
         paths = candidates();
     }
-    let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/audits/renders/presets");
+    let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/audits/renders/presets-fx");
     std::fs::create_dir_all(&out_dir).unwrap();
     let (mut names, mut louds, mut fails) = (vec![], vec![], 0);
     for path in &paths {

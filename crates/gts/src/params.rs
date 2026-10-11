@@ -7,6 +7,10 @@
 
 use nih_plug::prelude::*;
 
+pub use crate::dsp::fx::delay::{DelayMode, Div as DelayDiv, Feel as DelayFeel};
+pub use crate::dsp::fx::distortion::{DistType, FilterMode as DistFilterMode, FilterType as DistFilterType};
+pub use crate::dsp::fx::reverb::ReverbType;
+
 #[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Table {
     #[name = "Square Morph"]
@@ -478,6 +482,378 @@ pub struct VelocityParams {
     pub mod_amt: FloatParam,
 }
 
+// ---- FX section (SPEC v2 Track 4) ----------------------------------------------------------
+// Chain order Distortion -> Multiband -> EQ -> Chorus -> Dimension -> Delay -> Reverb -> Limiter.
+// Every module is off by default except the always-on limiter (no `on` param, `lim_gain` only).
+// Plain values are the units the DSP modules take (`dsp::fx::*Params`), so the preset slots point
+// straight at them: ms for chorus / delay / pre-delay times, seconds for the reverb decay, 0..2
+// for multiband depth and 0..1 for its time and every mix (shown as %).
+
+fn hz(name: String, default: f32, min: f32, max: f32) -> FloatParam {
+    FloatParam::new(name, default, FloatRange::Skewed { min, max, factor: FloatRange::skew_factor(-2.0) })
+        .with_value_to_string(formatters::v2s_f32_hz_then_khz(1))
+        .with_string_to_value(formatters::s2v_f32_hz_then_khz())
+}
+
+fn decibels(name: String, default: f32, min: f32, max: f32) -> FloatParam {
+    FloatParam::new(name, default, FloatRange::Linear { min, max })
+        .with_unit(" dB")
+        .with_value_to_string(formatters::v2s_f32_rounded(1))
+}
+
+fn percent(name: String, default: f32, max: f32) -> FloatParam {
+    FloatParam::new(name, default, FloatRange::Linear { min: 0.0, max })
+        .with_unit("%")
+        .with_value_to_string(formatters::v2s_f32_percentage(0))
+        .with_string_to_value(formatters::s2v_f32_percentage())
+}
+
+fn skewed(name: String, default: f32, min: f32, max: f32, unit: &'static str) -> FloatParam {
+    FloatParam::new(name, default, FloatRange::Skewed { min, max, factor: FloatRange::skew_factor(-1.5) })
+        .with_unit(unit)
+        .with_value_to_string(formatters::v2s_f32_rounded(2))
+}
+
+fn linear(name: String, default: f32, min: f32, max: f32) -> FloatParam {
+    FloatParam::new(name, default, FloatRange::Linear { min, max }).with_value_to_string(formatters::v2s_f32_rounded(2))
+}
+
+/// FX 4.1. Ids `dist_{on,type,drive,bias,filter_mode,filter_type,filter_freq,filter_q,out,autogain,mix}`.
+#[derive(Params)]
+pub struct DistParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "type"]
+    pub ty: EnumParam<DistType>,
+    /// dB, -12..+36.
+    #[id = "drive"]
+    pub drive: FloatParam,
+    #[id = "bias"]
+    pub bias: FloatParam,
+    #[id = "filter_mode"]
+    pub filter_mode: EnumParam<DistFilterMode>,
+    #[id = "filter_type"]
+    pub filter_type: EnumParam<DistFilterType>,
+    #[id = "filter_freq"]
+    pub filter_freq: FloatParam,
+    #[id = "filter_q"]
+    pub filter_q: FloatParam,
+    /// dB, -24..+12, wet path.
+    #[id = "out"]
+    pub out: FloatParam,
+    #[id = "autogain"]
+    pub autogain: BoolParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.2, OTT-style. Ids `mb_{on,depth,time,xover_lo,xover_hi,{up,down,gain}_{lo,mid,hi},in,out,mix}`.
+#[derive(Params)]
+pub struct MultibandFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    /// 0..2 (0..200 %).
+    #[id = "depth"]
+    pub depth: FloatParam,
+    /// 0..1: attack 1..100 ms, release 20..500 ms.
+    #[id = "time"]
+    pub time: FloatParam,
+    #[id = "xover_lo"]
+    pub xover_lo: FloatParam,
+    #[id = "xover_hi"]
+    pub xover_hi: FloatParam,
+    #[id = "up_lo"]
+    pub up_lo: FloatParam,
+    #[id = "up_mid"]
+    pub up_mid: FloatParam,
+    #[id = "up_hi"]
+    pub up_hi: FloatParam,
+    #[id = "down_lo"]
+    pub down_lo: FloatParam,
+    #[id = "down_mid"]
+    pub down_mid: FloatParam,
+    #[id = "down_hi"]
+    pub down_hi: FloatParam,
+    #[id = "gain_lo"]
+    pub gain_lo: FloatParam,
+    #[id = "gain_mid"]
+    pub gain_mid: FloatParam,
+    #[id = "gain_hi"]
+    pub gain_hi: FloatParam,
+    #[id = "in"]
+    pub input: FloatParam,
+    #[id = "out"]
+    pub out: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.3 (no mix). Ids `eq_{on,low_freq,low_gain,peak_freq,peak_q,peak_gain,high_freq,high_gain,
+/// cut_on,cut_freq}`.
+#[derive(Params)]
+pub struct EqFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "low_freq"]
+    pub low_freq: FloatParam,
+    #[id = "low_gain"]
+    pub low_gain: FloatParam,
+    #[id = "peak_freq"]
+    pub peak_freq: FloatParam,
+    #[id = "peak_q"]
+    pub peak_q: FloatParam,
+    #[id = "peak_gain"]
+    pub peak_gain: FloatParam,
+    #[id = "high_freq"]
+    pub high_freq: FloatParam,
+    #[id = "high_gain"]
+    pub high_gain: FloatParam,
+    #[id = "cut_on"]
+    pub cut_on: BoolParam,
+    #[id = "cut_freq"]
+    pub cut_freq: FloatParam,
+}
+
+/// FX 4.4. Ids `cho_{on,voices,rate,sync,div,depth,delay,feedback,lpf,wet_lowcut,mix}`.
+#[derive(Params)]
+pub struct ChorusFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "voices"]
+    pub voices: IntParam,
+    /// Free rate, Hz.
+    #[id = "rate"]
+    pub rate: FloatParam,
+    #[id = "sync"]
+    pub sync: BoolParam,
+    /// LFO period when synced (the Mod A/B divisions).
+    #[id = "div"]
+    pub div: EnumParam<Division>,
+    #[id = "depth"]
+    pub depth: FloatParam,
+    /// Centre delay, ms.
+    #[id = "delay"]
+    pub delay: FloatParam,
+    #[id = "feedback"]
+    pub feedback: FloatParam,
+    #[id = "lpf"]
+    pub lpf: FloatParam,
+    #[id = "wet_lowcut"]
+    pub wet_lowcut: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.5. Ids `dim_{on,size,wet_lowcut,mix}`.
+#[derive(Params)]
+pub struct DimensionFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "size"]
+    pub size: FloatParam,
+    #[id = "wet_lowcut"]
+    pub wet_lowcut: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.6. Ids `dly_{on,sync,time,div,feel,feedback,mode,hp,lp,mix}`.
+#[derive(Params)]
+pub struct DelayFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "sync"]
+    pub sync: BoolParam,
+    /// Free time, ms.
+    #[id = "time"]
+    pub time: FloatParam,
+    /// Synced note value and its feel (straight / dotted / triplet).
+    #[id = "div"]
+    pub div: EnumParam<DelayDiv>,
+    #[id = "feel"]
+    pub feel: EnumParam<DelayFeel>,
+    #[id = "feedback"]
+    pub feedback: FloatParam,
+    #[id = "mode"]
+    pub mode: EnumParam<DelayMode>,
+    #[id = "hp"]
+    pub hp: FloatParam,
+    #[id = "lp"]
+    pub lp: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.7. Ids `rev_{on,type,size,decay,damp,predelay,lowcut,hicut,width,mix}`.
+#[derive(Params)]
+pub struct ReverbFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "type"]
+    pub ty: EnumParam<ReverbType>,
+    #[id = "size"]
+    pub size: FloatParam,
+    /// RT60, seconds.
+    #[id = "decay"]
+    pub decay: FloatParam,
+    #[id = "damp"]
+    pub damp: FloatParam,
+    /// ms.
+    #[id = "predelay"]
+    pub predelay: FloatParam,
+    #[id = "lowcut"]
+    pub lowcut: FloatParam,
+    #[id = "hicut"]
+    pub hicut: FloatParam,
+    #[id = "width"]
+    pub width: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+/// FX 4.8: always on, ceiling fixed at -0.3 dBFS. Id `lim_gain`.
+#[derive(Params)]
+pub struct LimiterFxParams {
+    /// Input gain, dB, -24..+12.
+    #[id = "gain"]
+    pub gain: FloatParam,
+}
+
+impl Default for DistParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Dist {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            ty: EnumParam::new(n("Type"), DistType::Tube),
+            drive: decibels(n("Drive"), 0.0, -12.0, 36.0),
+            bias: bipolar(n("Bias"), 0.0),
+            filter_mode: EnumParam::new(n("Filter Mode"), DistFilterMode::Off),
+            filter_type: EnumParam::new(n("Filter Type"), DistFilterType::Lp),
+            filter_freq: hz(n("Filter Freq"), 1000.0, 20.0, 20000.0),
+            filter_q: skewed(n("Filter Q"), 0.707, 0.3, 8.0, ""),
+            out: decibels(n("Out"), 0.0, -24.0, 12.0),
+            autogain: BoolParam::new(n("Autogain"), true),
+            mix: percent(n("Mix"), 1.0, 1.0),
+        }
+    }
+}
+
+impl Default for MultibandFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("MB {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            depth: percent(n("Depth"), 1.0, 2.0),
+            time: percent(n("Time"), 0.5, 1.0),
+            xover_lo: hz(n("Low Xover"), 120.0, 60.0, 400.0),
+            xover_hi: hz(n("High Xover"), 2500.0, 1000.0, 8000.0),
+            up_lo: decibels(n("Low Up Thresh"), -24.0, -60.0, 0.0),
+            up_mid: decibels(n("Mid Up Thresh"), -24.0, -60.0, 0.0),
+            up_hi: decibels(n("High Up Thresh"), -24.0, -60.0, 0.0),
+            down_lo: decibels(n("Low Down Thresh"), -12.0, -60.0, 0.0),
+            down_mid: decibels(n("Mid Down Thresh"), -12.0, -60.0, 0.0),
+            down_hi: decibels(n("High Down Thresh"), -12.0, -60.0, 0.0),
+            gain_lo: decibels(n("Low Gain"), 0.0, -12.0, 12.0),
+            gain_mid: decibels(n("Mid Gain"), 0.0, -12.0, 12.0),
+            gain_hi: decibels(n("High Gain"), 0.0, -12.0, 12.0),
+            input: decibels(n("In"), 0.0, -24.0, 24.0),
+            out: decibels(n("Out"), 0.0, -24.0, 24.0),
+            mix: percent(n("Mix"), 1.0, 1.0),
+        }
+    }
+}
+
+impl Default for EqFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("EQ {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            low_freq: hz(n("Low Freq"), 100.0, 30.0, 500.0),
+            low_gain: decibels(n("Low Gain"), 0.0, -15.0, 15.0),
+            peak_freq: hz(n("Peak Freq"), 1000.0, 20.0, 20000.0),
+            peak_q: skewed(n("Peak Q"), 1.0, 0.2, 10.0, ""),
+            peak_gain: decibels(n("Peak Gain"), 0.0, -15.0, 15.0),
+            high_freq: hz(n("High Freq"), 8000.0, 1000.0, 20000.0),
+            high_gain: decibels(n("High Gain"), 0.0, -15.0, 15.0),
+            cut_on: BoolParam::new(n("Low Cut On"), false),
+            cut_freq: hz(n("Low Cut Freq"), 30.0, 20.0, 500.0),
+        }
+    }
+}
+
+impl Default for ChorusFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Chorus {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            voices: IntParam::new(n("Voices"), 4, IntRange::Linear { min: 2, max: 8 }),
+            rate: skewed(n("Rate"), 0.5, 0.1, 10.0, " Hz"),
+            sync: BoolParam::new(n("Sync"), false),
+            div: EnumParam::new(n("Division"), Division::Bar1),
+            depth: unit(n("Depth"), 0.5),
+            delay: skewed(n("Delay"), 7.0, 1.0, 20.0, " ms"),
+            feedback: linear(n("Feedback"), 0.0, -0.95, 0.95),
+            lpf: hz(n("LPF"), 20000.0, 200.0, 20000.0),
+            wet_lowcut: hz(n("Wet Low Cut"), 120.0, 20.0, 500.0),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
+impl Default for DimensionFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Dimension {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            size: unit(n("Size"), 0.5),
+            wet_lowcut: hz(n("Wet Low Cut"), 120.0, 20.0, 500.0),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
+impl Default for DelayFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Delay {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            sync: BoolParam::new(n("Sync"), true),
+            time: skewed(n("Time"), 250.0, 1.0, 2000.0, " ms"),
+            div: EnumParam::new(n("Division"), DelayDiv::D1_8),
+            feel: EnumParam::new(n("Feel"), DelayFeel::Dotted),
+            feedback: linear(n("Feedback"), 0.35, 0.0, 0.95),
+            mode: EnumParam::new(n("Mode"), DelayMode::Stereo),
+            hp: hz(n("HP"), 120.0, 20.0, 2000.0),
+            lp: hz(n("LP"), 8000.0, 200.0, 20000.0),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
+impl Default for ReverbFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Reverb {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            ty: EnumParam::new(n("Type"), ReverbType::Plate),
+            size: unit(n("Size"), 0.5),
+            decay: skewed(n("Decay"), 1.5, 0.1, 20.0, " s"),
+            damp: unit(n("Damp"), 0.3),
+            predelay: linear(n("Pre-Delay"), 0.0, 0.0, 300.0).with_unit(" ms"),
+            lowcut: hz(n("Low Cut"), 200.0, 20.0, 1000.0),
+            hicut: hz(n("High Cut"), 12000.0, 1000.0, 20000.0),
+            width: unit(n("Width"), 1.0),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
+impl Default for LimiterFxParams {
+    fn default() -> Self {
+        Self { gain: decibels("Limiter Gain".into(), 0.0, -24.0, 12.0) }
+    }
+}
+
 #[derive(Params)]
 pub struct GtsParams {
     #[nested(id_prefix = "osca", group = "Osc A")]
@@ -534,6 +910,23 @@ pub struct GtsParams {
     /// Mono crossover in Hz, 20..300: the output is mono below it (SPEC v2 1.5); 20 = off (bypass).
     #[id = "mono_xover"]
     pub mono_xover: FloatParam,
+
+    #[nested(id_prefix = "dist", group = "Distortion")]
+    pub dist: DistParams,
+    #[nested(id_prefix = "mb", group = "Multiband")]
+    pub mb: MultibandFxParams,
+    #[nested(id_prefix = "eq", group = "EQ")]
+    pub eq: EqFxParams,
+    #[nested(id_prefix = "cho", group = "Chorus")]
+    pub cho: ChorusFxParams,
+    #[nested(id_prefix = "dim", group = "Dimension")]
+    pub dim: DimensionFxParams,
+    #[nested(id_prefix = "dly", group = "Delay")]
+    pub dly: DelayFxParams,
+    #[nested(id_prefix = "rev", group = "Reverb")]
+    pub rev: ReverbFxParams,
+    #[nested(id_prefix = "lim", group = "Limiter")]
+    pub lim: LimiterFxParams,
 
     /// RR-BUS CV-in slots: target and bipolar amount. Ids `cv{1,2,3}_{target,amount}`.
     #[id = "cv1_target"]
@@ -655,6 +1048,15 @@ impl Default for GtsParams {
             )
             .with_unit(" Hz")
             .with_value_to_string(formatters::v2s_f32_rounded(0)),
+
+            dist: DistParams::default(),
+            mb: MultibandFxParams::default(),
+            eq: EqFxParams::default(),
+            cho: ChorusFxParams::default(),
+            dim: DimensionFxParams::default(),
+            dly: DelayFxParams::default(),
+            rev: ReverbFxParams::default(),
+            lim: LimiterFxParams::default(),
 
             cv1_target: EnumParam::new("CV 1 Target", CvTarget::Off),
             cv1_amount: bipolar("CV 1 Amount".into(), 0.0),

@@ -1,11 +1,7 @@
 //! SPEC v2 4.5 Dimension acceptance: width grows monotonically with size (correlation falls),
 //! mono sum within 1 dB of dry, sub band >= 0.95 correlated; plus the FX-standard S/M test,
 //! bypass, clicks and CPU. Numbers print with `--nocapture`.
-// ponytail: the integration wave declares `dsp::fx`; until then the module is pulled in by path.
-#[path = "../src/dsp/fx/dimension.rs"]
-#[allow(dead_code)]
-mod dimension;
-use dimension::*;
+use gts::dsp::fx::dimension::*;
 use std::f64::consts::TAU;
 use std::time::Instant;
 

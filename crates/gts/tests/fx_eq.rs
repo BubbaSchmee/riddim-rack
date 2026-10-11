@@ -1,10 +1,6 @@
 //! SPEC v2 4.3 EQ acceptance: measured response within +-0.5 dB of the designed (analog) curve at
 //! 20 frequencies, unity at all gains 0, click-free sweeps, CPU. Numbers print with `--nocapture`.
-// ponytail: the integration wave declares `dsp::fx`; until then the module is pulled in by path.
-#[path = "../src/dsp/fx/eq.rs"]
-#[allow(dead_code)]
-mod eq;
-use eq::*;
+use gts::dsp::fx::eq::*;
 use std::f64::consts::TAU;
 use std::time::Instant;
 

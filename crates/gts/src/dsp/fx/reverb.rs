@@ -23,6 +23,7 @@
 //!   bypass; switching on, or changing type, clears the buffers (a type change cuts the old tail).
 //!   Latency 0. Denormals: relies on the host wrapper's flush-to-zero (nih-plug sets it).
 
+use nih_plug::prelude::Enum;
 use std::f32::consts::{PI, TAU};
 
 /// Highest sample rate the buffers are allocated for.
@@ -90,7 +91,8 @@ const HALL_DIFF: [(f32, f32); 4] = [(4.77, 0.7), (3.59, 0.7), (12.73, 0.6), (9.3
 /// Slow modulation of every fourth line (peak ms) against modal ringing.
 const HALL_MOD_MS: f32 = 0.25;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Host enum names are part of the saved state and the preset format: append only.
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReverbType {
     Plate,
     Hall,

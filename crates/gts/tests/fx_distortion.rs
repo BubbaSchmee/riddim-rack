@@ -6,19 +6,7 @@
 //! harmonics are not distortion). Alias floor = the `alias.rs` metric (non-harmonic over
 //! harmonic energy, Blackman-Harris, harmonic bins within 6 bins of k*f0, DC ignored).
 
-// ponytail: `dsp::fx` is not in the crate tree until the integration wave adds `pub mod fx;` to
-// dsp/mod.rs, so the module source is compiled straight into this test, with `crate::dsp::shaper`
-// re-exported for its oversampler import. Switch to `gts::dsp::fx::distortion` after integration.
-#[allow(dead_code)]
-mod dsp {
-    pub use gts::dsp::shaper;
-    pub mod fx {
-        #[path = "../../../src/dsp/fx/distortion.rs"]
-        pub mod distortion;
-    }
-}
-
-use dsp::fx::distortion::{DistType, Distortion, DistortionParams, FilterMode, FilterType};
+use gts::dsp::fx::distortion::{DistType, Distortion, DistortionParams, FilterMode, FilterType};
 use gts::dsp::tables::Fft;
 
 const SR: f32 = 48000.0;

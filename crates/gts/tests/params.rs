@@ -34,9 +34,30 @@ fn spec_ids() -> Vec<String> {
         "sub_on", "sub_level", "sub_oct", "mono_xover"] {
         v.push(s.into());
     }
+    v.extend(fx_ids());
     for n in 1..=3 {
         v.push(format!("cv{n}_target"));
         v.push(format!("cv{n}_amount"));
+    }
+    v
+}
+
+/// SPEC v2 Track 4: the FX section, in chain order (74 ids).
+pub fn fx_ids() -> Vec<String> {
+    let mut v: Vec<String> = vec![];
+    let modules: [(&str, &[&str]); 8] = [
+        ("dist", &["on", "type", "drive", "bias", "filter_mode", "filter_type", "filter_freq", "filter_q", "out", "autogain", "mix"]),
+        ("mb", &["on", "depth", "time", "xover_lo", "xover_hi", "up_lo", "up_mid", "up_hi", "down_lo", "down_mid", "down_hi",
+            "gain_lo", "gain_mid", "gain_hi", "in", "out", "mix"]),
+        ("eq", &["on", "low_freq", "low_gain", "peak_freq", "peak_q", "peak_gain", "high_freq", "high_gain", "cut_on", "cut_freq"]),
+        ("cho", &["on", "voices", "rate", "sync", "div", "depth", "delay", "feedback", "lpf", "wet_lowcut", "mix"]),
+        ("dim", &["on", "size", "wet_lowcut", "mix"]),
+        ("dly", &["on", "sync", "time", "div", "feel", "feedback", "mode", "hp", "lp", "mix"]),
+        ("rev", &["on", "type", "size", "decay", "damp", "predelay", "lowcut", "hicut", "width", "mix"]),
+        ("lim", &["gain"]),
+    ];
+    for (m, ids) in modules {
+        v.extend(ids.iter().map(|s| format!("{m}_{s}")));
     }
     v
 }
@@ -49,4 +70,53 @@ fn ids_match_spec() {
     got.sort();
     want.sort();
     assert_eq!(got, want);
+    assert_eq!((fx_ids().len(), got.len()), (74, 182));
+}
+
+/// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on
+/// switches default off; the module structs the chain receives equal the modules' own defaults
+/// except Delay/Reverb mix (0.5 by the integration spec).
+#[test]
+fn fx_ranges_and_defaults() {
+    use gts::dsp::fx::*;
+    #[rustfmt::skip]
+    let want: &[(&str, f32, f32, f32)] = &[
+        ("dist_drive", -12.0, 36.0, 0.0), ("dist_bias", -1.0, 1.0, 0.0), ("dist_filter_freq", 20.0, 20000.0, 1000.0),
+        ("dist_filter_q", 0.3, 8.0, 0.707), ("dist_out", -24.0, 12.0, 0.0), ("dist_mix", 0.0, 1.0, 1.0),
+        ("mb_depth", 0.0, 2.0, 1.0), ("mb_time", 0.0, 1.0, 0.5), ("mb_xover_lo", 60.0, 400.0, 120.0),
+        ("mb_xover_hi", 1000.0, 8000.0, 2500.0), ("mb_up_lo", -60.0, 0.0, -24.0), ("mb_up_mid", -60.0, 0.0, -24.0),
+        ("mb_up_hi", -60.0, 0.0, -24.0), ("mb_down_lo", -60.0, 0.0, -12.0), ("mb_down_mid", -60.0, 0.0, -12.0),
+        ("mb_down_hi", -60.0, 0.0, -12.0), ("mb_gain_lo", -12.0, 12.0, 0.0), ("mb_gain_mid", -12.0, 12.0, 0.0),
+        ("mb_gain_hi", -12.0, 12.0, 0.0), ("mb_in", -24.0, 24.0, 0.0), ("mb_out", -24.0, 24.0, 0.0), ("mb_mix", 0.0, 1.0, 1.0),
+        ("eq_low_freq", 30.0, 500.0, 100.0), ("eq_low_gain", -15.0, 15.0, 0.0), ("eq_peak_freq", 20.0, 20000.0, 1000.0),
+        ("eq_peak_q", 0.2, 10.0, 1.0), ("eq_peak_gain", -15.0, 15.0, 0.0), ("eq_high_freq", 1000.0, 20000.0, 8000.0),
+        ("eq_high_gain", -15.0, 15.0, 0.0), ("eq_cut_freq", 20.0, 500.0, 30.0),
+        ("cho_rate", 0.1, 10.0, 0.5), ("cho_depth", 0.0, 1.0, 0.5), ("cho_delay", 1.0, 20.0, 7.0),
+        ("cho_feedback", -0.95, 0.95, 0.0), ("cho_lpf", 200.0, 20000.0, 20000.0), ("cho_wet_lowcut", 20.0, 500.0, 120.0),
+        ("cho_mix", 0.0, 1.0, 0.5), ("dim_size", 0.0, 1.0, 0.5), ("dim_wet_lowcut", 20.0, 500.0, 120.0), ("dim_mix", 0.0, 1.0, 0.5),
+        ("dly_time", 1.0, 2000.0, 250.0), ("dly_feedback", 0.0, 0.95, 0.35), ("dly_hp", 20.0, 2000.0, 120.0),
+        ("dly_lp", 200.0, 20000.0, 8000.0), ("dly_mix", 0.0, 1.0, 0.5), ("rev_size", 0.0, 1.0, 0.5),
+        ("rev_decay", 0.1, 20.0, 1.5), ("rev_damp", 0.0, 1.0, 0.3), ("rev_predelay", 0.0, 300.0, 0.0),
+        ("rev_lowcut", 20.0, 1000.0, 200.0), ("rev_hicut", 1000.0, 20000.0, 12000.0), ("rev_width", 0.0, 1.0, 1.0),
+        ("rev_mix", 0.0, 1.0, 0.5), ("lim_gain", -24.0, 12.0, 0.0),
+    ];
+    let params = GtsParams::default();
+    let map = params.param_map();
+    let close = |a: f32, b: f32| (a - b).abs() <= 1e-3 * b.abs().max(1.0);
+    for &(id, lo, hi, def) in want {
+        let (_, ptr, _) = map.iter().find(|(k, _, _)| k == id).unwrap_or_else(|| panic!("{id} missing"));
+        // SAFETY: `params` outlives the pointers.
+        let (a, b, d) = unsafe { (ptr.preview_plain(0.0), ptr.preview_plain(1.0), ptr.preview_plain(ptr.default_normalized_value())) };
+        assert!(close(a, lo) && close(b, hi) && close(d, def), "{id}: {a}..{b} default {d}, want {lo}..{hi} default {def}");
+    }
+    let fx = gts::dsp::Patch::default().fx;
+    assert!(!(fx.dist.on || fx.mb.on || fx.eq.on || fx.cho.on || fx.dim.on || fx.dly.on || fx.rev.on));
+    assert_eq!(fx.dist, distortion::DistortionParams::default());
+    assert_eq!(fx.mb, multiband::MultibandParams::default());
+    assert_eq!(fx.eq, eq::EqParams::default());
+    assert_eq!(fx.cho, chorus::ChorusParams::default());
+    assert_eq!(fx.dim, dimension::DimensionParams::default());
+    assert_eq!(fx.dly, delay::DelayParams { mix: 0.5, ..Default::default() });
+    assert_eq!(fx.rev, reverb::ReverbParams { mix: 0.5, ..Default::default() });
+    assert_eq!(fx.lim_gain, 0.0);
 }

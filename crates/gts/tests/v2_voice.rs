@@ -526,7 +526,8 @@ fn quality_setting_persists_and_sets_the_latency() {
     assert_eq!(q.oversampling.load(Ordering::Relaxed), 4);
 
     let mut e = engine(&Patch::default());
-    for (f, lat) in [(1, 0), (2, 21), (4, 23)] {
+    // Shaper 0 / 21 / 23 samples plus the FX chain's 95 (distortion 23 + limiter lookahead 72 at 48 kHz).
+    for (f, lat) in [(1, 95), (2, 116), (4, 118)] {
         e.set_oversampling(f);
         assert_eq!((e.oversampling(), e.latency()), (f, lat));
     }

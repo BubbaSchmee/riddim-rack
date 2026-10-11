@@ -1,11 +1,7 @@
 //! SPEC v2 4.4 Chorus acceptance: L/R correlation 0.2..0.8 above 400 Hz at depth 0.5, >= 0.95
 //! below the wet low cut, no pitch error of the dry path; plus bypass, sync, clicks, feedback
 //! stability and CPU. Numbers print with `--nocapture`.
-// ponytail: the integration wave declares `dsp::fx`; until then the module is pulled in by path.
-#[path = "../src/dsp/fx/chorus.rs"]
-#[allow(dead_code)]
-mod chorus;
-use chorus::*;
+use gts::dsp::fx::chorus::*;
 use std::f64::consts::TAU;
 use std::time::Instant;
 

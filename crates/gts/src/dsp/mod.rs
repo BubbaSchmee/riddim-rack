@@ -3,6 +3,7 @@
 
 pub mod env;
 pub mod filter;
+pub mod fx;
 pub mod grain;
 pub mod lfo;
 pub mod shaper;
@@ -12,6 +13,7 @@ pub mod voice;
 use crate::params::{
     Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
 };
+use fx::{FxChain, FxPatch};
 use nih_plug::prelude::NoteEvent;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -181,6 +183,8 @@ pub struct Patch {
     pub vel_mod: f32,
     pub volume_db: f32,
     pub spread: f32,
+    /// FX section (SPEC v2 Track 4).
+    pub fx: FxPatch,
 }
 
 impl Patch {
@@ -228,6 +232,7 @@ impl Patch {
             vel_mod: p.vel.mod_amt.value(),
             volume_db: p.volume.value(),
             spread: p.spread.value(),
+            fx: FxPatch::from_params(p),
         }
     }
 }
@@ -351,17 +356,6 @@ impl Default for Transport {
     }
 }
 
-/// Safety limiter: identity up to 0.95, tanh knee above, never exceeds 1.0.
-#[inline]
-pub fn limit(x: f32) -> f32 {
-    let a = x.abs();
-    if a <= 0.95 {
-        x
-    } else {
-        (0.95 + 0.05 * ((a - 0.95) / 0.05).tanh()).copysign(x)
-    }
-}
-
 pub struct Engine {
     /// Generated once (by `initialize`, or by the editor if it opens first) and shared with it.
     tables: Arc<OnceLock<Tables>>,
@@ -379,8 +373,12 @@ pub struct Engine {
     /// Raw controller values: bend -1..1, wheel 0..1.
     bend_raw: f32,
     wheel_raw: f32,
+    /// Master volume (linear) and the 1/sqrt(poly) voice-sum normalisation, smoothed.
     gain: f32,
     gain_target: f32,
+    norm: f32,
+    norm_target: f32,
+    fx: FxChain,
     /// Sustain pedal (CC64) down, and the notes whose note-off it is holding back.
     sustain: bool,
     pending: [bool; 128],
@@ -412,6 +410,9 @@ impl Engine {
             wheel_raw: 0.0,
             gain: 0.0,
             gain_target: 0.0,
+            norm: 1.0,
+            norm_target: 1.0,
+            fx: FxChain::new(),
             sustain: false,
             pending: [false; 128],
             transport: Transport::default(),
@@ -451,9 +452,10 @@ impl Engine {
         self.oversampling
     }
 
-    /// Processing latency in samples (the shaper's constant delay at the current oversampling).
+    /// Processing latency in samples: the shaper's constant delay at the current oversampling plus
+    /// the FX chain's (distortion oversampler + limiter lookahead).
     pub fn latency(&self) -> usize {
-        self.voices[0].shaper().latency()
+        self.voices[0].shaper().latency() + self.fx.latency()
     }
 
     fn set_sample_rate(&mut self, sr: f32) {
@@ -464,9 +466,10 @@ impl Engine {
         for v in &mut self.voices {
             v.set_sample_rate(sr);
         }
+        self.fx.set_sample_rate(sr);
         let p = self.patch;
         self.set_patch(&p);
-        self.gain = self.gain_target;
+        (self.gain, self.norm) = (self.gain_target, self.norm_target);
         self.xover.reset();
     }
 
@@ -484,8 +487,9 @@ impl Engine {
         self.pending = [false; 128];
         self.bend_raw = 0.0;
         self.ctl.bend = 0.0;
-        self.gain = self.gain_target;
+        (self.gain, self.norm) = (self.gain_target, self.norm_target);
         self.xover.reset();
+        self.fx.reset();
     }
 
     /// Call once per block, before rendering it.
@@ -494,7 +498,7 @@ impl Engine {
     /// envelopes, LFO configuration and voice count alone; `p` must otherwise equal the block's patch.
     pub fn set_cv_patch(&mut self, p: &Patch) {
         self.patch = *p;
-        self.gain_target = 10f32.powf(p.volume_db / 20.0) / (p.poly as f32).sqrt();
+        self.gain_target = 10f32.powf(p.volume_db / 20.0);
     }
 
     pub fn set_patch(&mut self, p: &Patch) {
@@ -520,8 +524,12 @@ impl Engine {
         }
         // Portamento: one-pole in semitones, ~98 % of the way after `porta` seconds.
         self.ctl.glide = if p.porta > 0.0 { (-4.0 / (p.porta * sr)).exp() } else { 0.0 };
-        // 1/sqrt(poly) keeps chords out of the limiter (mono unchanged).
-        self.gain_target = 10f32.powf(p.volume_db / 20.0) / (p.poly as f32).sqrt();
+        // 1/sqrt(poly), applied before the FX chain, keeps chords out of the limiter and the FX at
+        // voice level (mono unchanged).
+        self.gain_target = 10f32.powf(p.volume_db / 20.0);
+        self.norm_target = 1.0 / (p.poly as f32).sqrt();
+        let t = self.transport;
+        self.fx.set(&p.fx, t.tempo, t.playing.then_some(t.pos_beats));
         for v in &mut self.voices {
             v.update(p, sr);
             v.configure_mods(p, &self.transport);
@@ -706,6 +714,7 @@ impl Engine {
         self.ctl.bend = bend + (self.ctl.bend - bend) * k;
         self.ctl.wheel = self.wheel_raw + (self.ctl.wheel - self.wheel_raw) * k;
         self.gain = self.gain_target + (self.gain - self.gain_target) * k;
+        self.norm = self.norm_target + (self.norm - self.norm_target) * k;
 
         if self.transport.playing {
             self.transport.pos_beats += self.transport.tempo / 60.0 / self.ctl.sr as f64;
@@ -724,8 +733,10 @@ impl Engine {
         }
         // Mono below the crossover.
         let (m, s) = self.xover.process(0.5 * (l as f64 + r as f64), 0.5 * (l as f64 - r as f64), self.ctl.smooth as f64);
-        let (l, r) = ((m + s) as f32, (m - s) as f32);
-        (limit(l * self.gain), limit(r * self.gain))
+        let (mut l, mut r) = ((m + s) as f32 * self.norm, (m - s) as f32 * self.norm);
+        // FX 1..7, master volume, then the -0.3 dBFS limiter (the output stage).
+        self.fx.process(&mut l, &mut r, self.gain);
+        (l, r)
     }
 }
 
