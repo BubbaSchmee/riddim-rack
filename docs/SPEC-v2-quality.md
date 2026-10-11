@@ -72,3 +72,35 @@ Preset format/browser/factory bank (20 patterns with descriptions), help line wi
 6. **VSS v2** after GTS v2 is accepted, reusing everything.
 
 Estimated size: about four VSS-sized builds. Each phase ends with a rendered preview and the measured numbers, before the next starts.
+
+---
+
+## Track 4 — FX section inside GTS (added 2026-10-11)
+
+Rationale: the reference comparison (`docs/audits/serum-init-comparison.md`) showed the raw
+oscillator equal to the reference within 0.03 dB; what the reference presets have and ours do
+not is a built-in effects chain. Source checklist: `docs/standards/fx-section.md` (FX-n).
+
+Architecture (FX "Chain architecture" items): fixed default order **Distortion → Multiband Comp
+→ EQ → Chorus → Dimension → Delay → Reverb → Limiter**, re-ordering deferred (NICE); every
+module has `on` and `mix` (except EQ and Limiter); FX state lives in the preset; the chain runs
+once on the summed stereo output after the voice sum and before the master volume; the whole
+chain is bypassed sample-exactly when every module is off. Each module smooths its parameters
+per sample (5–20 ms). No allocation in process; all delay/reverb buffers preallocated for 192 kHz.
+
+| # | Module | Params (id prefix) | Standard | Acceptance |
+|---|---|---|---|---|
+| 4.1 | **Distortion** `dist_` | on, type {Tube, HardClip, Overdrive, Diode, FoldLin, FoldSine, BitCrush, Downsample}, drive −12..+36 dB (0), bias −1..1 (0), filter_mode {Off, Pre, Post}, filter_type {LP, BP, HP}, filter_freq 20 Hz..20 kHz, filter_q 0.3..8, out −24..+12 dB, autogain (bool, on), mix 0..1 | FX distortion items | HardClip at +12 dB on a 0.25-RMS C2 saw: THD 15–40 %; autogain keeps RMS within ±1 dB across drive 0..+24 for Tube/Overdrive; alias ≤ −70 dB at the internal 4× (reuse `oversample.rs`); Off/Pre/Post filter changes measured; CPU reported. |
+| 4.2 | **Multiband comp (OTT-style)** `mb_` | on, depth 0..200 % (100), time 0..100 % (attack 1–100 ms, release 20–500 ms mapped), xover_lo 60..400 Hz (120), xover_hi 1..8 kHz (2.5 k), per band up/down threshold −60..0 dB (−24 up / −12 down defaults), band gain −12..+12 dB ×3, in −24..+24 dB, out −24..+24 dB, mix | FX multiband items | Gain reduction 9.0 ± 0.5 dB at 12 dB over a 4:1 downward threshold in single-band check; upward compression raises a −40 dBFS band by ≥ 6 dB at depth 100 %; Linkwitz-Riley bands sum flat (±0.2 dB) at depth 0; no pumping artefact > 1 dB at time 50 % on a steady tone. |
+| 4.3 | **EQ** `eq_` | on, low shelf (freq 30..500 Hz, gain ±15 dB), peak (freq 20 Hz..20 kHz, q 0.2..10, gain ±15 dB), high shelf (freq 1..20 kHz, gain ±15 dB), low cut 20..500 Hz on/off | FX EQ items | Measured response within ±0.5 dB of the designed curve at 20 test frequencies; unity at all gains 0. |
+| 4.4 | **Chorus** `cho_` | on, voices 2..8 (4), rate 0.1..10 Hz or sync, depth 0..1, delay 1..20 ms (7), feedback −0.95..0.95, lpf 200 Hz..20 kHz, wet_lowcut 20..500 Hz (120), mix | FX chorus items | L/R correlation 0.2–0.8 above 400 Hz at depth 0.5; correlation ≥ 0.95 below the wet low cut; no pitch error of the dry path. |
+| 4.5 | **Dimension** `dim_` | on, size 0..1, wet_lowcut 20..500 Hz (120), mix | FX widener items | Width increases monotonically with size (correlation falls); mono-sum within 1 dB of dry; sub-band ≥ 0.95 correlated. |
+| 4.6 | **Delay** `dly_` | on, sync (bool), time 1 ms..2 s / division 1/64..4/1 incl. dotted and triplet, feedback 0..0.95, mode {Mono, Stereo, PingPong}, hp 20..2000 Hz, lp 200 Hz..20 kHz, mix | FX delay items | Echo lands within 1 sample of the set time at 48 and 44.1 kHz; feedback 0.95 decays (never grows); ping-pong alternates channels. |
+| 4.7 | **Reverb** `rev_` | on, type {Plate, Hall}, size 0..1, decay 0.1..20 s, damp 0..1, predelay 0..300 ms, lowcut 20..1000 Hz (200), hicut 1..20 kHz, width 0..1, mix | FX reverb items | RT60 at decay 2.0 s measured 2.0 s ± 15 %; low cut keeps energy below 100 Hz ≥ 20 dB down in the wet path; no modal ringing peaks > 6 dB in the steady spectrum of a noise burst tail; stereo width adjustable to mono. |
+| 4.8 | **Limiter** `lim_` | ceiling fixed −0.3 dBFS, always on, gain −24..+12 dB | FX limiter item | No output sample above −0.3 dBFS for any preset at any velocity; THD ≤ 1 % at 3 dB over the ceiling; latency reported if lookahead is used. |
+| 4.9 | **Editor FX page** | A second page or a tab in the header area: eight module strips in chain order with on/mix and the module params, using rr-ui widgets; help text for every new param (the 3.6 help table rule applies). | UX-62, DESIGN.md | Binding test passes with the ~70 new ids; preview PNG reviewed; window still fits 1000×832 or a page switch. |
+| 4.10 | **Presets use FX** | The six candidates are re-voiced with the chain (OTT depth, dimension above the sub, distortion type per character, EQ cut, reverb ≤ 15 % on basses) and re-rendered; the full bank follows. | FX riddim items; SQ-37 | QA renderer passes the level band; compare.py distance to a reference the owner picks is reported per preset. |
+
+Build: three Opus agents in worktrees on disjoint module files (4.1+4.2+4.8, 4.3+4.4+4.5, 4.6+4.7)
+with per-module tests; then one Opus integration agent wires the chain, params, presets and
+host state; then Sonnet builds the editor FX page; then the review ladder.
