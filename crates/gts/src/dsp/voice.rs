@@ -306,7 +306,12 @@ impl Voice {
         let wheel_oct = 5.0 * patch.wheel_cutoff * ctl.wheel;
         for j in 0..2 {
             let fp = &patch.filt[j];
-            let mut oct = fp.kbd * (self.pitch - KBD_REF) / 12.0 + self.modulation.cutoff[j] + wheel_oct;
+            // SPEC v2 1.6: combs follow the note fully at the default Kbd 0.5 (Kbd 0 = fixed);
+            // the Comb- loudness match reads the feeding osc's fundamental.
+            let comb = matches!(fp.ty, crate::params::FilterType::CombPlus | crate::params::FilterType::CombMinus);
+            let kbd = if comb { (2.0 * fp.kbd).min(1.0) } else { fp.kbd };
+            self.filt[j].set_note(self.osc[j].freq);
+            let mut oct = kbd * (self.pitch - KBD_REF) / 12.0 + self.modulation.cutoff[j] + wheel_oct;
             if fp.env {
                 oct += env_oct;
             }
@@ -412,7 +417,7 @@ impl Voice {
 /// Shaper -> Filter A / B per `routing`, then Spread. `mix` crossfades dry -> shaped.
 #[inline]
 fn route(routing: Routing, f: &mut [MultiFilter; 2], s: &mut Shaper, mix: f32, spread: f32, a: f32, b: f32) -> (f32, f32) {
-    let mut shape = |x: f32| if mix > 0.0 { x + (s.process(x) - x) * mix } else { x };
+    let mut shape = |x: f32| if mix > 0.0 { x + (s.process(x) - x) * mix } else { s.idle(x); x };
     match routing {
         Routing::Parallel => {
             // Shaper on A only, as in the original lineage. Spread pans A left, B right.
