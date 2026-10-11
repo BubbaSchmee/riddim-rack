@@ -5,3 +5,4 @@ sessions/*
 __pycache__/
 *.pyc
 docs/audits/renders/
+docs/audits/references/
