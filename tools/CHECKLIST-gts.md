@@ -38,7 +38,14 @@ the plugin. Delete the plugin log first for a clean session.
 18. Automate Filter A Freq and Osc A Shift in Live: no zipper noise or clicks.
 19. CPU: Live's CPU meter with 8 held notes stays well under 50 % on this machine.
 20. Hold the sustain pedal (or send CC64 127) and release keys: notes hold until the pedal is released.
-21. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
+21. RR-BUS patch (two instances): load a second GTS on another MIDI track. The PATCH labels read
+    `GTS 1` / `GTS 2` (rename one, e.g. `Lead bass`, and the other instance's source list follows
+    within a second). On GTS 2 set row 1 to `GTS 1 · Mod A` → `Osc A Index`, amount +1.0, and play
+    both tracks: GTS 2's timbre wobbles with GTS 1's Mod A and the row LED flickers. Set GTS 1 row 1
+    to `GTS 2 · Gate` → `Filter A Freq`, amount -0.8: GTS 1's filter ducks while GTS 2 holds a key.
+    No host automation lanes move; setting a row's source to `None` stops its modulation. Save the set, close, reopen: both patches, targets, amounts and the
+    labels hold. (With VSS installed also: VSS `Step Gate` → GTS 1 `Filter A Freq` chops in time.)
+22. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 
 ## After a session, send back
 

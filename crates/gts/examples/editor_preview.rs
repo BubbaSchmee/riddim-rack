@@ -5,7 +5,7 @@
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, Ctl, ParamTable};
+use gts::editor::{draw, BusView, Ctl, ParamTable};
 use gts::params::GtsParams;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -47,6 +47,7 @@ struct App {
     live: bool,
     frame: u32,
     asked: bool,
+    bus: BusView,
 }
 
 impl eframe::App for App {
@@ -59,7 +60,7 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(w, h) / native));
         }
         self.frame += 1;
-        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &self.ctl, &self.tables, 64));
+        egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &self.ctl, &self.tables, 64, &mut self.bus));
 
         let size = ctx.screen_rect().size();
         let ready = (size.x - w).abs() < 1.0 && (size.y - h).abs() < 1.0 && self.frame >= 3;
@@ -101,8 +102,18 @@ fn main() -> eframe::Result {
         gts_theme(&cc.egui_ctx);
         let mut tables = Tables::new();
         tables.generate();
-        let ctl = PreviewCtl { table: ParamTable::new(Arc::new(GtsParams::default())), vals: RefCell::new(HashMap::new()) };
-        Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false }))
+        // Demo patching: row 1 and 2 follow live sources, row 3 a lost one.
+        let vals = [("cv1_target", 5.0 / 8.0), ("cv1_amount", 0.78), ("cv2_target", 1.0 / 8.0), ("cv2_amount", 0.35), ("cv3_target", 7.0 / 8.0), ("cv3_amount", 0.5)];
+        let vals = vals.iter().map(|&(k, v)| (k.to_string(), v)).collect();
+        let ctl = PreviewCtl { table: ParamTable::new(Arc::new(GtsParams::default())), vals: RefCell::new(vals) };
+        let s = |v: &str| v.to_string();
+        let bus = BusView {
+            label: s("GTS 1"),
+            sources: vec![s("GTS 1 · Mod A"), s("VSS 1 · Step Gate"), s("GTS 2 · Mod B")],
+            bound: [s("VSS 1 · Step Gate"), s("GTS 2 · Mod B"), s("GTS 3 · Mod A")],
+            activity: [0.92, 0.35, 0.0],
+        };
+        Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false, bus }))
     }))
 }
 

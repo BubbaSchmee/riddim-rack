@@ -80,6 +80,8 @@ pub struct Voice {
     target: f32,
     osc: [Osc; 2],
     pub modulation: VoiceMod,
+    /// Raw Mod A / Mod B outputs (-1..1) of the last sample, published on the bus.
+    pub lfo_out: [f32; 2],
     /// Mod A, Mod B.
     lfo: [Lfo; 2],
     /// Filter A, Filter B.
@@ -132,6 +134,11 @@ impl Voice {
 
     pub fn amp_env(&self, osc: usize) -> &Adsr {
         &self.osc[osc].env
+    }
+
+    /// Loudest enabled oscillator envelope, 0..1.
+    pub fn amp_level(&self) -> f32 {
+        (0..2).filter(|&i| self.on[i]).map(|i| self.osc[i].env.level()).fold(0.0, f32::max)
     }
 
     pub fn filter_env(&self) -> &Adsr {
@@ -268,6 +275,7 @@ impl Voice {
     /// Mod A / Mod B -> `self.modulation`.
     fn modulate(&mut self, patch: &Patch, ctl: &Controls) {
         let (a, b) = (self.lfo[0].next(), self.lfo[1].next());
+        self.lfo_out = [a, b];
         // Mod B "Mod A" amount, wheel Mod and velocity Mod all scale the Mod A depth.
         let depth = a
             * (1.0 + patch.modb_moda * b)

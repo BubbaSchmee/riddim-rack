@@ -30,6 +30,10 @@ fn spec_ids() -> Vec<String> {
         "wheel_mod", "vel_vol_a", "vel_vol_b", "vel_fenv", "vel_att", "vel_shift", "vel_mod", "volume", "spread"] {
         v.push(s.into());
     }
+    for n in 1..=3 {
+        v.push(format!("cv{n}_target"));
+        v.push(format!("cv{n}_amount"));
+    }
     v
 }
 

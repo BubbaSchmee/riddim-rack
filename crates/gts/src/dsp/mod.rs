@@ -408,6 +408,16 @@ impl Engine {
         self.voices.iter().filter(|v| v.is_active()).count()
     }
 
+    /// RR-BUS signals `[Mod A, Mod B, Gate, Filter Env, Amp Env]`: Gate is 1 while any key is
+    /// held, the rest come from the most recently triggered active voice (0 when none).
+    pub fn bus_signals(&self) -> [f32; 5] {
+        let gate = if self.voices.iter().any(|v| v.gate) { 1.0 } else { 0.0 };
+        match self.voices.iter().filter(|v| v.is_active()).max_by_key(|v| v.age) {
+            Some(v) => [v.lfo_out[0], v.lfo_out[1], gate, v.filter_env().level(), v.amp_level()],
+            None => [0.0, 0.0, gate, 0.0, 0.0],
+        }
+    }
+
     /// Osc A grain index (0..127) of the most recently triggered voice, for the GUI.
     pub fn display_index(&self) -> u32 {
         self.voices[self.last_voice].index(0).round() as u32

@@ -1,6 +1,6 @@
 //! The editor must bind every parameter, and only real ones.
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, Ctl, ParamTable};
+use gts::editor::{draw, BusView, Ctl, ParamTable};
 use gts::params::GtsParams;
 use nih_plug::prelude::Params;
 use nih_plug_egui::egui;
@@ -52,7 +52,7 @@ impl Ctl for Recorder {
 fn editor_binds_every_param_exactly() {
     let params = Arc::new(GtsParams::default());
     let want: BTreeSet<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
-    assert_eq!(want.len(), 81);
+    assert_eq!(want.len(), 87); // 81 + six RR-BUS CV-in params
 
     let ctl = Recorder { table: ParamTable::new(params), seen: RefCell::new(BTreeSet::new()) };
     let mut tables = Tables::new();
@@ -66,9 +66,10 @@ fn editor_binds_every_param_exactly() {
         ..Default::default()
     };
     // Two passes: the first one only loads the fonts.
+    let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], ..Default::default() };
     for _ in 0..2 {
         let _ = ctx.run(input.clone(), |ctx| {
-            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &ctl, &tables, 64));
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| draw(ui, &ctl, &tables, 64, &mut bv));
         });
     }
     // (an unknown id would already have panicked inside ParamTable)

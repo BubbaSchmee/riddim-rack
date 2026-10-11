@@ -11,8 +11,9 @@ use rr_ui::theme::metrics::*;
 use rr_ui::widgets::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock};
 
+use crate::bus::BusLink;
 use crate::dsp::shaper::Shaper;
 use crate::dsp::tables::{Tables, GRAINS, N};
 use crate::params::*;
@@ -171,18 +172,63 @@ fn shaper_curve(c: &dyn Ctl) -> Vec<f32> {
     (0..=32).map(|i| (s.process(i as f32 / 16.0 - 1.0) * 0.5 + 0.5).clamp(0.0, 1.0)).collect()
 }
 
+// ---- PATCH strip (RR-BUS) ----------------------------------------------------------------
+
+/// What the PATCH strip shows and edits besides params: the editor fills it from the bus and the
+/// persisted state each frame and applies whatever `draw` changed in `label` / `bound`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BusView {
+    pub label: String,
+    /// Live sources, `"<label> · <name>"`.
+    pub sources: Vec<String>,
+    /// Persisted source per slot, empty = none.
+    pub bound: [String; 3],
+    /// |incoming value| per slot.
+    pub activity: [f32; 3],
+}
+
+const CV: [(&str, &str); 3] = [("cv1_target", "cv1_amount"), ("cv2_target", "cv2_amount"), ("cv3_target", "cv3_amount")];
+
+fn patch(ui: &mut Ui, c: &dyn Ctl, bv: &mut BusView) {
+    let sources = std::mem::take(&mut bv.sources);
+    let idx: Vec<Option<usize>> = bv.bound.iter().map(|b| sources.iter().position(|s| s == b)).collect();
+    let mut rows: Vec<PatchRow> = (0..3)
+        .map(|i| PatchRow {
+            sources: &sources,
+            source_idx: idx[i],
+            lost_name: (idx[i].is_none() && !bv.bound[i].is_empty()).then_some(bv.bound[i].as_str()),
+            targets: CvTarget::variants(),
+            target_idx: enum_idx::<CvTarget>(c, CV[i].0),
+            amount01: c.get01(CV[i].1),
+            activity01: bv.activity[i],
+        })
+        .collect();
+    let r = patch_strip(ui, &mut bv.label, &mut rows);
+    drop(rows);
+    for (i, e) in r.rows.into_iter().enumerate() {
+        if let Some(k) = e.source_changed {
+            bv.bound[i] = k.map(|k| sources[k].clone()).unwrap_or_default();
+        }
+        if let Some(t) = e.target_changed {
+            one_shot(c, CV[i].0, t as f32 / (CvTarget::variants().len() - 1) as f32);
+        }
+        drive(ui, c, CV[i].1, e.amount, false);
+    }
+    bv.sources = sources;
+}
+
 // ---- layout (mirrors rr-ui/examples/preview.rs) -------------------------------------------
 
 /// Draws the whole panel into `ui` (the full 1000x760 window).
-pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32) {
+pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mut BusView) {
     let status = format!("Two-osc graintable \u{b7} v{}", env!("CARGO_PKG_VERSION"));
     rr_ui::panel::rack_panel(ui, "GTS", "Graintable Synth", &status, vec2(232.0, 124.0), |hui, bui| {
-        header(hui, c, tables, current_index);
+        header(hui, c, tables, current_index, bv);
         body(bui, c);
     });
 }
 
-fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32) {
+fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mut BusView) {
     let t_idx = enum_idx::<Table>(c, "osca_table");
     let table = Table::from_index(t_idx);
     let idx = current_index.min(127);
@@ -190,14 +236,22 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32) {
     let main = wave(tables, table, g);
     let prev = wave(tables, table, g.saturating_sub(1));
     let next = wave(tables, table, (g + 1).min(GRAINS - 1));
-    waveform_display_ex(
-        ui,
-        &main,
-        &[&prev, &next],
-        idx as f32 / 127.0,
-        &format!("Osc A  /  {}", Table::variants()[t_idx]),
-        &format!("Index {idx}"),
-    );
+    // Grain display shrinks to 352 px; the PATCH strip takes the right 300 px.
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = GAP;
+        let pw = 300.0;
+        ui.allocate_ui(vec2(ui.available_width() - pw - GAP, DISPLAY_H), |ui| {
+            waveform_display_ex(
+                ui,
+                &main,
+                &[&prev, &next],
+                idx as f32 / 127.0,
+                &format!("Osc A  /  {}", Table::variants()[t_idx]),
+                &format!("Index {idx}"),
+            );
+        });
+        ui.allocate_ui(vec2(pw, PATCH_H), |ui| patch(ui, c, bv));
+    });
 }
 
 fn body(ui: &mut Ui, c: &dyn Ctl) {
@@ -332,21 +386,61 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
     });
 }
 
-pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>) -> Option<Box<dyn Editor>> {
-    let table = ParamTable::new(params);
+fn rd<T: Clone>(l: &RwLock<T>) -> T {
+    l.read().unwrap_or_else(PoisonError::into_inner).clone()
+}
+
+fn wr<T>(l: &RwLock<T>, v: T) {
+    *l.write().unwrap_or_else(PoisonError::into_inner) = v;
+}
+
+/// Editor-side state: display tables, bus view and its refresh clock.
+pub struct EditorState {
+    tables: Tables,
+    view: BusView,
+    next_refresh: f64,
+}
+
+pub fn create(params: Arc<GtsParams>, current_index: Arc<AtomicU32>, link: Arc<BusLink>) -> Option<Box<dyn Editor>> {
+    let table = ParamTable::new(params.clone());
     create_egui_editor(
         EguiState::from_size(1000, 760),
         // Display copy of the graintables (~12 ms), generated on the GUI thread when the editor opens.
-        Tables::new(),
-        |ctx, tables| {
+        EditorState { tables: Tables::new(), view: BusView::default(), next_refresh: 0.0 },
+        |ctx, st| {
             rr_ui::theme::apply(ctx);
-            tables.generate();
+            st.tables.generate();
         },
-        move |ctx, setter, tables| {
+        move |ctx, setter, st| {
+            // Sources list + lost-binding reconnects, ~4x/s on egui time.
+            let now = ctx.input(|i| i.time);
+            if now >= st.next_refresh {
+                st.next_refresh = now + 0.25;
+                st.view.sources = link.bus().list().iter().map(|s| s.persisted()).collect();
+                link.rebind_lost();
+            }
+            st.view.label = rd(&params.instance_label);
+            st.view.bound = rd(&params.cv_sources);
+            st.view.activity = std::array::from_fn(|i| link.activity(i));
+            let before = st.view.clone();
+
             let ctl = PlugCtl { table: &table, setter };
             egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-                draw(ui, &ctl, tables, current_index.load(Ordering::Relaxed));
+                draw(ui, &ctl, &st.tables, current_index.load(Ordering::Relaxed), &mut st.view);
             });
+
+            if st.view.label != before.label {
+                link.set_label(&st.view.label);
+                wr(&params.instance_label, st.view.label.clone());
+            }
+            if st.view.bound != before.bound {
+                for i in 0..3 {
+                    if st.view.bound[i] != before.bound[i] {
+                        link.set_source(i, &st.view.bound[i]);
+                    }
+                }
+                wr(&params.cv_sources, st.view.bound.clone());
+            }
             ctx.request_repaint_after(std::time::Duration::from_millis(33));
         },
     )

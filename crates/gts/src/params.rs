@@ -127,6 +127,30 @@ pub enum Routing {
     Bypass,
 }
 
+/// RR-BUS CV-in targets (SPEC "RR-BUS — inter-device modulation"). Order is part of the saved
+/// state: append only.
+#[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CvTarget {
+    #[name = "Off"]
+    Off,
+    #[name = "Osc A Index"]
+    OscAIndex,
+    #[name = "Osc A Shift"]
+    OscAShift,
+    #[name = "Osc B Index"]
+    OscBIndex,
+    #[name = "Osc B Shift"]
+    OscBShift,
+    #[name = "Filter A Freq"]
+    FilterAFreq,
+    #[name = "Filter B Freq"]
+    FilterBFreq,
+    #[name = "Mod A Amount"]
+    ModAAmount,
+    #[name = "Volume"]
+    Volume,
+}
+
 // ---- helpers -------------------------------------------------------------------------------
 
 fn unit(name: String, default: f32) -> FloatParam {
@@ -169,7 +193,7 @@ fn time(name: String, default_s: f32) -> FloatParam {
     }))
 }
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 // ---- nested groups -------------------------------------------------------------------------
 
@@ -449,6 +473,38 @@ pub struct GtsParams {
     /// Stereo spread, 0..1 (A left / B right, 0 = mono).
     #[id = "spread"]
     pub spread: FloatParam,
+
+    /// RR-BUS CV-in slots: target and bipolar amount. Ids `cv{1,2,3}_{target,amount}`.
+    #[id = "cv1_target"]
+    pub cv1_target: EnumParam<CvTarget>,
+    #[id = "cv1_amount"]
+    pub cv1_amount: FloatParam,
+    #[id = "cv2_target"]
+    pub cv2_target: EnumParam<CvTarget>,
+    #[id = "cv2_amount"]
+    pub cv2_amount: FloatParam,
+    #[id = "cv3_target"]
+    pub cv3_target: EnumParam<CvTarget>,
+    #[id = "cv3_amount"]
+    pub cv3_amount: FloatParam,
+
+    /// Persisted CV-in sources, `"<label> · <name>"`, empty = none (GUI thread only).
+    #[persist = "cv_sources"]
+    pub cv_sources: RwLock<[String; 3]>,
+    /// This instance's bus label (GUI thread only).
+    #[persist = "instance_label"]
+    pub instance_label: RwLock<String>,
+}
+
+impl GtsParams {
+    /// (target, amount) of the three CV-in slots.
+    pub fn cv_slots(&self) -> [(CvTarget, f32); 3] {
+        [
+            (self.cv1_target.value(), self.cv1_amount.value()),
+            (self.cv2_target.value(), self.cv2_amount.value()),
+            (self.cv3_target.value(), self.cv3_amount.value()),
+        ]
+    }
 }
 
 impl Default for GtsParams {
@@ -516,6 +572,15 @@ impl Default for GtsParams {
                 .with_unit(" dB")
                 .with_value_to_string(formatters::v2s_f32_rounded(1)),
             spread: unit("Spread".into(), 0.0),
+
+            cv1_target: EnumParam::new("CV 1 Target", CvTarget::Off),
+            cv1_amount: bipolar("CV 1 Amount".into(), 0.0),
+            cv2_target: EnumParam::new("CV 2 Target", CvTarget::Off),
+            cv2_amount: bipolar("CV 2 Amount".into(), 0.0),
+            cv3_target: EnumParam::new("CV 3 Target", CvTarget::Off),
+            cv3_amount: bipolar("CV 3 Amount".into(), 0.0),
+            cv_sources: RwLock::new(Default::default()),
+            instance_label: RwLock::new(String::new()),
         }
     }
 }

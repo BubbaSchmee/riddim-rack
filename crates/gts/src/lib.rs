@@ -1,5 +1,6 @@
 //! GTS, a two-oscillator graintable synth. See SPEC.md at the repo root for the contract.
 
+pub mod bus;
 pub mod dsp;
 pub mod editor;
 pub mod params;
@@ -17,6 +18,9 @@ pub struct Gts {
     current_index: Arc<AtomicU32>,
     /// Last tempo written to the log (a ramp logs every 0.5 BPM, not every block).
     logged_tempo: f64,
+    /// RR-BUS publisher + CV-in slots.
+    bus: bus::DeviceBus,
+    sample_rate: f32,
 }
 
 /// Writes one engine frame to the plugin's output channels: channel 0 = left, the rest = right.
@@ -34,6 +38,8 @@ impl Default for Gts {
             engine: dsp::Engine::new(),
             current_index: Arc::new(AtomicU32::new(0)),
             logged_tempo: dsp::Transport::default().tempo,
+            bus: bus::DeviceBus::default(),
+            sample_rate: 44100.0,
         }
     }
 }
@@ -64,7 +70,7 @@ impl Plugin for Gts {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone(), self.current_index.clone())
+        editor::create(self.params.clone(), self.current_index.clone(), self.bus.link.clone())
     }
 
     fn initialize(
@@ -82,11 +88,19 @@ impl Plugin for Gts {
             nih_log!("initialize: graintables generated in {:.2} ms", t.as_secs_f64() * 1000.0);
         }
         self.engine.log_notes = std::env::var_os("NIH_LOG").is_some();
+        self.sample_rate = buffer_config.sample_rate;
+        // The bus mapping is opened here, never in process.
+        self.bus.connect(&self.params, rr_bus::DEFAULT_NAME);
         true
     }
 
     fn reset(&mut self) {
         self.engine.reset();
+        // A host that paused process() past the bus timeout lost its record. Rare, and reset
+        // may run under the audio-thread allocation guard, hence permit_alloc.
+        if self.bus.needs_register() {
+            util::permit_alloc(|| self.bus.ensure_registered(&self.params));
+        }
     }
 
     fn process(
@@ -111,7 +125,10 @@ impl Plugin for Gts {
             util::permit_alloc(|| nih_log!("transport: tempo {:.2} bpm", transport.tempo));
         }
         self.engine.transport = transport;
-        self.engine.set_patch(&dsp::Patch::from_params(&self.params));
+        let cv = self.bus.process_block(self.engine.bus_signals(), buffer.samples(), self.sample_rate);
+        let mut patch = dsp::Patch::from_params(&self.params);
+        bus::apply_cv(&mut patch, &self.params, cv);
+        self.engine.set_patch(&patch);
 
         let mut next_event = context.next_event();
         for (i, frame) in buffer.iter_samples().enumerate() {
