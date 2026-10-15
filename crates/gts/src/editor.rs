@@ -196,6 +196,8 @@ pub struct BusView {
     pub activity: [f32; 3],
     /// Header settings row: shaper oversampling 1 / 2 / 4 (persisted host state, not a param).
     pub oversampling: usize,
+    /// Header page switch: false = SYNTH, true = FX. Editor-session state, never persisted.
+    pub fx_page: bool,
 }
 
 const CV: [(&str, &str); 3] = [("cv1_target", "cv1_amount"), ("cv2_target", "cv2_amount"), ("cv3_target", "cv3_amount")];
@@ -237,7 +239,11 @@ pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &
     rr_ui::panel::rack_panel(ui, "GTS", "Graintable Synth", &status, vec2(232.0, 124.0), |hui, bui| {
         header(hui, c, tables, current_index, bv);
         let room = bui.max_rect();
-        body(bui, c);
+        if bv.fx_page {
+            fx_body(bui, c);
+        } else {
+            body(bui, c);
+        }
         (bui.min_rect().max - room.max).max(Vec2::ZERO)
     })
 }
@@ -250,10 +256,10 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
     let main = wave(tables, table, g);
     let prev = wave(tables, table, g.saturating_sub(1));
     let next = wave(tables, table, (g + 1).min(GRAINS - 1));
-    // Grain display 276 px | settings column 64 px | PATCH strip 300 px.
+    // Grain display | settings column 104 px (page switch over Quality) | PATCH strip 300 px.
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = GAP;
-        let (pw, qw) = (300.0, 64.0);
+        let (pw, qw) = (300.0, 104.0);
         ui.allocate_ui(vec2(ui.available_width() - pw - qw - 2.0 * GAP, DISPLAY_H), |ui| {
             waveform_display_ex(
                 ui,
@@ -265,10 +271,17 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
             );
         });
         ui.allocate_ui(vec2(qw, DISPLAY_H), |ui| {
-            let sel = QUALITY.iter().position(|&q| q == bv.oversampling).unwrap_or(1);
-            if let Some(i) = combo_stacked(ui, "Quality", sel, &["1x", "2x", "4x"]) {
-                bv.oversampling = QUALITY[i];
-            }
+            ui.vertical(|ui| {
+                ui.set_min_width(qw); // the column keeps its width whatever its content (PATCH stays flush right)
+                if let Some(i) = segmented(ui, &["Synth", "FX"], bv.fx_page as usize) {
+                    bv.fx_page = i == 1;
+                }
+                ui.add_space(12.0);
+                let sel = QUALITY.iter().position(|&q| q == bv.oversampling).unwrap_or(1);
+                if let Some(i) = combo_stacked(ui, "Quality", sel, &["1x", "2x", "4x"]) {
+                    bv.oversampling = QUALITY[i];
+                }
+            });
         });
         ui.allocate_ui(vec2(pw, PATCH_H), |ui| patch(ui, c, bv));
     });
@@ -429,6 +442,154 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
                 kn(ui, c, "volume", "Volume", o);
                 kn(ui, c, "spread", "Spread", o);
             });
+        });
+    });
+}
+
+/// A toggle inside a knob row: a full knob-cell tall, centred on the knob band, 4 px of air each side.
+fn tg_cell(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str) {
+    ui.add_space(4.0);
+    ui.vertical(|ui| {
+        ui.set_min_height(knob_cell_h(KNOB_D));
+        ui.add_space(KNOB_LABEL_H + (KNOB_D - CONTROL_H) / 2.0);
+        tg(ui, c, id, label);
+    });
+    ui.add_space(4.0);
+}
+
+/// FX page: the eight modules in chain order (Distortion -> Limiter), each with its on LED in the
+/// title bar (the limiter is always on) and its Mix knob first. Knob cells are 56 px, or 60 px
+/// where the readout can be eight characters wide ("120.0 Hz", "-24.0 dB"). Rows: 257 (three
+/// knob rows) + 184 (two) + 191 (two, stretched) + 2 x 12 = the 656 px body.
+fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
+    let (k, w) = (KnobStyle::default().cell(56.0), KnobStyle::default().cell(60.0));
+    let (kb, wb) = (k.bipolar(), w.bipolar());
+    ui.spacing_mut().item_spacing = vec2(GAP, GAP);
+    let (h1, h2, h3) = (257.0, 184.0, 191.0);
+
+    // Row 1: Distortion 272 + Multiband 384 + EQ 232 + 2 gaps = 912.
+    ui.horizontal_top(|ui| {
+        group_ext(ui, vec2(272.0, h1), "Distortion", |ui| tg(ui, c, "dist_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                kn(ui, c, "dist_mix", "Mix", k);
+                kn(ui, c, "dist_drive", "Drive", w);
+                kn(ui, c, "dist_bias", "Bias", kb);
+                kn(ui, c, "dist_out", "Out", w);
+            });
+            knob_row(ui, |ui| {
+                cb::<DistType>(ui, c, "dist_type", "Type");
+                tg_cell(ui, c, "dist_autogain", "Auto Gain");
+            });
+            knob_row(ui, |ui| {
+                cb::<DistFilterMode>(ui, c, "dist_filter_mode", "Filter");
+                cb::<DistFilterType>(ui, c, "dist_filter_type", "F.Type");
+                kn(ui, c, "dist_filter_freq", "F.Freq", w);
+                kn(ui, c, "dist_filter_q", "F.Q", k);
+            });
+        });
+
+        // Multiband: a 6 x 3 grid of 60 px cells. Left three columns: Mix first, then depth / time,
+        // in / out and the two crossovers; right three: one column per band, rows up / down / gain.
+        group_ext(ui, vec2(384.0, h1), "Multiband", |ui| tg(ui, c, "mb_on", ""), |ui| {
+            let left: [&[(&str, &str, KnobStyle)]; 3] = [
+                &[("mix", "Mix", w), ("depth", "Depth", w), ("time", "Time", w)],
+                &[("in", "In", wb), ("out", "Out", wb)],
+                &[("xover_lo", "Lo X", w), ("xover_hi", "Hi X", w)],
+            ];
+            for (cells, (key, label, style)) in left.iter().zip([("up", "Up", w), ("down", "Down", w), ("gain", "Gain", wb)]) {
+                knob_row(ui, |ui| {
+                    for &(id, l, s) in *cells {
+                        kn(ui, c, &format!("mb_{id}"), l, s);
+                    }
+                    ui.add_space(60.0 * (3 - cells.len()) as f32); // unused slots keep the band columns aligned
+                    for (band, name) in [("lo", "Lo"), ("mid", "Mid"), ("hi", "Hi")] {
+                        kn(ui, c, &format!("mb_{key}_{band}"), &format!("{name} {label}"), style);
+                    }
+                });
+            }
+        });
+
+        // EQ: one column per band (Low / Peak / High), freq over gain; Q and the low cut underneath.
+        group_ext(ui, vec2(232.0, h1), "EQ", |ui| tg(ui, c, "eq_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                for (id, l) in [("low", "Lo Freq"), ("peak", "Pk Freq"), ("high", "Hi Freq")] {
+                    kn(ui, c, &format!("eq_{id}_freq"), l, w);
+                }
+            });
+            knob_row(ui, |ui| {
+                for (id, l) in [("low", "Lo Gain"), ("peak", "Pk Gain"), ("high", "Hi Gain")] {
+                    kn(ui, c, &format!("eq_{id}_gain"), l, wb);
+                }
+            });
+            knob_row(ui, |ui| {
+                kn(ui, c, "eq_peak_q", "Pk Q", w);
+                tg_cell(ui, c, "eq_cut_on", "Low Cut");
+                kn(ui, c, "eq_cut_freq", "Cut Freq", w);
+            });
+        });
+    });
+
+    // Row 2: Chorus 336 + Dimension 200 + Delay 352 + 2 gaps = 912.
+    ui.horizontal_top(|ui| {
+        group_ext(ui, vec2(336.0, h2), "Chorus", |ui| tg(ui, c, "cho_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                kn(ui, c, "cho_mix", "Mix", k);
+                kn(ui, c, "cho_voices", "Voices", k);
+                kn(ui, c, "cho_rate", "Rate", k);
+                kn(ui, c, "cho_depth", "Depth", k);
+                kn(ui, c, "cho_delay", "Delay", k);
+            });
+            knob_row(ui, |ui| {
+                tg_cell(ui, c, "cho_sync", "Sync");
+                cb::<Division>(ui, c, "cho_div", "Div");
+                kn(ui, c, "cho_feedback", "Feedback", kb);
+                kn(ui, c, "cho_lpf", "LPF", w);
+                kn(ui, c, "cho_wet_lowcut", "Low Cut", w);
+            });
+        });
+        group_ext(ui, vec2(200.0, h2), "Dimension", |ui| tg(ui, c, "dim_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                kn(ui, c, "dim_mix", "Mix", k);
+                kn(ui, c, "dim_size", "Size", k);
+                kn(ui, c, "dim_wet_lowcut", "Low Cut", w);
+            });
+        });
+        group_ext(ui, vec2(352.0, h2), "Delay", |ui| tg(ui, c, "dly_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                kn(ui, c, "dly_mix", "Mix", k);
+                kn(ui, c, "dly_time", "Time", KnobStyle::default().cell(66.0));
+                kn(ui, c, "dly_feedback", "Feedback", k);
+                kn(ui, c, "dly_hp", "HP", w);
+                kn(ui, c, "dly_lp", "LP", w);
+            });
+            knob_row(ui, |ui| {
+                tg_cell(ui, c, "dly_sync", "Sync");
+                cb::<DelayDiv>(ui, c, "dly_div", "Div");
+                cb::<DelayFeel>(ui, c, "dly_feel", "Feel");
+                cb::<DelayMode>(ui, c, "dly_mode", "Mode");
+            });
+        });
+    });
+
+    // Row 3: Reverb + Limiter.
+    ui.horizontal_top(|ui| {
+        group_ext(ui, vec2(312.0, h3), "Reverb", |ui| tg(ui, c, "rev_on", ""), |ui| {
+            knob_row(ui, |ui| {
+                kn(ui, c, "rev_mix", "Mix", k);
+                cb::<ReverbType>(ui, c, "rev_type", "Type");
+                kn(ui, c, "rev_size", "Size", k);
+                kn(ui, c, "rev_decay", "Decay", k);
+                kn(ui, c, "rev_damp", "Damp", k);
+            });
+            knob_row(ui, |ui| {
+                kn(ui, c, "rev_predelay", "Pre-Dly", KnobStyle::default().cell(68.0));
+                kn(ui, c, "rev_lowcut", "Low Cut", w);
+                kn(ui, c, "rev_hicut", "Hi Cut", w);
+                kn(ui, c, "rev_width", "Width", k);
+            });
+        });
+        group_ext(ui, vec2(88.0, h3), "Limiter", |_| {}, |ui| {
+            kn(ui, c, "lim_gain", "Gain", w);
         });
     });
 }

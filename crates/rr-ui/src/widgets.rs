@@ -333,6 +333,45 @@ fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_ba
 }
 
 // ---------------------------------------------------------------------------------------------
+// Segmented control
+// ---------------------------------------------------------------------------------------------
+
+/// Page switch: an inset 24 px bar of caps labels, the selected one lit in accent (fill, stroke,
+/// text). Returns the clicked index when it differs from `selected`.
+pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize) -> Option<usize> {
+    let f = font::label(11.0);
+    let widths: Vec<f32> = items.iter().map(|s| (paint::text_width(ui.painter(), &f, &s.to_uppercase(), 0.5) + 16.0).ceil()).collect();
+    let (rect, _) = ui.allocate_exact_size(vec2(widths.iter().sum::<f32>() + 4.0, CONTROL_H), Sense::hover());
+    let mut picked = None;
+    let mut x = rect.left() + 2.0;
+    if ui.is_rect_visible(rect) {
+        paint::inset_box(ui.painter(), rect, false);
+    }
+    for (i, (label, w)) in items.iter().zip(&widths).enumerate() {
+        let seg = Rect::from_min_size(pos2(x, rect.top() + 2.0), vec2(*w, CONTROL_H - 4.0));
+        x += w;
+        let resp = ui.interact(seg, ui.id().with(("segmented", i)), Sense::click());
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        if resp.clicked() && i != selected {
+            picked = Some(i);
+        }
+        let p = ui.painter();
+        let on = i == selected;
+        if on {
+            p.rect_filled(seg, 3.0, T.a(0.20));
+            p.rect_stroke(seg, 3.0, paint::st(1.0, T.a(0.55)), StrokeKind::Inside);
+        } else if resp.hovered() {
+            p.rect_filled(seg, 3.0, Color32::WHITE.gamma_multiply(0.04));
+        }
+        let col = if on { T.accent } else if resp.hovered() { T.text } else { T.muted };
+        paint::caps(p, seg.center(), Align2::CENTER_CENTER, label, 11.0, col);
+    }
+    picked
+}
+
+// ---------------------------------------------------------------------------------------------
 // Horizontal slider
 // ---------------------------------------------------------------------------------------------
 
@@ -890,6 +929,39 @@ mod tests {
         run(&ctx, vec![release(at)], 0.25, &mut out);
         assert!(out.reset, "double click did not report reset");
         assert_eq!(out.changed, Some(0.25));
+    }
+
+    #[test]
+    fn segmented_click_picks_other_tab_only() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let picked = std::cell::Cell::new(None);
+        let frame = |events: Vec<egui::Event>, t: f64| {
+            let raw = egui::RawInput {
+                time: Some(t),
+                events,
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 300.0))),
+                ..Default::default()
+            };
+            let _ = ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+                    if let Some(i) = segmented(ui, &["Synth", "FX"], 0) {
+                        picked.set(Some(i));
+                    }
+                });
+            });
+        };
+        let btn = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        let click = |pos, t: f64| {
+            frame(vec![egui::Event::PointerMoved(pos)], t);
+            frame(vec![btn(pos, true)], t + 0.05);
+            frame(vec![btn(pos, false)], t + 0.1);
+        };
+        frame(vec![], 0.0);
+        click(pos2(20.0, 20.0), 0.1); // the selected tab: no event
+        assert_eq!(picked.get(), None);
+        click(pos2(88.0, 20.0), 0.5); // FX is the last ~36 px of the bar
+        assert_eq!(picked.get(), Some(1));
     }
 
     #[test]

@@ -228,6 +228,12 @@ Events (see the doc comments): `source_changed` is `Some(None)` for "None",
 `changed`, `drag_ended` in begin / set / end), `label_changed` the new text. The strip never
 mutates the rows; the caller applies the events.
 
+### 3.10 Segmented page switch
+
+Inset 24 px bar (the toggle body) holding caps labels in 11 px Barlow, 16 px padding per
+segment, 2 px inside the bar. The selected segment is lit: `accent@0.20` fill, 1 px `accent@0.55`
+stroke, `accent` text, radius 3. Others `muted`, `text` plus white 4 % on hover.
+
 ## 4. Interaction rules
 
 | Control | Rule |
@@ -298,6 +304,24 @@ Fit check, inner width = group width - 24: Osc 426 holds 7 x 56 = 392; Mod A 292
 (about 272) and 4 x 56; Mod B 332 holds 5 x 52; Filter 276 holds a combo cell (about 84) plus
 3 x 56; Filter Env 264 holds 5 x 52 = 260; Voice 234 holds 84 + 3 x 50; Wheel 176 = 4 x 44;
 Velocity 266 holds 6 x 44 = 264; Output 104 = 2 x 52.
+
+### 6.1a GTS page switch and FX page
+
+The header's settings column is 104 px wide: a segmented page switch (3.10) over the Quality
+combo. SYNTH is the layout above; FX swaps only the body (window stays 1000 x 832, `preview-gts-editor-fx.png`).
+The FX body is 912 x 656: eight groups in chain order, each with an on LED in the title bar
+(Limiter has none) and its Mix knob first. Knob cells are 56 px, 60 px where a readout can be
+eight characters ("120.0 Hz", "-24.0 dB"); signed params (Bias, EQ and band gains, In / Out,
+Chorus feedback) are bipolar.
+
+| Row | Height | Groups (width) |
+|---|---|---|
+| 1 | 257 | Distortion (272), Multiband (384), EQ (232) |
+| 2 | 184 | Chorus (336), Dimension (200), Delay (352) |
+| 3 | 191 | Reverb (312), Limiter (88) |
+
+Multiband is a 6 x 3 grid of 60 px cells: Mix / Depth / Time, In / Out, the two crossovers on the
+left, and one column per band (Lo, Mid, Hi) with Up, Down, Gain rows on the right.
 
 ### 6.2 VSS, 1064 x 560
 

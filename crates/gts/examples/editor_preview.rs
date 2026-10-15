@@ -1,7 +1,7 @@
 //! Renders the REAL GTS editor (default params) in an eframe window, saves a screenshot to
-//! `docs/design/preview-gts-editor.png` on the first stable frame and exits. `live` keeps it open.
+//! `docs/design/preview-gts-editor.png` (SYNTH page; `fx` renders the FX page into `preview-gts-editor-fx.png`) on the first stable frame and exits. `live` keeps it open.
 //!
-//!   cargo run -p gts --example editor_preview
+//!   cargo run -p gts --example editor_preview [fx] [live]
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
@@ -80,7 +80,8 @@ impl eframe::App for App {
             })
         });
         if let Some(img) = shot {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design/preview-gts-editor.png");
+            let name = if self.bus.fx_page { "preview-gts-editor-fx.png" } else { "preview-gts-editor.png" };
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design").join(name);
             let file = std::io::BufWriter::new(std::fs::File::create(&path).expect("create png"));
             let mut enc = png::Encoder::new(file, img.size[0] as u32, img.size[1] as u32);
             enc.set_color(png::ColorType::Rgba);
@@ -115,6 +116,7 @@ fn main() -> eframe::Result {
             bound: [s("VSS 1 · Step Gate"), s("GTS 2 · Mod B"), s("GTS 3 · Mod A")],
             activity: [0.92, 0.35, 0.0],
             oversampling: 2,
+            fx_page: std::env::args().any(|a| a == "fx"),
         };
         Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false, bus }))
     }))
