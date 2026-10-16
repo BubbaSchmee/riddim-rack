@@ -27,7 +27,7 @@ the plugin. Delete the plugin log first for a clean session.
    short filter-envelope "pluck" (LP12 opening on each note); no wobble, no comb, no grit. Live's
    meter peaks around -9 dBFS on a single C2 note. Turn Osc A Unison to 5 and Width to 1: wide and
    thick above the low end, while the low end stays centred (mono crossover 120 Hz).
-   Until presets exist, load the riddim_v1 fixture by hand to hear the old wobble patch: Osc A
+   Until presets are loaded, load the riddim_v1 fixture by hand to hear the old wobble patch: Osc A
    Index 64; Mod A One-Shot on (Decay, Sync 1/8) with Mod A Index -0.50; Filter A Comb- 880 Hz
    Res 0.60 Kbd 0.50; Filter B LP12 2 kHz Res 0.10; Filter Env Amt 0.50; Sub off; Mono Crossover
    20 Hz; Volume 0 dB. Expected on F1: full square-type bass with a short downward "wobble" on
@@ -37,7 +37,7 @@ the plugin. Delete the plugin log first for a clean session.
 9. Set Mod B Sync on, Div 1/4, Mod B Cutoff 0.5 (Mod B group). Press Play: the filter sweep locks to the beat; change tempo to 140 and it follows.
 10. Shift knob on Osc A: formant/brightness moves, pitch does NOT change (compare with a tuner).
 11. Index and Motion: timbre morphs; Motion at +0.5 scans audibly.
-12. Table combo: each of the 8 tables sounds distinct; Vowel table speaks A→U across Index.
+12. Table combo: each of the 9 tables sounds distinct; Vowel table speaks A→U across Index.
 13. Filter A type combo: LP12 / BP12 / Comb+ / Comb- / AM all audibly different, no clicks on switch.
 14. Routing: Parallel / Series / Bypass change the sound; Shaper on with Saturate adds grit.
 15. Pitch bend wheel (range 12) and mod wheel (set Wheel > Index to 1.0) respond.
@@ -54,12 +54,14 @@ the plugin. Delete the plugin log first for a clean session.
     No host automation lanes move; setting a row's source to `None` stops its modulation. Now rename GTS 1 to `Lead bass`: GTS 2's row shows the old name dimmed with a dead LED (expected,
     rebind via the source list). Save the set, close, reopen: both patches, targets, amounts and the
     labels hold. (With VSS installed also: VSS `Step Gate` → GTS 1 `Filter A Freq` chops in time.)
-22. FX chain (no FX page yet: use Live's device parameter list, "Configure" or the generic view; the
-    parameters are grouped Distortion, Multiband, EQ, Chorus, Dimension, Delay, Reverb, Limiter).
+22. FX chain (click FX in the SYNTH | FX switch in the header; close and reopen the editor: the
+    page choice holds. Modules: Distortion, Multiband, EQ, Chorus, Dimension, Delay, Reverb, Limiter;
+    bipolar knobs show a centre notch, multiband grid labels read cleanly. PDC: the plugin reports
+    about 116 samples at 48 kHz: a 150 BPM 1/8 clip lines up with a reference track in Live).
     On the init patch, switch each module on alone and back off, holding an F1 note:
     - Dist On: Tube adds warmth at Drive 0, grit at +12 dB with no big level jump (Autogain);
       Type Hard Clip / Fold Sine / Bit Crush each sound distinct; Filter Mode Post + LP tames fizz.
-    - MB On: OTT squash, quiet tails come up, the note sounds denser; Depth 0 returns to dry.
+    - MB On: multiband squash, quiet tails come up, the note sounds denser; Depth 0 returns to dry.
     - EQ On: Peak Gain +12 dB at 1 kHz is an obvious honk; Low Cut On at 200 Hz thins the bass.
     - Chorus On / Dimension On: wider above the low end, the sub stays centred (check a mono
       button or Live's Utility Width 0: no level drop).

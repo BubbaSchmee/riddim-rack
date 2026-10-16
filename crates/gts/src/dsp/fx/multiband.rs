@@ -18,7 +18,9 @@
 //! - `single_band`: the acceptance "single-band check" (SPEC 4.2). The crossovers are skipped and
 //!   the whole signal runs through the mid band's compressor (mid thresholds and gain). Not a host
 //!   parameter unless the integration wave wants one.
-//! - No lookahead: latency 0. `on = false` is a sample-exact pass-through.
+//! - No lookahead: latency 0. `on` fades the output against the raw input over 10 ms; once the
+//!   fade-out ends, off is a sample-exact pass-through, and switching on again starts from cleared
+//!   filters and detectors.
 use std::f32::consts::{PI, SQRT_2};
 
 /// Plain parameter values, set once per block with [`Multiband::set`]. Band index 0 = low,
@@ -175,6 +177,8 @@ pub struct Multiband {
     env: [f32; 3],
     /// Last applied band gain in dB (metering / tests).
     gr: [f32; 3],
+    /// On/off fade (see [`super::fade`]).
+    en: f32,
 }
 
 impl Default for Multiband {
@@ -209,6 +213,7 @@ impl Multiband {
             ms: [0.0; 3],
             env: [0.0; 3],
             gr: [0.0; 3],
+            en: 0.0,
         };
         m.set_sample_rate(48000.0);
         m
@@ -228,6 +233,7 @@ impl Multiband {
         self.ms = [0.0; 3];
         self.env = [0.0; 3];
         self.gr = [0.0; 3];
+        self.en = if self.p.on { 1.0 } else { 0.0 };
         for s in [&mut self.lo_f, &mut self.hi_f, &mut self.depth, &mut self.inp, &mut self.out, &mut self.mix] {
             s.snap();
         }
@@ -254,7 +260,13 @@ impl Multiband {
         self.rel = ms(20.0 * 25f32.powf(t));
     }
 
+    /// True once off and faded out: `process` is then a pass-through.
+    pub fn is_bypassed(&self) -> bool {
+        !self.p.on && self.en == 0.0
+    }
+
     pub fn set(&mut self, p: &MultibandParams) {
+        let edge = p.on && self.is_bypassed();
         let time_changed = p.time != self.p.time;
         self.p = *p;
         if time_changed {
@@ -271,6 +283,11 @@ impl Multiband {
         self.inp.tgt = db(p.in_db.clamp(-24.0, 24.0));
         self.out.tgt = db(p.out_db.clamp(-24.0, 24.0));
         self.mix.tgt = p.mix.clamp(0.0, 1.0);
+        if edge {
+            // History frozen at the last switch-off would ring out through the band gains.
+            self.reset();
+            self.en = 0.0;
+        }
     }
 
     /// Band gain (linear) for detector input `ms`, updating the band's envelope.
@@ -293,9 +310,20 @@ impl Multiband {
 
     #[inline]
     pub fn process(&mut self, l: &mut f32, r: &mut f32) {
-        if !self.p.on {
+        if self.is_bypassed() {
             return;
         }
+        let en = super::fade(&mut self.en, self.p.on, self.a);
+        let (dl, dr) = (*l, *r);
+        self.process_on(l, r);
+        if en < 1.0 {
+            *l = dl + (*l - dl) * en;
+            *r = dr + (*r - dr) * en;
+        }
+    }
+
+    #[inline]
+    fn process_on(&mut self, l: &mut f32, r: &mut f32) {
         let a = self.a;
         if self.lo_f.moving() || self.hi_f.moving() {
             self.lo_c = Coef::new(self.sr, self.lo_f.next(a));

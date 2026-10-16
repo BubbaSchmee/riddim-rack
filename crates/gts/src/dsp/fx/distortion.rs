@@ -18,7 +18,9 @@
 //!   (mean output power of a saw and a square at that level, as `shaper.rs` does), so drive moves
 //!   tone, not loudness. Out trim and the filter act on the wet path only, so mix 0 = dry.
 //! - Type changes are discrete (no crossfade): switching between a 4x and a 1x type mid-note can
-//!   click once while the oversampler refills.
+//!   click once while the oversampler (or the 1x history) refills from silence.
+//! - `on` fades the wet in and out over 10 ms; an off->on edge after the fade-out clears the wet
+//!   history first.
 use crate::dsp::shaper::oversample::{latency as os_latency, Oversampler};
 use nih_plug::prelude::Enum;
 use std::cell::Cell;
@@ -336,6 +338,8 @@ pub struct Distortion {
     /// DC blocker pole and state (x1, y1) per channel.
     dc_r: f32,
     dc: [[f32; 2]; 2],
+    /// On/off fade (see [`super::fade`]): the wet/dry mix is scaled by it.
+    en: f32,
 }
 
 impl Default for Distortion {
@@ -368,6 +372,7 @@ impl Distortion {
             held: [0.0; 2],
             dc_r: 0.0,
             dc: [[0.0; 2]; 2],
+            en: 0.0,
         };
         d.set_sample_rate(48000.0);
         d.apply(&p, true);
@@ -383,9 +388,15 @@ impl Distortion {
     }
 
     pub fn reset(&mut self) {
+        self.dry = [[0.0; DLY]; 2];
+        self.clear_wet();
+        self.en = if self.p.on { 1.0 } else { 0.0 };
+    }
+
+    /// Clears the wet path's history and snaps its smoothers (the dry history stays).
+    fn clear_wet(&mut self) {
         self.os = [Oversampler::default(); 2];
         self.adaa = [(0.0, anti(self.p.kind, 0.0)); 2];
-        self.dry = [[0.0; DLY]; 2];
         self.wet = [[0.0; DLY]; 2];
         self.svf.ic = [[0.0; 2]; 2];
         self.hold_ph = 0.0;
@@ -406,7 +417,13 @@ impl Distortion {
         self.apply(p, false);
     }
 
+    /// True once off and faded out: `process` is then only the compensation delay.
+    pub fn is_bypassed(&self) -> bool {
+        !self.p.on && self.en == 0.0
+    }
+
     fn apply(&mut self, p: &DistortionParams, force: bool) {
+        let edge = p.on && self.is_bypassed();
         let drive = p.drive_db.clamp(-12.0, 36.0);
         let bias = p.bias.clamp(-1.0, 1.0);
         if force || p.kind != self.p.kind || drive != self.p.drive_db || bias != self.p.bias || p.autogain != self.p.autogain {
@@ -415,6 +432,10 @@ impl Distortion {
         if p.kind != self.p.kind {
             if p.kind.oversampled() && !self.p.kind.oversampled() {
                 self.os = [Oversampler::default(); 2];
+            } else if !p.kind.oversampled() && self.p.kind.oversampled() {
+                // ponytail: refill from silence (as 1x->4x does) instead of replaying the 1x
+                // history last written whenever a 1x type ran; a crossfade would remove the step.
+                self.wet = [[0.0; DLY]; 2];
             }
             for st in &mut self.adaa {
                 st.1 = anti(p.kind, st.0);
@@ -427,6 +448,11 @@ impl Distortion {
         self.freq.tgt = p.filter_freq.clamp(20.0, 20000.0);
         self.q.tgt = p.filter_q.clamp(0.3, 8.0);
         self.p = DistortionParams { drive_db: drive, bias, ..*p };
+        if edge && !force {
+            // Wet history frozen at the last switch-off would replay; fade the wet in from clean.
+            self.clear_wet();
+            self.en = 0.0;
+        }
     }
 
     /// Off, this is only the 23-sample delay (inlined, so a bypassed chain pays next to nothing).
@@ -438,18 +464,20 @@ impl Distortion {
         let x = [*l, *r];
         (self.dry[0][w], self.dry[1][w]) = (x[0], x[1]);
         let dry = [self.dry[0][rd], self.dry[1][rd]];
-        if !self.p.on {
+        if self.is_bypassed() {
             (*l, *r) = (dry[0], dry[1]);
             return;
         }
-        self.process_wet(l, r, x, dry, w, rd);
+        let en = super::fade(&mut self.en, self.p.on, self.a);
+        self.process_wet(l, r, x, dry, w, rd, en);
     }
 
     #[inline]
-    fn process_wet(&mut self, l: &mut f32, r: &mut f32, x: [f32; 2], dry: [f32; 2], w: usize, rd: usize) {
+    #[allow(clippy::too_many_arguments)]
+    fn process_wet(&mut self, l: &mut f32, r: &mut f32, x: [f32; 2], dry: [f32; 2], w: usize, rd: usize, en: f32) {
         let a = self.a;
         let (drive, bias, comp, out, mix) =
-            (self.drive.next(a), self.bias.next(a), self.comp.next(a), self.out.next(a), self.mix.next(a));
+            (self.drive.next(a), self.bias.next(a), self.comp.next(a), self.out.next(a), self.mix.next(a) * en);
         let fm = self.p.filter_mode;
         if fm != FilterMode::Off && (self.freq.moving() || self.q.moving()) {
             let (f, q) = (self.freq.next(a), self.q.next(a));

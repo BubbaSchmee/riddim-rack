@@ -28,7 +28,7 @@ jobs:
       - name: Download pluginval
         shell: bash
         run: |
-          curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip
           unzip pluginval.zip -d pluginval
 
       - name: Validate with pluginval

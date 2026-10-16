@@ -176,11 +176,13 @@ fn bypass_and_mix_zero_are_exact() {
     let mut d = make(48000.0, &DelayParams { mix: 0.0, feedback: 0.9, ..params() });
     let (l, r) = run(&mut d, 20000, input);
     assert!((0..20000).all(|i| (l[i], r[i]) == input(i)));
-    // A running delay switched off passes the very next sample untouched.
+    // A running delay switched off fades its wet out (no click), then passes input untouched.
     let p = DelayParams { feedback: 0.9, time_ms: 10.0, ..params() };
     let mut d = make(48000.0, &p);
     run(&mut d, 5000, input);
     d.set(&DelayParams { on: false, ..p });
+    run(&mut d, 9600, input);
+    assert!(d.is_bypassed());
     let (mut a, mut b) = input(5000);
     d.process(&mut a, &mut b);
     assert_eq!((a, b), input(5000));

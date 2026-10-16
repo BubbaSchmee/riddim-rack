@@ -296,7 +296,7 @@ owner gone), `sub.rebind_if_lost()` (GUI thread, cheap, called ~4×/s).
 
 ## GUI (rr-ui): PATCH strip
 A `PATCH` group in the rack panel (GTS: in the header band right of the grain display, which
-shrinks to 352 px; window stays 1000×760. VSS: a fourth header column; window widens to
+shrinks to 352 px; window stays 1000×832. VSS: a fourth header column; window widens to
 1064×560 and the step-grid cells stretch to fill the width): an
 editable instance label; three rows of `source combo | target combo | amount knob | activity
 LED` where the LED brightness follows |incoming value|. Source combos list `"<label> · <name>"`

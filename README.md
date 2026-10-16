@@ -12,20 +12,20 @@ We recreate behavior, never content: no third-party trademarks, no copied graint
 
 ## GTS
 
-Two-oscillator graintable synth. Each oscillator has a table, Index (picks the grain), Motion (scans the table), Shift, tuning and an ADSR. Then two LFOs, a shaper, two multimode filters (including comb and AM modes) with a shared filter envelope, and mono/legato/portamento. See `SPEC.md` for the full parameter list.
+Two-oscillator graintable synth. Each oscillator has a table, Index (picks the grain), Motion (scans the table), Shift, tuning and an ADSR. Then two LFOs, a shaper, two multimode filters (including comb and AM modes) with a shared filter envelope, unison (up to 7 voices), a sub oscillator with a mono crossover, and mono/legato/portamento. See `SPEC.md` for the full parameter list.
 
 Tables (all generated procedurally): Square Morph, Saw Stack, Harmonic Rise, Vowel, FM Morph, Metal, Reed, Grit, Basic.
 
-**FX chain.** The summed output runs through eight built-in effects in a fixed order: Distortion (eight types, Pre/Post filter, autogain), an OTT-style three-band upward/downward compressor, a three-band EQ with a low cut, Chorus and Dimension (both keep the sub mono with a wet low cut), a tempo-syncable Delay (Mono, Stereo, Ping-Pong) and a Plate/Hall Reverb, then the master volume and an always-on lookahead limiter that holds every output sample at or below -0.3 dBFS. Each module is off until you switch it on; with all of them off the chain is a sample-exact pass-through apart from its constant latency (95 samples at 48 kHz, 89 at 44.1 kHz, reported to the host). FX settings are part of every preset. The FX page in the editor is still to come: until then the FX parameters are reachable from the host's generic parameter view, grouped per module.
+**FX chain.** The summed output runs through eight built-in effects in a fixed order: Distortion (eight types, Pre/Post filter, autogain), a three-band upward/downward compressor, a three-band EQ with a low cut, Chorus and Dimension (both keep the sub mono with a wet low cut), a tempo-syncable Delay (Mono, Stereo, Ping-Pong) and a Plate/Hall Reverb, then the master volume and an always-on lookahead limiter that holds every output sample at or below -0.3 dBFS. Each module is off until you switch it on; with all of them off the chain is a sample-exact pass-through apart from its constant latency (FX 95 samples at 48 kHz, 89 at 44.1 kHz, plus 0/21/23 for Quality 1x/2x/4x: 116 at 48 kHz by default; reported to the host, so Live's delay compensation covers it). FX settings are part of every preset. The editor has a SYNTH | FX page switch; the FX page holds all effect parameters. Presets are JSON files (`crates/gts/presets/candidates`); there is no in-plugin preset browser yet.
 
 Notes:
 - **Shift** moves the spectrum/formants while the note pitch stays fixed.
 - **Mono + Legato**: a new note while one is held glides (Portamento) and does not retrigger envelopes or LFOs.
 - The GUI needs **OpenGL 3.2**. It can crash or fail to open over Remote Desktop (RDP) or in a VM without GPU acceleration.
 - HiDPI: the editor follows the host's scale where the host provides it.
-- Tables are band-limited to 64 harmonics. It is a bass synth: above ~C5 and with Shift up you will hear aliasing. Mip-mapped tables are a planned upgrade.
+- Tables are band-limited (512 harmonics, 37 quarter-octave mips, B-spline read); extreme Shift settings can still alias slightly.
 - Negative **Shift** narrows grains into a pulse-like waveform by design.
-- At 150 % Windows display scaling the 1000x760 window plus Live's chrome does not fit a 1080p screen; 100 % and 125 % do.
+- At 150 % Windows display scaling the 1000x832 window plus Live's chrome does not fit a 1080p screen; 100 % and 125 % do.
 - The sustain pedal (CC64) is supported.
 - Windows only (x64).
 

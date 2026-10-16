@@ -457,6 +457,8 @@ pub struct Reverb {
     /// Input diffuser coefficients.
     dg: [f32; 4],
     dg_t: [f32; 4],
+    /// On/off fade (see [`super::fade`]).
+    en: f32,
 }
 
 impl Default for Reverb {
@@ -494,6 +496,7 @@ impl Reverb {
             g_t: [0.0; HALL_N],
             dg: [0.0; 4],
             dg_t: [0.0; 4],
+            en: 0.0,
         };
         r.set_sample_rate(48000.0);
         r
@@ -521,10 +524,17 @@ impl Reverb {
         (self.dd, self.lc_g, self.hc_g, self.pre_d, self.s, self.g) =
             (self.dd_t, self.lc_g_t, self.hc_g_t, self.pre_d_t, self.s_t, self.g_t);
         self.dg = self.dg_t;
+        self.en = if self.p.on { 1.0 } else { 0.0 };
+    }
+
+    /// True once off and faded out: `process` is then a pass-through.
+    pub fn is_bypassed(&self) -> bool {
+        !self.p.on && self.en == 0.0
     }
 
     pub fn set(&mut self, p: &ReverbParams) {
         let prev = self.p;
+        let edge = p.on && self.is_bypassed();
         self.p = *p;
         let sr = self.sr;
         let size = p.size.clamp(0.0, 1.0);
@@ -560,8 +570,13 @@ impl Reverb {
         self.hc_g_t = tan(p.hicut_hz.clamp(1000.0, 20000.0));
         // Whole samples, so the linear read is exact once the glide settles.
         self.pre_d_t = (p.predelay_ms.clamp(0.0, MAX_PREDELAY_S * 1000.0) * 0.001 * sr).round();
-        if p.on && (!prev.on || p.ty != prev.ty) {
+        if edge {
             self.reset();
+            self.en = 0.0;
+        } else if p.on && p.ty != prev.ty {
+            let en = self.en;
+            self.reset();
+            self.en = en;
         }
     }
 
@@ -571,10 +586,11 @@ impl Reverb {
 
     #[inline]
     pub fn process(&mut self, l: &mut f32, r: &mut f32) {
-        if !self.p.on {
+        if self.is_bypassed() {
             return;
         }
         let (k, gk) = (self.k, self.glide_k);
+        let en = super::fade(&mut self.en, self.p.on, k);
         glide(&mut self.mix, self.p.mix.clamp(0.0, 1.0), k);
         glide(&mut self.width, self.p.width.clamp(0.0, 1.0), k);
         glide(&mut self.dd, self.dd_t, k);
@@ -616,8 +632,9 @@ impl Reverb {
         };
         let mid = 0.5 * (wl + wr);
         let side = 0.5 * (wl - wr) * self.width;
-        *l += self.mix * (mid + side - *l);
-        *r += self.mix * (mid - side - *r);
+        let mix = self.mix * en;
+        *l += mix * (mid + side - *l);
+        *r += mix * (mid - side - *r);
     }
 }
 

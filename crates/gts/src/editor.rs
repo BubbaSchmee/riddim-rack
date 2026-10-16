@@ -620,7 +620,10 @@ pub fn create(
     create_egui_editor(
         EguiState::from_size(WINDOW.0, WINDOW.1),
         EditorState { view: BusView::default(), next_refresh: 0.0 },
-        |ctx, _| rr_ui::theme::apply(ctx),
+        |ctx, st| {
+            rr_ui::theme::apply(ctx);
+            st.next_refresh = 0.0; // egui time restarts at 0 on every open
+        },
         move |ctx, setter, st| {
             // Sources list + lost-binding reconnects, ~4x/s on egui time.
             let now = ctx.input(|i| i.time);

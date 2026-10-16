@@ -237,6 +237,8 @@ pub struct Delay {
     d: f64,
     d_t: f64,
     glide_k: f64,
+    /// On/off fade (see [`super::fade`]).
+    en: f32,
 }
 
 impl Default for Delay {
@@ -262,6 +264,7 @@ impl Delay {
             d: 0.0,
             d_t: 0.0,
             glide_k: 0.0,
+            en: 0.0,
         };
         s.set_sample_rate(48000.0);
         s
@@ -288,16 +291,24 @@ impl Delay {
         self.mix = self.p.mix.clamp(0.0, 1.0);
         self.fb = self.p.feedback.clamp(0.0, 0.95);
         (self.gh, self.gl, self.d) = (self.gh_t, self.gl_t, self.d_t);
+        self.en = if self.p.on { 1.0 } else { 0.0 };
+    }
+
+    /// True once off and faded out: `process` is then a pass-through.
+    pub fn is_bypassed(&self) -> bool {
+        !self.p.on && self.en == 0.0
     }
 
     pub fn set(&mut self, p: &DelayParams) {
-        let was_on = self.p.on;
+        let edge = p.on && self.is_bypassed();
         self.p = *p;
         self.gh_t = one_pole(p.hp_hz.clamp(20.0, 2000.0), self.sr);
         self.gl_t = one_pole(p.lp_hz.clamp(200.0, 20000.0), self.sr);
         self.d_t = p.seconds() * self.sr as f64;
-        if p.on && !was_on {
+        if edge {
+            // Clear the lines, then fade the wet in.
             self.reset();
+            self.en = 0.0;
         }
     }
 
@@ -312,10 +323,13 @@ impl Delay {
 
     #[inline]
     pub fn process(&mut self, l: &mut f32, r: &mut f32) {
-        if !self.p.on {
+        if self.is_bypassed() {
             return;
         }
         let k = self.k;
+        // ponytail: off fades the wet (tail included) out over 10 ms; keeping the tail ringing
+        // after off would need the line to run until it decays below -90 dBFS.
+        let en = super::fade(&mut self.en, self.p.on, k);
         glide(&mut self.mix, self.p.mix.clamp(0.0, 1.0), k);
         glide(&mut self.fb, self.p.feedback.clamp(0.0, 0.95), k);
         glide(&mut self.gh, self.gh_t, k);
@@ -337,7 +351,8 @@ impl Delay {
         };
         self.lines[0].write(in_l, gh, gl);
         self.lines[1].write(in_r, gh, gl);
-        *l += self.mix * (yl - *l);
-        *r += self.mix * (yr - *r);
+        let mix = self.mix * en;
+        *l += mix * (yl - *l);
+        *r += mix * (yr - *r);
     }
 }

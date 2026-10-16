@@ -13,8 +13,11 @@
 //!   phase lock) and the delay (synced time).
 //! - Latency is constant: the distortion's 4x oversampler (23 samples, on or off, every type) plus
 //!   the limiter's 1.5 ms lookahead (66 samples at 44.1 kHz, 72 at 48 kHz).
-//! - Bypass: when every module except the limiter is off (and the chorus, dimension and EQ have
-//!   finished fading out), modules 2..7 are not called at all and the distortion only runs its
+//! - Every module's power button fades (about 10 ms) instead of switching: the chorus, dimension
+//!   and EQ through their mix, the distortion, multiband, delay and reverb through [`fade`]. An
+//!   off->on edge after the fade-out has finished clears that module's history first.
+//! - Non-finite input samples are replaced by 0 at the chain input.
+//! - Bypass: when every module except the limiter is off (and has finished fading out), modules 2..7 are not called at all and the distortion only runs its
 //!   compensation delay. The chain is then sample-exact: the output is the input delayed by
 //!   [`FxChain::latency`] samples (times the volume), bit for bit, as long as it stays under the
 //!   limiter's -0.3 dBFS ceiling at `lim_gain` 0 dB (the limiter is always on, so its delay and
@@ -163,8 +166,19 @@ pub struct FxChain {
     lim: Limiter,
     /// Modules 2..7 have work this block (decided in `set`, after their own fade-outs).
     active: bool,
-    /// Distortion has no fade: its `on` is its state.
-    dist_on: bool,
+}
+
+/// Power-button fade shared by the distortion, multiband, delay and reverb: glides `en` toward 1
+/// (on) or 0 (off) with one-pole coefficient `k` (`x = t + (x - t) * k`), snapping within 1e-4 of
+/// the end so an off module reaches exactly 0 and drops out of the chain.
+#[inline]
+pub(crate) fn fade(en: &mut f32, on: bool, k: f32) -> f32 {
+    let t = if on { 1.0 } else { 0.0 };
+    *en = t + (*en - t) * k;
+    if (*en - t).abs() < 1e-4 {
+        *en = t;
+    }
+    *en
 }
 
 impl Default for FxChain {
@@ -186,7 +200,6 @@ impl FxChain {
             rev: Reverb::new(),
             lim: Limiter::new(),
             active: false,
-            dist_on: false,
         }
     }
 
@@ -220,14 +233,13 @@ impl FxChain {
 
     /// True while the chain is the sample-exact bypass (only the delays and the limiter run).
     pub fn is_bypassed(&self) -> bool {
-        !self.active && !self.dist_on
+        !self.active && self.dist.is_bypassed()
     }
 
     /// Once per block: parameters, host tempo and (while playing) the beat position at the block
     /// start.
     pub fn set(&mut self, p: &FxPatch, tempo: f64, beat: Option<f64>) {
         self.dist.set(&p.dist);
-        self.dist_on = p.dist.on;
         self.mb.set(&p.mb);
         self.eq.set(&p.eq);
         self.cho.set(&ChorusParams { sync_beats: crate::dsp::lfo::beats(p.cho_div) as f32, ..p.cho });
@@ -236,18 +248,23 @@ impl FxChain {
         self.dly.set(&DelayParams { tempo: tempo as f32, ..p.dly });
         self.rev.set(&p.rev);
         self.lim.set(&LimiterParams { on: true, gain_db: p.lim_gain });
-        self.active = p.mb.on
+        self.active = !self.mb.is_bypassed()
             || !self.eq.is_bypassed()
             || !self.cho.is_bypassed()
             || !self.dim.is_bypassed()
-            || p.dly.on
-            || p.rev.on;
+            || !self.dly.is_bypassed()
+            || !self.rev.is_bypassed();
     }
 
     /// One stereo sample; `volume` (linear, the smoothed master volume) is applied before the
     /// limiter.
     #[inline]
     pub fn process(&mut self, l: &mut f32, r: &mut f32, volume: f32) {
+        // One NaN/Inf from the voices would latch every module with history (filters, lines,
+        // tanks) into NaN, and the limiter would then mute the session until a host reset.
+        if !(l.is_finite() && r.is_finite()) {
+            (*l, *r) = (if l.is_finite() { *l } else { 0.0 }, if r.is_finite() { *r } else { 0.0 });
+        }
         // Off, the distortion is its 23-sample compensation delay.
         self.dist.process(l, r);
         if self.active {

@@ -8,7 +8,8 @@
 //!   amplitude is `depth * min(delay/2, 0.03 / (2 pi rate))`: up to +-50 cents of pitch wobble at
 //!   any rate, never a delay that runs backwards.
 //! - Rate is free (0.1..10 Hz) or synced: [`Chorus::set_transport`] takes the tempo and the
-//!   host's beat position and locks the LFO phase to `beat / sync_beats`.
+//!   host's beat position and locks the LFO phase to `beat / sync_beats`; a jump in the target
+//!   (transport start, loop, relocate) is slewed out with a 50 ms time constant, not snapped.
 //! - Wet = sum of a side's voices / sqrt(voice count), then the post low-pass, plus the dry signal
 //!   low-passed at the low cut (so 100 % mix keeps a mono sub). Out = dry * (1 - mix) + wet * mix;
 //!   the dry path is the input itself (no delay, no pitch change).
@@ -20,6 +21,8 @@ use std::f64::consts::TAU;
 
 /// Delay line length per side: 37.5 ms max (20 ms * 1.25 spread + 12.5 ms mod) at 192 kHz.
 const BUF: usize = 8192;
+/// Synced phase-lock slew time constant, s.
+const LOCK_S: f64 = 0.05;
 const MASK: usize = BUF - 1;
 pub const MAX_VOICES: usize = 8;
 /// Base delay multiplier per voice (pairs share one, so left and right sit at the same depth).
@@ -165,6 +168,11 @@ pub struct Chorus {
     off: [(f64, f64); MAX_VOICES],
     /// Lines hold stale audio from before the last bypass.
     stale: bool,
+    /// Synced: phase error to the beat-locked target, slewed out per sample (`a_lock`), and
+    /// whether the chorus has been audible since the last reset (before that, lock at once).
+    ph_err: f64,
+    a_lock: f64,
+    ran: bool,
 }
 
 #[inline]
@@ -203,6 +211,9 @@ impl Chorus {
             hp_z: [[[0.0; 2]; 2]; 2],
             off: OFFSET.map(|o| (TAU * o).sin_cos()),
             stale: false,
+            ph_err: 0.0,
+            a_lock: 1.0,
+            ran: false,
         };
         c.set(&ChorusParams::default());
         c.set_sample_rate(48000.0);
@@ -213,6 +224,7 @@ impl Chorus {
         self.sr = sr;
         self.a = 1.0 - (-1.0 / (SMOOTH_S * sr)).exp();
         self.a_delay = 1.0 - (-1.0 / (DELAY_SMOOTH_S * sr)).exp();
+        self.a_lock = 1.0 - (-1.0 / (LOCK_S * sr)).exp();
         self.reset();
     }
 
@@ -251,7 +263,15 @@ impl Chorus {
         self.tempo = tempo_bpm.max(1.0);
         self.rate.t = self.rate_hz();
         if let (true, Some(b)) = (self.p.sync, beat_pos) {
-            self.phase = (b / self.sync_beats()).rem_euclid(1.0);
+            let t = (b / self.sync_beats()).rem_euclid(1.0);
+            if !self.ran || self.is_bypassed() {
+                // Nothing audible depends on the old phase: lock at once.
+                (self.phase, self.ph_err) = (t, 0.0);
+            } else {
+                // A transport start, loop or relocate jumps the target; snapping the phase would
+                // jump the delay read and click, so the error is slewed out instead.
+                self.ph_err = (t - self.phase + 0.5).rem_euclid(1.0) - 0.5;
+            }
         }
     }
 
@@ -277,6 +297,7 @@ impl Chorus {
         }
         self.clear();
         self.update_filters();
+        (self.ph_err, self.ran) = (0.0, false);
     }
 
     fn clear(&mut self) {
@@ -316,6 +337,7 @@ impl Chorus {
         if self.stale {
             self.clear();
         }
+        self.ran = true;
         let (a, sr) = (self.a, self.sr);
         let depth = self.depth.tick(a);
         let delay = self.delay.tick(self.a_delay);
@@ -330,6 +352,12 @@ impl Chorus {
         let amp = depth * (0.5 * delay).min(MAX_SLEW / (TAU * rate));
         let (s, c) = (TAU * self.phase).sin_cos();
         self.phase += rate / sr;
+        if self.ph_err != 0.0 {
+            let c = if self.ph_err.abs() < 1e-9 { self.ph_err } else { self.ph_err * self.a_lock };
+            self.phase += c;
+            self.ph_err -= c;
+            self.phase = self.phase.rem_euclid(1.0);
+        }
         if self.phase >= 1.0 {
             self.phase -= 1.0;
         }
