@@ -603,6 +603,11 @@ impl Engine {
         }
     }
 
+    /// Limiter gain reduction in dB (>= 0), deepest since the last call. Audio thread, once per block.
+    pub fn limiter_gr_db(&mut self) -> f32 {
+        self.fx.limiter_gr_db()
+    }
+
     /// Osc A grain index (0..127) of the most recently triggered voice, for the GUI.
     pub fn display_index(&self) -> u32 {
         self.voices[self.last_voice].index(0).round() as u32

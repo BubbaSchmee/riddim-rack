@@ -1,6 +1,6 @@
 //! FX 4.5 Dimension: a mid/side Haas widener that cannot hurt the mono sum.
 //!
-//! Like Serum's Dimension (four delay lines summed out of phase, slowly amplitude-modulated), the
+//! A classic dimension design (four delay lines summed out of phase, slowly amplitude-modulated): the
 //! mid signal `(l + r) / 2` goes through the wet low cut (48 dB/oct) into one delay line read by
 //! four taps; their alternating-sign sum `D` is added to the left and subtracted from the right:
 //! `L = l + w D`, `R = r - w D`. So `L + R = l + r` exactly: the mono sum is the dry mono sum at

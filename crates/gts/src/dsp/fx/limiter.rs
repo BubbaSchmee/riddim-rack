@@ -60,6 +60,8 @@ pub struct Limiter {
     len: usize,
     n: u64,
     env: f32,
+    /// Smallest applied gain since the last [`Limiter::take_gr_db`] (meter only).
+    g_min: f32,
 }
 
 impl Default for Limiter {
@@ -87,6 +89,7 @@ impl Limiter {
             len: 0,
             n: 0,
             env: 1.0,
+            g_min: 1.0,
         };
         s.set_sample_rate(48000.0);
         s
@@ -113,6 +116,13 @@ impl Limiter {
         self.n = 0;
         self.env = 1.0;
         self.gain_cur = self.gain_tgt;
+        self.g_min = 1.0;
+    }
+
+    /// Deepest gain reduction (dB, >= 0) applied since the last call, which resets it. For the
+    /// GUI meter: one `log10` per call, no allocation.
+    pub fn take_gr_db(&mut self) -> f32 {
+        -20.0 * std::mem::replace(&mut self.g_min, 1.0).clamp(1e-6, 1.0).log10()
     }
 
     /// Lookahead in samples (constant per sample rate).
@@ -160,6 +170,7 @@ impl Limiter {
         self.sum += (self.env - self.avg[pos]) as f64;
         self.avg[pos] = self.env;
         let g = (self.sum / self.l as f64) as f32;
+        self.g_min = self.g_min.min(g);
 
         let (dl, dr) = (self.dly[0][pos], self.dly[1][pos]);
         (self.dly[0][pos], self.dly[1][pos]) = (xl, xr);

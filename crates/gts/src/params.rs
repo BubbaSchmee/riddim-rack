@@ -547,7 +547,7 @@ pub struct DistParams {
     pub mix: FloatParam,
 }
 
-/// FX 4.2, OTT-style. Ids `mb_{on,depth,time,xover_lo,xover_hi,{up,down,gain}_{lo,mid,hi},in,out,mix}`.
+/// FX 4.2, three-band upward/downward compressor. Ids `mb_{on,depth,time,xover_lo,xover_hi,{up,down,gain}_{lo,mid,hi},in,out,mix}`.
 #[derive(Params)]
 pub struct MultibandFxParams {
     #[id = "on"]
@@ -757,7 +757,7 @@ impl Default for MultibandFxParams {
             gain_mid: decibels(n("Mid Gain"), 0.0, -12.0, 12.0),
             gain_hi: decibels(n("High Gain"), 0.0, -12.0, 12.0),
             input: decibels(n("In"), 0.0, -24.0, 24.0),
-            out: decibels(n("Out"), 0.0, -24.0, 24.0),
+            out: decibels(n("Out"), 1.5, -24.0, 24.0),
             mix: percent(n("Mix"), 1.0, 1.0),
         }
     }
@@ -792,7 +792,10 @@ impl Default for ChorusFxParams {
             div: EnumParam::new(n("Division"), Division::Bar1),
             depth: unit(n("Depth"), 0.5),
             delay: skewed(n("Delay"), 7.0, 1.0, 20.0, " ms"),
-            feedback: linear(n("Feedback"), 0.0, -0.95, 0.95),
+            feedback: linear(n("Feedback"), 0.0, -0.95, 0.95)
+                .with_unit("%")
+                .with_value_to_string(formatters::v2s_f32_percentage(0))
+                .with_string_to_value(formatters::s2v_f32_percentage()),
             lpf: hz(n("LPF"), 20000.0, 200.0, 20000.0),
             wet_lowcut: hz(n("Wet Low Cut"), 120.0, 20.0, 500.0),
             mix: percent(n("Mix"), 0.5, 1.0),
@@ -818,14 +821,14 @@ impl Default for DelayFxParams {
         Self {
             on: BoolParam::new(n("On"), false),
             sync: BoolParam::new(n("Sync"), true),
-            time: skewed(n("Time"), 250.0, 1.0, 2000.0, " ms"),
+            time: skewed(n("Time"), 250.0, 1.0, 2000.0, " ms").with_value_to_string(formatters::v2s_f32_rounded(1)),
             div: EnumParam::new(n("Division"), DelayDiv::D1_8),
             feel: EnumParam::new(n("Feel"), DelayFeel::Dotted),
             feedback: linear(n("Feedback"), 0.35, 0.0, 0.95),
             mode: EnumParam::new(n("Mode"), DelayMode::Stereo),
             hp: hz(n("HP"), 120.0, 20.0, 2000.0),
             lp: hz(n("LP"), 8000.0, 200.0, 20000.0),
-            mix: percent(n("Mix"), 0.5, 1.0),
+            mix: percent(n("Mix"), 0.25, 1.0),
         }
     }
 }
@@ -839,11 +842,11 @@ impl Default for ReverbFxParams {
             size: unit(n("Size"), 0.5),
             decay: skewed(n("Decay"), 1.5, 0.1, 20.0, " s"),
             damp: unit(n("Damp"), 0.3),
-            predelay: linear(n("Pre-Delay"), 0.0, 0.0, 300.0).with_unit(" ms"),
+            predelay: linear(n("Pre-Delay"), 0.0, 0.0, 300.0).with_unit(" ms").with_value_to_string(formatters::v2s_f32_rounded(0)),
             lowcut: hz(n("Low Cut"), 200.0, 20.0, 1000.0),
             hicut: hz(n("High Cut"), 12000.0, 1000.0, 20000.0),
             width: unit(n("Width"), 1.0),
-            mix: percent(n("Mix"), 0.5, 1.0),
+            mix: percent(n("Mix"), 0.15, 1.0),
         }
     }
 }
@@ -1046,8 +1049,12 @@ impl Default for GtsParams {
                 20.0,
                 FloatRange::Skewed { min: 20.0, max: 300.0, factor: FloatRange::skew_factor(-1.0) },
             )
-            .with_unit(" Hz")
-            .with_value_to_string(formatters::v2s_f32_rounded(0)),
+            // Bottom of the range = crossover off: say so (the unit lives in the formatter).
+            .with_value_to_string(Arc::new(|v| if v <= 20.5 { "Off".into() } else { format!("{v:.0} Hz") }))
+            .with_string_to_value(Arc::new(|s| {
+                let s = s.trim().trim_end_matches("Hz").trim_end_matches("hz").trim();
+                if s.eq_ignore_ascii_case("off") { Some(20.0) } else { s.parse().ok() }
+            })),
 
             dist: DistParams::default(),
             mb: MultibandFxParams::default(),

@@ -307,8 +307,9 @@ Velocity 266 holds 6 x 44 = 264; Output 104 = 2 x 52.
 
 ### 6.1a GTS page switch and FX page
 
-The header's settings column is 104 px wide: a segmented page switch (3.10) over the Quality
-combo. SYNTH is the layout above; FX swaps only the body (window stays 1000 x 832, `preview-gts-editor-fx.png`).
+The header's settings column is 120 px wide: a segmented page switch (3.10) over the Quality
+combo and the Preset combo (Init + the six factory presets; the closed control reads
+`<name> *` once a loaded preset is edited, "Custom" before any is loaded). SYNTH is the layout above; FX swaps only the body (window stays 1000 x 832, `preview-gts-editor-fx.png`).
 The FX body is 912 x 656: eight groups in chain order, each with an on LED in the title bar
 (Limiter has none) and its Mix knob first. Knob cells are 56 px, 60 px where a readout can be
 eight characters ("120.0 Hz", "-24.0 dB"); signed params (Bias, EQ and band gains, In / Out,
@@ -318,7 +319,13 @@ Chorus feedback) are bipolar.
 |---|---|---|
 | 1 | 257 | Distortion (272), Multiband (384), EQ (232) |
 | 2 | 184 | Chorus (336), Dimension (200), Delay (352) |
-| 3 | 191 | Reverb (312), Limiter (88) |
+| 3 | 191 | Reverb (312), Limiter (588) |
+
+The Limiter group holds the Gain knob and a horizontal gain-reduction meter (inset track, accent
+fill from the left, 0 to -12 dB with a tick label every 3 dB) over an Output Peak readout.
+Inactive controls are dimmed to 50 % opacity but stay editable: a module's body while its on LED
+is off, Delay Time / Chorus Rate while Sync is on, Delay Div + Feel / Chorus Div while it is off,
+Osc B while off, the Shaper while off.
 
 Multiband is a 6 x 3 grid of 60 px cells: Mix / Depth / Time, In / Out, the two crossovers on the
 left, and one column per band (Lo, Mid, Hi) with Up, Down, Gain rows on the right.

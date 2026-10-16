@@ -263,19 +263,29 @@ const COMBO_FONT: f32 = 13.0;
 /// centred on the knob band) so combos line up with knobs; with an empty label it is a bare
 /// 24 px control for strips and group headers. Returns the picked index when it changes.
 pub fn combo(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> Option<usize> {
-    combo_impl(ui, label, selected, items, true)
+    combo_impl(ui, label, selected, items, true, None)
 }
 
 /// Like [`combo`] but compact: the labelled control sits directly under its label (37 px
 /// cell) instead of being centred on the 40 px knob band. For stacks of controls.
 pub fn combo_stacked(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> Option<usize> {
-    combo_impl(ui, label, selected, items, false)
+    combo_impl(ui, label, selected, items, false, None)
 }
 
-fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_band: bool) -> Option<usize> {
+/// [`combo_stacked`] that shows `shown` instead of the selected item (a modified-state marker, a
+/// placeholder) and never grows past the width it is given, so the closed control fits a fixed
+/// column; the popup lists `items` as usual.
+pub fn combo_stacked_as(ui: &mut Ui, label: &str, selected: usize, items: &[&str], shown: &str) -> Option<usize> {
+    combo_impl(ui, label, selected, items, false, Some(shown))
+}
+
+fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_band: bool, shown: Option<&str>) -> Option<usize> {
     let f = font::label(COMBO_FONT);
-    let text_w = items.iter().map(|s| paint::text_width(ui.painter(), &f, s, 0.0)).fold(0.0, f32::max);
-    let ctrl_w = (text_w + 8.0 + 24.0).max(56.0).ceil();
+    let text_w = items.iter().chain(shown.iter()).map(|s| paint::text_width(ui.painter(), &f, s, 0.0)).fold(0.0, f32::max);
+    let mut ctrl_w = (text_w + 8.0 + 24.0).max(56.0).ceil();
+    if shown.is_some() {
+        ctrl_w = ctrl_w.min(ui.available_width());
+    }
     let labelled = !label.is_empty();
     let (cell, ctrl) = if labelled {
         let cell_h = if knob_band { knob_cell_h(KNOB_D) } else { KNOB_LABEL_H + CONTROL_H };
@@ -304,8 +314,10 @@ fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_ba
             paint::caps(p, pos2(cell.center().x, cell.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
         }
         paint::inset_box(p, ctrl, resp.hovered() || open);
-        let cur = items.get(selected).copied().unwrap_or("");
-        p.text(pos2(ctrl.left() + 8.0, ctrl.center().y), Align2::LEFT_CENTER, cur, f.clone(), T.text);
+        let cur = shown.unwrap_or_else(|| items.get(selected).copied().unwrap_or(""));
+        // Clipped before the arrow, so a long name never runs into it.
+        let text_clip = Rect::from_min_max(ctrl.min, pos2(ctrl.right() - 22.0, ctrl.bottom()));
+        p.with_clip_rect(text_clip.intersect(p.clip_rect())).text(pos2(ctrl.left() + 8.0, ctrl.center().y), Align2::LEFT_CENTER, cur, f.clone(), T.text);
         let (cx, cy) = (ctrl.right() - 11.5, ctrl.center().y - 1.0);
         p.add(Shape::line(vec![pos2(cx - 3.5, cy - 1.5), pos2(cx, cy + 2.0), pos2(cx + 3.5, cy - 1.5)], paint::st(1.5, T.muted)));
     }
@@ -369,6 +381,41 @@ pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize) -> Option<usize> 
         paint::caps(p, seg.center(), Align2::CENTER_CENTER, label, 11.0, col);
     }
     picked
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gain-reduction meter
+// ---------------------------------------------------------------------------------------------
+
+/// Horizontal gain-reduction meter: caps `label` and a mono `readout` over an inset track that
+/// fills from the left (0 dB) toward `-max_db` in accent, with a tick and label every 3 dB below.
+/// `reduction_db` is >= 0. Display only; `width` x 53 px.
+pub fn gr_meter(ui: &mut Ui, width: f32, label: &str, reduction_db: f32, max_db: f32, readout: &str) {
+    let (rect, _) = ui.allocate_exact_size(vec2(width, KNOB_LABEL_H + 20.0 + 6.0 + 14.0), Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let p = ui.painter();
+    paint::caps(p, pos2(rect.left(), rect.top() + KNOB_LABEL_H / 2.0), Align2::LEFT_CENTER, label, 11.0, T.muted);
+    p.text(pos2(rect.right(), rect.top() + KNOB_LABEL_H / 2.0), Align2::RIGHT_CENTER, readout, font::mono(12.0), T.text);
+    let track = Rect::from_min_size(pos2(rect.left(), rect.top() + KNOB_LABEL_H), vec2(width, 20.0));
+    paint::inset_box(p, track, false);
+    let inner = track.shrink(3.0);
+    let x_at = |db: f32| inner.left() + inner.width() * (db / max_db).clamp(0.0, 1.0);
+    let fill_x = x_at(reduction_db);
+    if fill_x > inner.left() + 0.5 {
+        let fill = Rect::from_min_max(inner.min, pos2(fill_x, inner.bottom()));
+        p.rect_filled(fill.expand(2.0), 3.0, T.a(0.10));
+        p.rect_filled(fill, 2.0, T.accent);
+    }
+    let mut db = 0.0;
+    while db <= max_db + 0.01 {
+        let x = x_at(db).clamp(track.left() + 1.0, track.right() - 1.0);
+        p.line_segment([pos2(x, track.bottom() + 1.0), pos2(x, track.bottom() + 5.0)], paint::st(1.0, T.muted));
+        let (txt, anchor) = if db == 0.0 { ("0".to_string(), Align2::LEFT_TOP) } else { (format!("-{db:.0}"), if db >= max_db { Align2::RIGHT_TOP } else { Align2::CENTER_TOP }) };
+        p.text(pos2(x, track.bottom() + 6.0), anchor, txt, font::mono(10.0), T.muted);
+        db += 3.0;
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

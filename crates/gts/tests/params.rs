@@ -75,7 +75,7 @@ fn ids_match_spec() {
 
 /// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on
 /// switches default off; the module structs the chain receives equal the modules' own defaults
-/// except Delay/Reverb mix (0.5 by the integration spec).
+/// except the MB out trim (+1.5 dB, so MB On matches the dry loudness).
 #[test]
 fn fx_ranges_and_defaults() {
     use gts::dsp::fx::*;
@@ -87,7 +87,7 @@ fn fx_ranges_and_defaults() {
         ("mb_xover_hi", 1000.0, 8000.0, 2500.0), ("mb_up_lo", -60.0, 0.0, -24.0), ("mb_up_mid", -60.0, 0.0, -24.0),
         ("mb_up_hi", -60.0, 0.0, -24.0), ("mb_down_lo", -60.0, 0.0, -12.0), ("mb_down_mid", -60.0, 0.0, -12.0),
         ("mb_down_hi", -60.0, 0.0, -12.0), ("mb_gain_lo", -12.0, 12.0, 0.0), ("mb_gain_mid", -12.0, 12.0, 0.0),
-        ("mb_gain_hi", -12.0, 12.0, 0.0), ("mb_in", -24.0, 24.0, 0.0), ("mb_out", -24.0, 24.0, 0.0), ("mb_mix", 0.0, 1.0, 1.0),
+        ("mb_gain_hi", -12.0, 12.0, 0.0), ("mb_in", -24.0, 24.0, 0.0), ("mb_out", -24.0, 24.0, 1.5), ("mb_mix", 0.0, 1.0, 1.0),
         ("eq_low_freq", 30.0, 500.0, 100.0), ("eq_low_gain", -15.0, 15.0, 0.0), ("eq_peak_freq", 20.0, 20000.0, 1000.0),
         ("eq_peak_q", 0.2, 10.0, 1.0), ("eq_peak_gain", -15.0, 15.0, 0.0), ("eq_high_freq", 1000.0, 20000.0, 8000.0),
         ("eq_high_gain", -15.0, 15.0, 0.0), ("eq_cut_freq", 20.0, 500.0, 30.0),
@@ -95,10 +95,10 @@ fn fx_ranges_and_defaults() {
         ("cho_feedback", -0.95, 0.95, 0.0), ("cho_lpf", 200.0, 20000.0, 20000.0), ("cho_wet_lowcut", 20.0, 500.0, 120.0),
         ("cho_mix", 0.0, 1.0, 0.5), ("dim_size", 0.0, 1.0, 0.5), ("dim_wet_lowcut", 20.0, 500.0, 120.0), ("dim_mix", 0.0, 1.0, 0.5),
         ("dly_time", 1.0, 2000.0, 250.0), ("dly_feedback", 0.0, 0.95, 0.35), ("dly_hp", 20.0, 2000.0, 120.0),
-        ("dly_lp", 200.0, 20000.0, 8000.0), ("dly_mix", 0.0, 1.0, 0.5), ("rev_size", 0.0, 1.0, 0.5),
+        ("dly_lp", 200.0, 20000.0, 8000.0), ("dly_mix", 0.0, 1.0, 0.25), ("rev_size", 0.0, 1.0, 0.5),
         ("rev_decay", 0.1, 20.0, 1.5), ("rev_damp", 0.0, 1.0, 0.3), ("rev_predelay", 0.0, 300.0, 0.0),
         ("rev_lowcut", 20.0, 1000.0, 200.0), ("rev_hicut", 1000.0, 20000.0, 12000.0), ("rev_width", 0.0, 1.0, 1.0),
-        ("rev_mix", 0.0, 1.0, 0.5), ("lim_gain", -24.0, 12.0, 0.0),
+        ("rev_mix", 0.0, 1.0, 0.15), ("lim_gain", -24.0, 12.0, 0.0),
     ];
     let params = GtsParams::default();
     let map = params.param_map();
@@ -112,11 +112,35 @@ fn fx_ranges_and_defaults() {
     let fx = gts::dsp::Patch::default().fx;
     assert!(!(fx.dist.on || fx.mb.on || fx.eq.on || fx.cho.on || fx.dim.on || fx.dly.on || fx.rev.on));
     assert_eq!(fx.dist, distortion::DistortionParams::default());
-    assert_eq!(fx.mb, multiband::MultibandParams::default());
+    assert_eq!(fx.mb, multiband::MultibandParams { out_db: 1.5, ..Default::default() });
     assert_eq!(fx.eq, eq::EqParams::default());
     assert_eq!(fx.cho, chorus::ChorusParams::default());
     assert_eq!(fx.dim, dimension::DimensionParams::default());
-    assert_eq!(fx.dly, delay::DelayParams { mix: 0.5, ..Default::default() });
-    assert_eq!(fx.rev, reverb::ReverbParams { mix: 0.5, ..Default::default() });
+    assert_eq!(fx.dly, delay::DelayParams::default());
+    assert_eq!(fx.rev, reverb::ReverbParams::default());
     assert_eq!(fx.lim_gain, 0.0);
+}
+
+/// Knob readouts: crossover floor says Off (and parses it), chorus feedback is a percentage,
+/// delay time keeps one decimal, reverb pre-delay whole ms.
+#[test]
+fn readouts() {
+    let params = GtsParams::default();
+    let map = params.param_map();
+    let show = |id: &str, plain: f32| {
+        let (_, ptr, _) = map.iter().find(|(k, _, _)| k == id).unwrap();
+        // SAFETY: `params` outlives the pointers.
+        unsafe { ptr.normalized_value_to_string(ptr.preview_normalized(plain), true) }
+    };
+    assert_eq!(show("mono_xover", 20.0), "Off");
+    assert_eq!(show("mono_xover", 120.0), "120 Hz");
+    assert_eq!(show("cho_feedback", 0.35), "35%");
+    assert_eq!(show("dly_time", 123.456), "123.5 ms");
+    assert_eq!(show("rev_predelay", 12.4), "12 ms");
+    let (_, ptr, _) = map.iter().find(|(k, _, _)| k == "mono_xover").unwrap();
+    // SAFETY: as above.
+    unsafe {
+        assert_eq!(ptr.string_to_normalized_value("Off"), Some(0.0));
+        assert!((ptr.preview_plain(ptr.string_to_normalized_value("120 Hz").unwrap()) - 120.0).abs() < 0.01);
+    }
 }

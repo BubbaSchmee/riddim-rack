@@ -231,6 +231,11 @@ impl FxChain {
         self.dist.latency() + self.lim.latency()
     }
 
+    /// Limiter gain reduction in dB (>= 0), deepest since the last call (the GUI meter).
+    pub fn limiter_gr_db(&mut self) -> f32 {
+        self.lim.take_gr_db()
+    }
+
     /// True while the chain is the sample-exact bypass (only the delays and the limiter run).
     pub fn is_bypassed(&self) -> bool {
         !self.active && self.dist.is_bypassed()

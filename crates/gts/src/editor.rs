@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use crate::bus::BusLink;
+use crate::preset::{self, Preset};
 use crate::dsp::shaper::Shaper;
 use crate::dsp::tables::{Tables, GRAINS, N};
 use crate::params::*;
@@ -43,6 +44,8 @@ pub trait Ctl {
 pub struct ParamTable {
     _keep: Arc<GtsParams>,
     map: HashMap<String, ParamPtr>,
+    /// Every id a preset sets (all but the RR-BUS CV slots), sorted.
+    sound_ids: Vec<String>,
 }
 
 // SAFETY: every ParamPtr points into `_keep`, which is Send + Sync and outlives them; reads are atomic.
@@ -51,10 +54,12 @@ unsafe impl Sync for ParamTable {}
 
 impl ParamTable {
     pub fn new(params: Arc<GtsParams>) -> Self {
-        let map = params.param_map().into_iter().map(|(id, ptr, _)| (id, ptr)).collect();
-        Self { _keep: params, map }
+        let map: HashMap<String, ParamPtr> = params.param_map().into_iter().map(|(id, ptr, _)| (id, ptr)).collect();
+        let mut sound_ids: Vec<String> = map.keys().filter(|k| !k.starts_with("cv")).cloned().collect();
+        sound_ids.sort();
+        Self { _keep: params, map, sound_ids }
     }
-    fn ptr(&self, id: &str) -> ParamPtr {
+    pub fn ptr(&self, id: &str) -> ParamPtr {
         *self.map.get(id).unwrap_or_else(|| panic!("unknown param id {id}"))
     }
     pub fn get01(&self, id: &str) -> f32 {
@@ -69,6 +74,38 @@ impl ParamTable {
     pub fn steps(&self, id: &str) -> Option<usize> {
         unsafe { self.ptr(id).step_count() }
     }
+    /// Normalized value of every sound param, in id order (to tell whether a loaded preset was edited).
+    pub fn snapshot(&self) -> Vec<f32> {
+        self.sound_ids.iter().map(|id| self.get01(id)).collect()
+    }
+}
+
+/// Loads a factory preset (`None` = Init, every sound param at its default) through `c` as host
+/// gestures. GUI thread only. The RR-BUS CV slots, the instance label and the Quality setting are
+/// project routing, not sound: never touched.
+pub fn apply_preset(table: &ParamTable, c: &dyn Ctl, preset: Option<&Preset>) {
+    let json = preset.and_then(|p| serde_json::from_str::<serde_json::Value>(&p.to_json()).ok());
+    let params = json.as_ref().and_then(|j| j.get("params")).and_then(|p| p.as_object());
+    for id in &table.sound_ids {
+        // SAFETY: the pointers live as long as `table` (it holds the params Arc).
+        let normalized = params.and_then(|m| m.get(id)).and_then(|v| match v {
+            serde_json::Value::Bool(b) => Some(*b as u8 as f32),
+            serde_json::Value::Number(n) => n.as_f64().map(|x| unsafe { table.ptr(id).preview_normalized(x as f32) }),
+            serde_json::Value::String(s) => unsafe { table.ptr(id).string_to_normalized_value(s) },
+            _ => None,
+        });
+        one_shot(c, id, normalized.unwrap_or_else(|| c.default01(id)));
+    }
+}
+
+/// What the audio thread publishes for the Limiter meter; the editor swaps both out each frame.
+/// f32 bits (non-negative, so `fetch_max` keeps the larger value).
+#[derive(Default)]
+pub struct Meters {
+    /// Deepest limiter gain reduction since the last read, dB >= 0.
+    pub gr_db: AtomicU32,
+    /// Largest output sample magnitude since the last read, linear.
+    pub peak: AtomicU32,
 }
 
 /// The plugin's `Ctl`: reads through the table, writes through the host's `ParamSetter`.
@@ -161,6 +198,28 @@ fn cb<E: Enum>(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str) {
     }
 }
 
+/// Opacity of a control that currently has no effect (still editable).
+const INACTIVE: f32 = 0.5;
+
+/// Dims everything `ui` draws from here on (a group body whose module or section is off).
+fn fade(ui: &mut Ui, inactive: bool) {
+    if inactive {
+        ui.multiply_opacity(INACTIVE);
+    }
+}
+
+/// Dims one control (or a few) that does nothing in the current mode, e.g. Delay Time while synced.
+fn dim(ui: &mut Ui, inactive: bool, add: impl FnOnce(&mut Ui)) {
+    ui.scope(|ui| {
+        fade(ui, inactive);
+        add(ui);
+    });
+}
+
+fn is_off(c: &dyn Ctl, id: &str) -> bool {
+    c.get01(id) < 0.5
+}
+
 // ---- display ------------------------------------------------------------------------------
 
 /// One grain as a closed, peak-normalized polyline of 513 points.
@@ -198,6 +257,16 @@ pub struct BusView {
     pub oversampling: usize,
     /// Header page switch: false = SYNTH, true = FX. Editor-session state, never persisted.
     pub fx_page: bool,
+    /// Header Preset combo: the loaded entry (0 = Init, 1.. = factory order), `None` until one is
+    /// picked this session. Editor-session state, never persisted.
+    pub preset: Option<usize>,
+    /// The loaded preset was changed afterwards (the combo then shows "<name> *").
+    pub preset_dirty: bool,
+    /// Set by `draw` when the user picks an entry; the host editor applies it (see [`apply_preset`]).
+    pub preset_pick: Option<usize>,
+    /// Limiter gain reduction (dB >= 0) and output peak (dBFS) for the FX page meter.
+    pub gr_db: f32,
+    pub peak_db: f32,
 }
 
 const CV: [(&str, &str); 3] = [("cv1_target", "cv1_amount"), ("cv2_target", "cv2_amount"), ("cv3_target", "cv3_amount")];
@@ -240,7 +309,7 @@ pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &
         header(hui, c, tables, current_index, bv);
         let room = bui.max_rect();
         if bv.fx_page {
-            fx_body(bui, c);
+            fx_body(bui, c, bv);
         } else {
             body(bui, c);
         }
@@ -256,10 +325,10 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
     let main = wave(tables, table, g);
     let prev = wave(tables, table, g.saturating_sub(1));
     let next = wave(tables, table, (g + 1).min(GRAINS - 1));
-    // Grain display | settings column 104 px (page switch over Quality) | PATCH strip 300 px.
+    // Grain display | settings column 120 px (page switch, Quality, Preset) | PATCH strip 300 px.
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = GAP;
-        let (pw, qw) = (300.0, 104.0);
+        let (pw, qw) = (300.0, 120.0);
         ui.allocate_ui(vec2(ui.available_width() - pw - qw - 2.0 * GAP, DISPLAY_H), |ui| {
             waveform_display_ex(
                 ui,
@@ -276,10 +345,20 @@ fn header(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, current_index: u32, bv: &mu
                 if let Some(i) = segmented(ui, &["Synth", "FX"], bv.fx_page as usize) {
                     bv.fx_page = i == 1;
                 }
-                ui.add_space(12.0);
+                ui.add_space(8.0);
                 let sel = QUALITY.iter().position(|&q| q == bv.oversampling).unwrap_or(1);
                 if let Some(i) = combo_stacked(ui, "Quality", sel, &["1x", "2x", "4x"]) {
                     bv.oversampling = QUALITY[i];
+                }
+                ui.add_space(4.0);
+                let names: Vec<&str> = std::iter::once("Init").chain(preset::factory().iter().map(|p| p.name.as_str())).collect();
+                let shown = match bv.preset.and_then(|i| names.get(i)) {
+                    Some(n) if bv.preset_dirty => format!("{n} *"),
+                    Some(n) => n.to_string(),
+                    None => "Custom".into(),
+                };
+                if let Some(i) = combo_stacked_as(ui, "Preset", bv.preset.unwrap_or(usize::MAX), &names, &shown) {
+                    bv.preset_pick = Some(i);
                 }
             });
         });
@@ -304,6 +383,7 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
                 tg(ui, c, &k("on"), "");
                 cb::<Table>(ui, c, &k("table"), "");
             }, |ui| {
+                fade(ui, p == "oscb" && is_off(c, "oscb_on"));
                 knob_row(ui, |ui| {
                     kn(ui, c, &k("oct"), "Oct", d.bipolar());
                     kn(ui, c, &k("semi"), "Semi", d);
@@ -374,6 +454,7 @@ fn body(ui: &mut Ui, c: &dyn Ctl) {
             });
         }
         group_ext(ui, vec2(216.0, h2), "Shaper", |ui| tg(ui, c, "shaper_on", ""), |ui| {
+            fade(ui, is_off(c, "shaper_on"));
             strip(ui, |ui| cb::<ShaperMode>(ui, c, "shaper_mode", ""));
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
@@ -461,7 +542,7 @@ fn tg_cell(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str) {
 /// title bar (the limiter is always on) and its Mix knob first. Knob cells are 56 px, or 60 px
 /// where the readout can be eight characters wide ("120.0 Hz", "-24.0 dB"). Rows: 257 (three
 /// knob rows) + 184 (two) + 191 (two, stretched) + 2 x 12 = the 656 px body.
-fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
+fn fx_body(ui: &mut Ui, c: &dyn Ctl, bv: &BusView) {
     let (k, w) = (KnobStyle::default().cell(56.0), KnobStyle::default().cell(60.0));
     let (kb, wb) = (k.bipolar(), w.bipolar());
     ui.spacing_mut().item_spacing = vec2(GAP, GAP);
@@ -470,6 +551,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
     // Row 1: Distortion 272 + Multiband 384 + EQ 232 + 2 gaps = 912.
     ui.horizontal_top(|ui| {
         group_ext(ui, vec2(272.0, h1), "Distortion", |ui| tg(ui, c, "dist_on", ""), |ui| {
+            fade(ui, is_off(c, "dist_on"));
             knob_row(ui, |ui| {
                 kn(ui, c, "dist_mix", "Mix", k);
                 kn(ui, c, "dist_drive", "Drive", w);
@@ -491,6 +573,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
         // Multiband: a 6 x 3 grid of 60 px cells. Left three columns: Mix first, then depth / time,
         // in / out and the two crossovers; right three: one column per band, rows up / down / gain.
         group_ext(ui, vec2(384.0, h1), "Multiband", |ui| tg(ui, c, "mb_on", ""), |ui| {
+            fade(ui, is_off(c, "mb_on"));
             let left: [&[(&str, &str, KnobStyle)]; 3] = [
                 &[("mix", "Mix", w), ("depth", "Depth", w), ("time", "Time", w)],
                 &[("in", "In", wb), ("out", "Out", wb)],
@@ -511,6 +594,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
 
         // EQ: one column per band (Low / Peak / High), freq over gain; Q and the low cut underneath.
         group_ext(ui, vec2(232.0, h1), "EQ", |ui| tg(ui, c, "eq_on", ""), |ui| {
+            fade(ui, is_off(c, "eq_on"));
             knob_row(ui, |ui| {
                 for (id, l) in [("low", "Lo Freq"), ("peak", "Pk Freq"), ("high", "Hi Freq")] {
                     kn(ui, c, &format!("eq_{id}_freq"), l, w);
@@ -532,22 +616,24 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
     // Row 2: Chorus 336 + Dimension 200 + Delay 352 + 2 gaps = 912.
     ui.horizontal_top(|ui| {
         group_ext(ui, vec2(336.0, h2), "Chorus", |ui| tg(ui, c, "cho_on", ""), |ui| {
+            fade(ui, is_off(c, "cho_on"));
             knob_row(ui, |ui| {
                 kn(ui, c, "cho_mix", "Mix", k);
                 kn(ui, c, "cho_voices", "Voices", k);
-                kn(ui, c, "cho_rate", "Rate", k);
+                dim(ui, !is_off(c, "cho_sync"), |ui| kn(ui, c, "cho_rate", "Rate", k));
                 kn(ui, c, "cho_depth", "Depth", k);
                 kn(ui, c, "cho_delay", "Delay", k);
             });
             knob_row(ui, |ui| {
                 tg_cell(ui, c, "cho_sync", "Sync");
-                cb::<Division>(ui, c, "cho_div", "Div");
+                dim(ui, is_off(c, "cho_sync"), |ui| cb::<Division>(ui, c, "cho_div", "Div"));
                 kn(ui, c, "cho_feedback", "Feedback", kb);
                 kn(ui, c, "cho_lpf", "LPF", w);
                 kn(ui, c, "cho_wet_lowcut", "Low Cut", w);
             });
         });
         group_ext(ui, vec2(200.0, h2), "Dimension", |ui| tg(ui, c, "dim_on", ""), |ui| {
+            fade(ui, is_off(c, "dim_on"));
             knob_row(ui, |ui| {
                 kn(ui, c, "dim_mix", "Mix", k);
                 kn(ui, c, "dim_size", "Size", k);
@@ -555,17 +641,20 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
             });
         });
         group_ext(ui, vec2(352.0, h2), "Delay", |ui| tg(ui, c, "dly_on", ""), |ui| {
+            fade(ui, is_off(c, "dly_on"));
             knob_row(ui, |ui| {
                 kn(ui, c, "dly_mix", "Mix", k);
-                kn(ui, c, "dly_time", "Time", KnobStyle::default().cell(66.0));
+                dim(ui, !is_off(c, "dly_sync"), |ui| kn(ui, c, "dly_time", "Time", KnobStyle::default().cell(66.0)));
                 kn(ui, c, "dly_feedback", "Feedback", k);
                 kn(ui, c, "dly_hp", "HP", w);
                 kn(ui, c, "dly_lp", "LP", w);
             });
             knob_row(ui, |ui| {
                 tg_cell(ui, c, "dly_sync", "Sync");
-                cb::<DelayDiv>(ui, c, "dly_div", "Div");
-                cb::<DelayFeel>(ui, c, "dly_feel", "Feel");
+                dim(ui, is_off(c, "dly_sync"), |ui| {
+                    cb::<DelayDiv>(ui, c, "dly_div", "Div");
+                    cb::<DelayFeel>(ui, c, "dly_feel", "Feel");
+                });
                 cb::<DelayMode>(ui, c, "dly_mode", "Mode");
             });
         });
@@ -574,6 +663,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
     // Row 3: Reverb + Limiter.
     ui.horizontal_top(|ui| {
         group_ext(ui, vec2(312.0, h3), "Reverb", |ui| tg(ui, c, "rev_on", ""), |ui| {
+            fade(ui, is_off(c, "rev_on"));
             knob_row(ui, |ui| {
                 kn(ui, c, "rev_mix", "Mix", k);
                 cb::<ReverbType>(ui, c, "rev_type", "Type");
@@ -588,8 +678,24 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl) {
                 kn(ui, c, "rev_width", "Width", k);
             });
         });
-        group_ext(ui, vec2(88.0, h3), "Limiter", |_| {}, |ui| {
-            kn(ui, c, "lim_gain", "Gain", w);
+        // The limiter takes the rest of the row: Gain knob, then the gain-reduction meter (0 .. -12 dB)
+        // over the output peak.
+        group_ext(ui, vec2(588.0, h3), "Limiter", |_| {}, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                kn(ui, c, "lim_gain", "Gain", w);
+                ui.vertical(|ui| {
+                    ui.add_space(KNOB_LABEL_H);
+                    let gr = if bv.gr_db < 0.05 { "0.0 dB".to_string() } else { format!("-{:.1} dB", bv.gr_db) };
+                    gr_meter(ui, 488.0, "Gain reduction", bv.gr_db, 12.0, &gr);
+                    ui.add_space(14.0);
+                    let peak = if bv.peak_db < -90.0 { "-inf dBFS".to_string() } else { format!("{:.1} dBFS", bv.peak_db) };
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("OUTPUT PEAK").font(rr_ui::theme::font::label(11.0)).color(rr_ui::theme::T.muted));
+                        ui.label(egui::RichText::new(peak).font(rr_ui::theme::font::mono(12.0)));
+                    });
+                });
+            });
         });
     });
 }
@@ -606,6 +712,10 @@ fn wr<T>(l: &RwLock<T>, v: T) {
 pub struct EditorState {
     view: BusView,
     next_refresh: f64,
+    /// Sound params right after the last preset load; any difference marks the preset edited.
+    snap: Vec<f32>,
+    /// Take `snap` on the next frame (the host applies a load's gestures between frames).
+    resnap: bool,
 }
 
 /// `tables` is the engine's own slot: the display reads the audio tables (no second 29 MB copy).
@@ -613,13 +723,14 @@ pub struct EditorState {
 pub fn create(
     params: Arc<GtsParams>,
     current_index: Arc<AtomicU32>,
+    meters: Arc<Meters>,
     link: Arc<BusLink>,
     tables: Arc<OnceLock<Tables>>,
 ) -> Option<Box<dyn Editor>> {
     let table = ParamTable::new(params.clone());
     create_egui_editor(
         EguiState::from_size(WINDOW.0, WINDOW.1),
-        EditorState { view: BusView::default(), next_refresh: 0.0 },
+        EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, next_refresh: 0.0, snap: vec![], resnap: false },
         |ctx, st| {
             rr_ui::theme::apply(ctx);
             st.next_refresh = 0.0; // egui time restarts at 0 on every open
@@ -638,6 +749,15 @@ pub fn create(
             st.view.bound = rd(&params.cv_sources);
             st.view.activity = std::array::from_fn(|i| link.activity(i));
             st.view.oversampling = params.oversampling.load(Ordering::Relaxed);
+            // Meters: take what the audio thread gathered, fall back slowly (gain reduction faster).
+            let gr = f32::from_bits(meters.gr_db.swap(0, Ordering::Relaxed));
+            st.view.gr_db = gr.max(st.view.gr_db - 1.0).max(0.0);
+            let peak = 20.0 * f32::from_bits(meters.peak.swap(0, Ordering::Relaxed)).max(1e-6).log10();
+            st.view.peak_db = peak.max(st.view.peak_db - 0.5);
+            if std::mem::take(&mut st.resnap) {
+                st.snap = table.snapshot();
+            }
+            st.view.preset_dirty = st.view.preset.is_some() && table.snapshot() != st.snap;
             let before = st.view.clone();
 
             let ctl = PlugCtl { table: &table, setter };
@@ -650,6 +770,12 @@ pub fn create(
                 draw(ui, &ctl, tables, current_index.load(Ordering::Relaxed), &mut st.view);
             });
 
+            if let Some(i) = st.view.preset_pick.take() {
+                apply_preset(&table, &ctl, i.checked_sub(1).and_then(|k| preset::factory().get(k)));
+                st.view.preset = Some(i);
+                st.view.preset_dirty = false;
+                st.resnap = true;
+            }
             if st.view.oversampling != before.oversampling {
                 params.oversampling.store(st.view.oversampling, Ordering::Relaxed);
             }

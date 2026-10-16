@@ -2,8 +2,8 @@
 //!
 //! - Tube, HardClip, Overdrive, Diode, FoldLin and FoldSine run inside the existing 4x
 //!   [`Oversampler`] (`shaper::oversample`). BitCrush and Downsample run at 1x with no
-//!   anti-imaging: their aliasing / zero-order-hold images are the effect (as in Vital's Bit crush
-//!   and Down sample and Serum's Downsample); the Post low-pass is the user's tool to tame them.
+//!   anti-imaging: their aliasing / zero-order-hold images are the effect (as in typical bit-crush
+//!   and sample-rate-reducer effects); the Post low-pass is the user's tool to tame them.
 //! - The six shaping curves also run first-order antiderivative anti-aliasing (ADAA, f64) at the
 //!   4x rate: 4x alone left HardClip at -70 dB and FoldLin at -62 dB alias on the +12 dB C2-saw
 //!   check. ADAA adds half a 4x sample (1/8 base sample) of delay to the wet path only.

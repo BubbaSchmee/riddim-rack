@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Sub Weight",
   "author": "Riddim Rack",
-  "description": "Clean mono sine sub at the played pitch under a soft two-harmonic mid one octave up (Harmonic Rise through an LP12 with a short envelope pluck). No distortion, phase reset on every note, mono below 120 Hz. Play: mono legato lines around F0-C2, on its own for halftime/dub or as the low layer under a growl. Tweak: Sub Level for weight, Osc A Index and Vol for how much mid reads on small speakers, Filter Env Amt for the attack. Macro plan (not wired yet): Weight = Sub Level, Tone = Osc A Index + Filter A Freq, Punch = Filter Env Amt, Glide = Portamento. FX: a touch of Tube (+3 dB, 40 % mix) with a Post low-pass at 400 Hz for warmth that still reads on small speakers, gentle multiband glue (30 % depth, slow time), and an EQ low cut at 25 Hz against infrasonic rumble. No width or reverb: the sub stays mono and dry.",
+  "description": "Clean mono sine sub at the played pitch under a soft two-harmonic mid one octave up (Harmonic Rise through an LP12 with a short envelope pluck). Phase reset on every note, mono below 120 Hz. Play: mono legato lines around F0-C2, on its own for halftime/dub or as the low layer under a growl. Tweak: Sub Level for weight, Osc A Index and Vol for how much mid reads on small speakers, Filter Env Amt for the attack. FX: a touch of Tube (+3 dB, 40 % mix) with a Post low-pass at 400 Hz for warmth that still reads on small speakers, gentle multiband glue (30 % depth, slow time), and an EQ low cut at 25 Hz against infrasonic rumble. No width or reverb: the sub stays mono and dry.",
   "category": "Bass/sub",
   "tags": [
     "sub",

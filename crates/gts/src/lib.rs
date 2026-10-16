@@ -20,6 +20,8 @@ pub struct Gts {
     engine: dsp::Engine,
     /// Osc A's current grain index (0..127), for the GUI readout.
     current_index: Arc<AtomicU32>,
+    /// Limiter gain reduction and output peak since the editor last looked.
+    meters: Arc<editor::Meters>,
     /// Last tempo written to the log (a ramp logs every 0.5 BPM, not every block).
     logged_tempo: f64,
     /// RR-BUS publisher + CV-in slots.
@@ -43,6 +45,7 @@ impl Default for Gts {
             params: Arc::new(GtsParams::default()),
             engine: dsp::Engine::new(),
             current_index: Arc::new(AtomicU32::new(0)),
+            meters: Arc::new(editor::Meters::default()),
             logged_tempo: dsp::Transport::default().tempo,
             bus: bus::DeviceBus::default(),
             sample_rate: 44100.0,
@@ -84,7 +87,7 @@ impl Plugin for Gts {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone(), self.current_index.clone(), self.bus.link.clone(), self.engine.tables_handle())
+        editor::create(self.params.clone(), self.current_index.clone(), self.meters.clone(), self.bus.link.clone(), self.engine.tables_handle())
     }
 
     fn initialize(
@@ -173,6 +176,7 @@ impl Plugin for Gts {
         self.engine.set_patch(&patch);
 
         let mut next_event = context.next_event();
+        let mut peak = 0.0f32;
         for (i, frame) in buffer.iter_samples().enumerate() {
             if cv_on && i > 0 && i % CV_CHUNK == 0 {
                 let mut patch = base;
@@ -195,10 +199,21 @@ impl Plugin for Gts {
                 next_event = context.next_event();
             }
 
-            write_frame(frame, self.engine.next_frame());
+            let (l, r) = self.engine.next_frame();
+            peak = peak.max(l.abs()).max(r.abs());
+            write_frame(frame, (l, r));
         }
 
-        self.current_index.store(self.engine.display_index(), Ordering::Relaxed);
+        // Idle (no voice), the display follows the Osc A Index knob instead of the last note's grain.
+        let index = if self.engine.active_voices() == 0 {
+            self.params.osca.index.value().round() as u32
+        } else {
+            self.engine.display_index()
+        };
+        self.current_index.store(index, Ordering::Relaxed);
+        // Non-negative f32 bits order like the values, so fetch_max keeps the peak until the editor swaps it out.
+        self.meters.gr_db.fetch_max(self.engine.limiter_gr_db().to_bits(), Ordering::Relaxed);
+        self.meters.peak.fetch_max(peak.to_bits(), Ordering::Relaxed);
         ProcessStatus::Normal
     }
 }

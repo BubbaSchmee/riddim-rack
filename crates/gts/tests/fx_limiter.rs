@@ -141,3 +141,23 @@ fn bench_cpu() {
     let ns = t.elapsed().as_nanos() as f64 / n as f64;
     println!("CPU limiter: {ns:.1} ns/sample stereo ({acc:.1})");
 }
+
+/// The GUI meter: silence reads 0 dB, a signal 6 dB over the ceiling reads about 6 dB of
+/// reduction (deepest since the last call), and the reading resets after it is taken.
+#[test]
+fn gain_reduction_meter() {
+    let mut m = new(0.0, SR);
+    let quiet = vec![0.1; 4800];
+    run(&mut m, &quiet, &quiet);
+    assert_eq!(m.take_gr_db(), 0.0);
+    let hot = vec![2.0 * CEILING; 9600];
+    run(&mut m, &hot, &hot);
+    let gr = m.take_gr_db();
+    assert!((gr - 6.02).abs() < 0.2, "{gr} dB");
+    // After the release (1 s) the next reading is back at 0: it reset when it was taken.
+    let long = vec![0.1; 48000];
+    run(&mut m, &long, &long);
+    m.take_gr_db();
+    run(&mut m, &quiet, &quiet);
+    assert!(m.take_gr_db() < 0.05, "meter did not reset");
+}

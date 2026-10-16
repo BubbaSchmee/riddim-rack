@@ -1,4 +1,4 @@
-//! FX 4.2 Multiband compressor, OTT-style: three bands, upward and downward compression.
+//! FX 4.2 Multiband compressor, in the three-band upward/downward style: three bands, upward and downward compression.
 //!
 //! - Crossovers: Linkwitz-Riley 4th order (two Butterworth TPT SVF sections) at `xover_lo` and
 //!   `xover_hi`. The low band runs through the 2nd-order allpass at `xover_hi` so the three bands

@@ -48,6 +48,8 @@ struct App {
     frame: u32,
     asked: bool,
     bus: BusView,
+    /// What the plugin publishes with no note held: the Osc A Index knob (40 on init).
+    idx: u32,
 }
 
 impl eframe::App for App {
@@ -61,7 +63,7 @@ impl eframe::App for App {
         }
         self.frame += 1;
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
-            draw(ui, &self.ctl, &self.tables, 64, &mut self.bus);
+            draw(ui, &self.ctl, &self.tables, self.idx, &mut self.bus);
         });
 
         let size = ctx.screen_rect().size();
@@ -117,8 +119,15 @@ fn main() -> eframe::Result {
             activity: [0.92, 0.35, 0.0],
             oversampling: 2,
             fx_page: std::env::args().any(|a| a == "fx"),
+            // Header: Growl Hound loaded (add "dirty" for the edited marker); FX page: a limiter working a little.
+            preset: Some(2),
+            preset_dirty: std::env::args().any(|a| a == "dirty"),
+            preset_pick: None,
+            gr_db: 2.4,
+            peak_db: -0.3,
         };
-        Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false, bus }))
+        let idx = GtsParams::default().osca.index.value().round() as u32;
+        Ok(Box::new(App { ctl, tables, live, frame: 0, asked: false, bus, idx }))
     }))
 }
 

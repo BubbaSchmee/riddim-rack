@@ -25,9 +25,11 @@ the plugin. Delete the plugin log first for a clean session.
 6. Loads with no warning; GUI opens, fits the screen, every group visible (no clipped rows).
 7. Default (init) patch on C2 and F1: a clean, round square bass with a sine sub under it and a
    short filter-envelope "pluck" (LP12 opening on each note); no wobble, no comb, no grit. Live's
-   meter peaks around -9 dBFS on a single C2 note. Turn Osc A Unison to 5 and Width to 1: wide and
-   thick above the low end, while the low end stays centred (mono crossover 120 Hz).
-   Until presets are loaded, load the riddim_v1 fixture by hand to hear the old wobble patch: Osc A
+   meter peaks around -9 dBFS on a single C2 note. Set Sub > Xover to 120 Hz first (the init
+   default is Off, shown as "Off"), then Osc A Unison to 5 and Width to 1: wide and thick above
+   the low end, while the low end stays centred. When comparing with another synth, match
+   levels first (loudness, not peak), or the louder one always wins the A/B.
+   To hear the old wobble patch, load the riddim_v1 fixture by hand: Osc A
    Index 64; Mod A One-Shot on (Decay, Sync 1/8) with Mod A Index -0.50; Filter A Comb- 880 Hz
    Res 0.60 Kbd 0.50; Filter B LP12 2 kHz Res 0.10; Filter Env Amt 0.50; Sub off; Mono Crossover
    20 Hz; Volume 0 dB. Expected on F1: full square-type bass with a short downward "wobble" on
@@ -43,6 +45,8 @@ the plugin. Delete the plugin log first for a clean session.
 15. Pitch bend wheel (range 12) and mod wheel (set Wheel > Index to 1.0) respond.
 16. Polyphony 4, play chords: 4 notes sound; 5th steals the oldest.
 17. Save set, close, reopen: all knob values and combos restored, and the header Quality (1x/2x/4x) setting.
+    Switch Quality with the transport stopped: it changes the reported latency (the host re-syncs
+    delay compensation), so changing it during playback can glitch or shift the clip.
 18. Automate Filter A Freq and Osc A Shift in Live: no zipper noise or clicks.
 19. CPU: Live's CPU meter with 8 held notes stays well under 50 % on this machine.
 20. Hold the sustain pedal (or send CC64 127) and release keys: notes hold until the pedal is released.
@@ -58,7 +62,11 @@ the plugin. Delete the plugin log first for a clean session.
     page choice holds. Modules: Distortion, Multiband, EQ, Chorus, Dimension, Delay, Reverb, Limiter;
     bipolar knobs show a centre notch, multiband grid labels read cleanly. PDC: the plugin reports
     about 116 samples at 48 kHz: a 150 BPM 1/8 clip lines up with a reference track in Live).
-    On the init patch, switch each module on alone and back off, holding an F1 note:
+    A module that is off is drawn dimmed (still editable); Delay Time dims while Sync is on and Div /
+    Feel while it is off (same for the Chorus Rate / Div); Osc B and the Shaper dim while off.
+    On the init patch, switch each module on alone and back off, holding an F1 note. Mix is a
+    crossfade, so Reverb On (15 %) lowers the level by about 1.4 dB and Delay On (25 %) by about
+    2 dB against the dry init; MB On (Out +1.5 dB) lands within 0.5 LU of it:
     - Dist On: Tube adds warmth at Drive 0, grit at +12 dB with no big level jump (Autogain);
       Type Hard Clip / Fold Sine / Bit Crush each sound distinct; Filter Mode Post + LP tames fizz.
     - MB On: multiband squash, quiet tails come up, the note sounds denser; Depth 0 returns to dry.
@@ -71,13 +79,19 @@ the plugin. Delete the plugin log first for a clean session.
     Switching any module off returns exactly to the dry sound (no level change, no click beyond
     the module's own fade). Every module off: the sound is identical to before the FX existed.
 23. Limiter: set Volume +6 dB and Limiter Gain +12 dB, play F1 and chords: Live's peak meter
-    holds at -0.3 dBFS and never clips (no red), the sound gets denser but not crackly. Back to
+    holds at -0.3 dBFS and never clips (no red), the sound gets denser but not crackly; the
+    Gain Reduction meter (FX page, 0 to -12 dB) moves with the playing and falls back when you
+    stop, and Output Peak reads about -0.3 dBFS. Back to
     Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
-24. Candidate presets with FX (no preset browser in the plugin yet): render them with
-    `cargo run -p gts --release --example render_preset` and play
-    `docs/audits/renders/presets-fx/*.wav` in Live next to the clip: each sounds like its
-    description including the FX sentence; Screech Lead's delay answers each phrase; Sub Weight
-    stays dry and mono; no file clips or pumps.
+24. Candidate presets with FX: open the header Preset combo (under Quality) and load each of the
+    six (Sub Weight, Growl Hound, Reese Drift, Wobble Shot, Talk Box, Screech Lead): the knobs
+    and the FX page jump to the preset, the combo shows its name, and after any edit it reads
+    `<name> *`. Init sets every sound parameter back to its default; the PATCH routing, the
+    instance label and Quality do not change on any load. A/B each against its render from
+    `cargo run -p gts --release --example render_preset` (`docs/audits/renders/presets-fx/*.wav`,
+    level-matched) in Live next to the clip: each sounds like its description including the FX
+    sentence; Screech Lead's delay answers each phrase; Sub Weight stays dry and mono; no file
+    clips or pumps.
 25. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 
 ## After a session, send back

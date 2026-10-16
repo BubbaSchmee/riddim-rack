@@ -21,6 +21,7 @@ use crate::params::GtsParams;
 use nih_plug::prelude::{Enum, ParamPtr, Params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value};
+use std::sync::OnceLock;
 
 pub const FORMAT_VERSION: u32 = 1;
 pub const PRODUCT: &str = "GTS";
@@ -261,6 +262,22 @@ fn ranges() -> Vec<(String, f32, f32)> {
 /// f32 as its shortest round-trip decimal (what the knob shows), not the f64 widening.
 fn num_f32(x: f32) -> Value {
     serde_json::from_str::<Number>(&x.to_string()).map(Value::Number).unwrap_or(Value::Null)
+}
+
+/// The six factory presets, embedded (the editor's Preset combo; the files are also the QA input).
+const FACTORY_JSON: [&str; 6] = [
+    include_str!("../presets/candidates/sub-weight.json"),
+    include_str!("../presets/candidates/growl-hound.json"),
+    include_str!("../presets/candidates/reese-drift.json"),
+    include_str!("../presets/candidates/wobble-shot.json"),
+    include_str!("../presets/candidates/talk-box.json"),
+    include_str!("../presets/candidates/screech-lead.json"),
+];
+
+/// The embedded factory presets, named from each file's `"name"`. Parsed once.
+pub fn factory() -> &'static [Preset] {
+    static F: OnceLock<Vec<Preset>> = OnceLock::new();
+    F.get_or_init(|| FACTORY_JSON.iter().filter_map(|j| Preset::from_json(j).ok().map(|(p, _)| p)).collect())
 }
 
 impl Preset {

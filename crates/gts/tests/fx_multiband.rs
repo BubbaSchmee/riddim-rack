@@ -1,4 +1,4 @@
-//! SPEC v2 4.2 Multiband compressor (OTT-style) acceptance, 48 kHz. Run with `--nocapture` for
+//! SPEC v2 4.2 Multiband compressor (three-band upward/downward) acceptance, 48 kHz. Run with `--nocapture` for
 //! every figure; CPU: `cargo test --release --test fx_multiband -- --ignored --nocapture`.
 //!
 //! Levels are dB re a full-scale sine (a sine of peak -8 dBFS is "-8 dB"), the detector's scale.

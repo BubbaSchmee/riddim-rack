@@ -179,12 +179,12 @@ Every module is off by default except the limiter (always on, no `on` param). Mi
 | Module | Ids (prefix) and ranges (default) |
 |---|---|
 | Distortion `dist_` | `on` (off), `type` {Tube, Hard Clip, Overdrive, Diode, Fold Lin, Fold Sine, Bit Crush, Downsample} (Tube), `drive` -12..+36 dB (0), `bias` -1..1 (0), `filter_mode` {Off, Pre, Post} (Off), `filter_type` {LP, BP, HP} (LP), `filter_freq` 20 Hz..20 kHz (1 kHz), `filter_q` 0.3..8 (0.707), `out` -24..+12 dB (0), `autogain` (on), `mix` (1.0) |
-| Multiband (OTT-style) `mb_` | `on` (off), `depth` 0..2 = 0..200 % (1.0), `time` 0..1 (0.5: attack 10 ms, release 100 ms), `xover_lo` 60..400 Hz (120), `xover_hi` 1..8 kHz (2.5 k), `up_{lo,mid,hi}` -60..0 dB (-24), `down_{lo,mid,hi}` -60..0 dB (-12), `gain_{lo,mid,hi}` -12..+12 dB (0), `in` / `out` -24..+24 dB (0), `mix` (1.0) |
+| Multiband (three-band upward/downward) `mb_` | `on` (off), `depth` 0..2 = 0..200 % (1.0), `time` 0..1 (0.5: attack 10 ms, release 100 ms), `xover_lo` 60..400 Hz (120), `xover_hi` 1..8 kHz (2.5 k), `up_{lo,mid,hi}` -60..0 dB (-24), `down_{lo,mid,hi}` -60..0 dB (-12), `gain_{lo,mid,hi}` -12..+12 dB (0), `in` -24..+24 dB (0), `out` -24..+24 dB (+1.5: MB On then matches the dry loudness within 0.5 LU), `mix` (1.0) |
 | EQ `eq_` (no mix) | `on` (off), `low_freq` 30..500 Hz (100), `low_gain` ±15 dB (0), `peak_freq` 20 Hz..20 kHz (1 k), `peak_q` 0.2..10 (1.0), `peak_gain` ±15 dB (0), `high_freq` 1..20 kHz (8 k), `high_gain` ±15 dB (0), `cut_on` (off), `cut_freq` 20..500 Hz (30), 24 dB/oct |
 | Chorus `cho_` | `on` (off), `voices` 2..8 (4), `rate` 0.1..10 Hz (0.5), `sync` (off), `div` (the Mod divisions, 1/1), `depth` 0..1 (0.5), `delay` 1..20 ms (7), `feedback` -0.95..0.95 (0), `lpf` 200 Hz..20 kHz (20 k), `wet_lowcut` 20..500 Hz (120), `mix` (0.5) |
 | Dimension `dim_` | `on` (off), `size` 0..1 (0.5), `wet_lowcut` 20..500 Hz (120), `mix` (0.5) |
-| Delay `dly_` | `on` (off), `sync` (on), `time` 1..2000 ms (250), `div` {1/64 .. 4/1} (1/8), `feel` {Straight, Dotted, Triplet} (Dotted), `feedback` 0..0.95 (0.35), `mode` {Mono, Stereo, Ping-Pong} (Stereo), `hp` 20..2000 Hz (120), `lp` 200 Hz..20 kHz (8 k), `mix` (0.5) |
-| Reverb `rev_` | `on` (off), `type` {Plate, Hall} (Plate), `size` 0..1 (0.5), `decay` 0.1..20 s (1.5), `damp` 0..1 (0.3), `predelay` 0..300 ms (0), `lowcut` 20..1000 Hz (200), `hicut` 1..20 kHz (12 k), `width` 0..1 (1.0), `mix` (0.5) |
+| Delay `dly_` | `on` (off), `sync` (on), `time` 1..2000 ms (250), `div` {1/64 .. 4/1} (1/8), `feel` {Straight, Dotted, Triplet} (Dotted), `feedback` 0..0.95 (0.35), `mode` {Mono, Stereo, Ping-Pong} (Stereo), `hp` 20..2000 Hz (120), `lp` 200 Hz..20 kHz (8 k), `mix` (0.25) |
+| Reverb `rev_` | `on` (off), `type` {Plate, Hall} (Plate), `size` 0..1 (0.5), `decay` 0.1..20 s (1.5), `damp` 0..1 (0.3), `predelay` 0..300 ms (0), `lowcut` 20..1000 Hz (200), `hicut` 1..20 kHz (12 k), `width` 0..1 (1.0), `mix` (0.15) |
 | Limiter `lim_` | `gain` -24..+12 dB (0); ceiling fixed at -0.3 dBFS, lookahead 1.5 ms |
 
 Chorus and delay sync follow the host tempo; the chorus LFO phase locks to the beat position while
