@@ -1628,7 +1628,10 @@ dependencies = [
 name = "gts"
 version = "0.1.0"
 dependencies = [
+ "baseview",
  "eframe",
+ "egui-baseview",
+ "egui_glow",
  "nih_plug",
  "nih_plug_egui",
  "png 0.17.16",
@@ -3015,6 +3018,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "egui",
+ "egui_glow",
  "png 0.17.16",
 ]
 

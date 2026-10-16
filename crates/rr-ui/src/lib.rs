@@ -9,6 +9,7 @@
 pub mod fonts;
 pub mod paint;
 pub mod panel;
+pub mod ring;
 pub mod theme;
 pub mod widgets;
 

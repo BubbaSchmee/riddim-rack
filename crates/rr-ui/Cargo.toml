@@ -16,3 +16,5 @@ egui = { version = "=0.31.1", default-features = false }
 [dev-dependencies]
 eframe = { version = "=0.31.1" }
 png = "0.17"
+# Motion prototypes (examples/motion_gl.rs): raw GL through egui's PaintCallback. Same version eframe pulls.
+egui_glow = { version = "=0.31.1", default-features = false }

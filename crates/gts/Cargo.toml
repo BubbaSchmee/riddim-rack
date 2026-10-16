@@ -19,7 +19,15 @@ rr-bus = { path = "../rr-bus" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+[features]
+# Only for examples/plugin_loop.rs `zoom=`: needs the patched egui-baseview in docs/design/egui-baseview-zoom.patch.
+zoom-patch = []
+
 [dev-dependencies]
 # Same pins as rr-ui's preview example: only the screenshot example needs a window.
 eframe = { version = "=0.31.1" }
 png = "0.17"
+# plugin_loop example: the exact window/render path nih_plug_egui uses (same revs as Cargo.lock).
+egui-baseview = { git = "https://github.com/BillyDM/egui-baseview.git", rev = "ec70c3fe6b2f070dcacbc22924431edbe24bd1c0" }
+baseview = { git = "https://github.com/RustAudio/baseview.git", rev = "9a0b42c09d712777b2edb4c5e0cb6baf21e988f0", features = ["opengl"] }
+egui_glow = { version = "=0.31.1", default-features = false }
