@@ -122,6 +122,54 @@ pub enum FilterType {
     CombMinus,
     #[name = "AM"]
     Am,
+    // ---- Track 7 (G3, G5), appended: saved state is append-only ----
+    #[name = "HP12"]
+    Hp12,
+    #[name = "Notch"]
+    Notch,
+    #[name = "LP24"]
+    Lp24,
+    #[name = "Formant"]
+    Formant,
+}
+
+/// Oscillator warp (SPEC v2 Track 7, G4). Order is saved state: append only.
+#[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum WarpMode {
+    #[name = "Off"]
+    Off,
+    /// Through-zero phase modulation from the other oscillator's output.
+    #[name = "FM"]
+    Fm,
+    /// Hard sync to the other oscillator's period.
+    #[name = "Sync"]
+    Sync,
+    #[name = "Bend+"]
+    BendPlus,
+    #[name = "Bend-"]
+    BendMinus,
+    #[name = "PWM"]
+    Pwm,
+}
+
+/// Sub oscillator shape (Track 7, G10).
+#[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SubShape {
+    #[name = "Sine"]
+    Sine,
+    #[name = "Triangle"]
+    Triangle,
+}
+
+/// Noise layer colour (Track 7, G8).
+#[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum NoiseType {
+    #[name = "White"]
+    White,
+    #[name = "Pink"]
+    Pink,
+    #[name = "Brown"]
+    Brown,
 }
 
 #[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
@@ -266,6 +314,12 @@ pub struct OscParams {
     /// On: every note starts the oscillator at the same (seeded) phases. Off: free-running.
     #[id = "phase_reset"]
     pub phase_reset: BoolParam,
+    // ---- Track 7 (G4) ----
+    /// Warp mode (default Off) and amount 0..1.
+    #[id = "warp_mode"]
+    pub warp_mode: EnumParam<WarpMode>,
+    #[id = "warp_amt"]
+    pub warp_amt: FloatParam,
 }
 
 impl OscParams {
@@ -298,6 +352,8 @@ impl OscParams {
             width: unit(n("Width"), 0.5),
             rand_phase: unit(n("Rand Phase"), 0.0),
             phase_reset: BoolParam::new(n("Phase Reset"), true),
+            warp_mode: EnumParam::new(n("Warp"), WarpMode::Off),
+            warp_amt: unit(n("Warp Amt"), 0.0),
         }
     }
 }
@@ -447,9 +503,31 @@ pub struct SubParams {
     /// dB, -60..0 (0 dB = the RMS of a full-level oscillator).
     #[id = "level"]
     pub level: FloatParam,
-    /// Octaves below Osc A, -2..-1.
+    /// Octaves below Osc A, -2..0 (Track 7 added 0; stored plain values keep their meaning).
     #[id = "oct"]
     pub oct: IntParam,
+    // ---- Track 7 (G10) ----
+    #[id = "shape"]
+    pub shape: EnumParam<SubShape>,
+    /// Start phase at note-on, degrees 0..360.
+    #[id = "phase"]
+    pub phase: FloatParam,
+    /// Soft saturation 0..1 (the sub stays mono).
+    #[id = "drive"]
+    pub drive: FloatParam,
+}
+
+/// Noise layer (Track 7, G8). Ids `noise_{type,level,tone}`.
+#[derive(Params)]
+pub struct NoiseParams {
+    #[id = "type"]
+    pub ty: EnumParam<NoiseType>,
+    /// dB, -60 (off) .. 0 (0 dB = the RMS of a full-level oscillator).
+    #[id = "level"]
+    pub level: FloatParam,
+    /// 0 dark (low-pass) .. 0.5 flat .. 1 bright (high-pass).
+    #[id = "tone"]
+    pub tone: FloatParam,
 }
 
 /// Mod wheel (CC1) amounts, bipolar. Ids: `wheel_{index,shift,cutoff,mod}`.
@@ -910,6 +988,9 @@ pub struct GtsParams {
     pub fenv: FilterEnvParams,
     #[nested(id_prefix = "sub", group = "Sub")]
     pub sub: SubParams,
+    /// Track 7 (G8).
+    #[nested(id_prefix = "noise", group = "Noise")]
+    pub noise: NoiseParams,
 
     #[id = "routing"]
     pub routing: EnumParam<Routing>,
@@ -1061,7 +1142,22 @@ impl Default for GtsParams {
                 level: FloatParam::new("Sub Level", -6.0, FloatRange::Linear { min: -60.0, max: 0.0 })
                     .with_unit(" dB")
                     .with_value_to_string(formatters::v2s_f32_rounded(1)),
-                oct: IntParam::new("Sub Octave", -1, IntRange::Linear { min: -2, max: -1 }),
+                oct: IntParam::new("Sub Octave", -1, IntRange::Linear { min: -2, max: 0 }),
+                shape: EnumParam::new("Sub Shape", SubShape::Sine),
+                phase: FloatParam::new("Sub Phase", 0.0, FloatRange::Linear { min: 0.0, max: 360.0 })
+                    .with_unit("°")
+                    .with_value_to_string(formatters::v2s_f32_rounded(0)),
+                drive: unit("Sub Drive".into(), 0.0),
+            },
+            noise: NoiseParams {
+                ty: EnumParam::new("Noise Type", NoiseType::White),
+                level: FloatParam::new("Noise Level", -60.0, FloatRange::Linear { min: -60.0, max: 0.0 })
+                    .with_value_to_string(Arc::new(|v| if v <= -59.95 { "Off".into() } else { format!("{v:.1} dB") }))
+                    .with_string_to_value(Arc::new(|s| {
+                        let s = s.trim().trim_end_matches("dB").trim();
+                        if s.eq_ignore_ascii_case("off") { Some(-60.0) } else { s.parse().ok() }
+                    })),
+                tone: unit("Noise Tone".into(), 0.5),
             },
 
             routing: EnumParam::new("Routing", Routing::Parallel),

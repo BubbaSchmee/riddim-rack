@@ -139,7 +139,7 @@ fn osc_slots<'a>(pre: &str, o: &'a mut OscPatch, out: &mut Vec<(String, Slot<'a>
     use Slot::*;
     let OscPatch {
         on, table, oct, semi, cent, index, motion, shift, vol, att, dec, sus, rel, curve, unison, detune, det_curve,
-        blend, width, rand_phase, phase_reset,
+        blend, width, rand_phase, phase_reset, warp, warp_amt,
     } = o;
     #[rustfmt::skip]
     let v = [
@@ -148,6 +148,8 @@ fn osc_slots<'a>(pre: &str, o: &'a mut OscPatch, out: &mut Vec<(String, Slot<'a>
         ("dec", F(dec)), ("sus", F(sus)), ("rel", F(rel)), ("curve", F(curve)), ("unison", N(unison)),
         ("detune", F(detune)), ("det_curve", F(det_curve)), ("blend", F(blend)), ("width", F(width)),
         ("rand_phase", F(rand_phase)), ("phase_reset", B(phase_reset)),
+        // Track 7
+        ("warp_mode", E(warp)), ("warp_amt", F(warp_amt)),
     ];
     prefixed(pre, v, out);
 }
@@ -225,13 +227,15 @@ fn fx_slots<'a>(f: &'a mut FxPatch, out: &mut Vec<(String, Slot<'a>)>) {
 /// Every preset parameter of `p` under its param id (all GtsParams ids except the CV slots).
 pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     use Slot::*;
-    let mut out = Vec::with_capacity(180);
+    let mut out = Vec::with_capacity(192);
     let Patch {
         osc: [osca, oscb], moda, modb, moda_pitch, moda_index, moda_shift, modb_motion, modb_vol, modb_cutoff,
         modb_moda, shaper_on, shaper_mode, shaper_amt, filt: [filta, filtb], fenv_att, fenv_dec, fenv_sus, fenv_rel,
         fenv_amt, fenv_inv, fenv_curve, sub_on, sub_level_db, sub_oct, mono_xover, routing, poly, legato, porta,
         bend_range, wheel_index, wheel_shift, wheel_cutoff, wheel_mod, vel_vol_a, vel_vol_b, vel_fenv, vel_att,
         vel_shift, vel_mod, volume_db, spread, fx, macros: [m1, m2, m3, m4],
+        // Track 7 sound
+        sub_shape, sub_phase, sub_drive, noise_type, noise_level_db, noise_tone,
     } = p;
     osc_slots("osca", osca, &mut out);
     osc_slots("oscb", oscb, &mut out);
@@ -254,6 +258,9 @@ pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
         ("vel_vol_a", F(vel_vol_a)), ("vel_vol_b", F(vel_vol_b)), ("vel_fenv", F(vel_fenv)), ("vel_att", F(vel_att)),
         ("vel_shift", F(vel_shift)), ("vel_mod", F(vel_mod)), ("volume", F(volume_db)), ("spread", F(spread)),
         ("macro1", F(m1)), ("macro2", F(m2)), ("macro3", F(m3)), ("macro4", F(m4)),
+        // Track 7 sound
+        ("sub_shape", E(sub_shape)), ("sub_phase", F(sub_phase)), ("sub_drive", F(sub_drive)),
+        ("noise_type", E(noise_type)), ("noise_level", F(noise_level_db)), ("noise_tone", F(noise_tone)),
     ];
     out.extend(rest.into_iter().map(|(k, s)| (k.to_string(), s)));
     out
@@ -432,7 +439,7 @@ mod tests {
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        assert_eq!(got.len(), 180); // 102 + 74 FX + 4 macros
+        assert_eq!(got.len(), 190); // 102 + 74 FX + 4 macros + 10 Track 7 sound (warp, sub, noise)
     }
 
     #[test]
@@ -512,7 +519,7 @@ mod tests {
         let params = v["params"].as_object_mut().unwrap();
         let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
         params.retain(|k, _| !fx_prefixes.iter().any(|f| k.starts_with(f)));
-        assert_eq!(params.len(), 106);
+        assert_eq!(params.len(), 116); // 106 + 10 Track 7 sound
         let (q, w) = Preset::from_json(&serde_json::to_string(&v).unwrap()).unwrap();
         assert!(w.is_empty(), "{w:?}");
         assert_eq!(q.patch.fx, Patch::default().fx);

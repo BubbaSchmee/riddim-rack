@@ -42,9 +42,14 @@ const GRAIN_MIP: usize = 4;
 /// Fundamental at which the Hz-based tables (Vowel, Reed) are voiced. Shift moves them from here.
 const REF_F0: f32 = 65.0;
 
-/// Harmonics kept by mip `m`: `round(HMAX * 2^(-m/4))`.
+/// Harmonics kept by mip `m`: `round(HMAX * 2^(-m/4))` (tabulated: `mip_for` runs per grain
+/// block, Track 7's warped oscillators at 2-4x that; tests/track7_sound.rs checks the formula).
 pub fn harmonics(m: usize) -> usize {
-    (HMAX as f64 * 2f64.powf(-(m as f64) / 4.0)).round() as usize
+    const H: [usize; MIPS] = [
+        512, 431, 362, 304, 256, 215, 181, 152, 128, 108, 91, 76, 64, 54, 45, 38, 32, 27, 23, 19, 16, 13, 11, 10, 8, 7, 6,
+        5, 4, 3, 3, 2, 2, 2, 1, 1, 1,
+    ];
+    H[m]
 }
 
 /// Samples stored for mip `m`: 8 per top harmonic of its octave, never under 128.
@@ -72,13 +77,16 @@ const SHIFT_LO: i32 = -24;
 const SHIFTS: usize = (1 - 2 * SHIFT_LO) as usize;
 
 /// Peterson & Barney F1..F3 (Hz) for A, E, I, O, U (same values as VSS).
-const VOWELS: [[f32; 3]; 5] = [
+pub(crate) const VOWELS: [[f32; 3]; 5] = [
     [730.0, 1090.0, 2440.0],
     [530.0, 1840.0, 2480.0],
     [270.0, 2290.0, 3010.0],
     [570.0, 840.0, 2410.0],
     [300.0, 870.0, 2240.0],
 ];
+/// Formant peak levels and bandwidths (Hz) of F1..F3 (the Vowel table and the Formant filter).
+pub(crate) const VOWEL_AMP: [f32; 3] = [1.0, 0.6, 0.35];
+pub(crate) const VOWEL_BW: [f32; 3] = [90.0, 110.0, 150.0];
 
 /// Harmonic coefficients, `c.0 * cos(h t) + c.1 * sin(h t)`, index = harmonic number (0 unused).
 type Coefs = [(f32, f32); HMAX + 1];
@@ -451,8 +459,7 @@ fn harmonic_rise(x: f32, c: &mut Coefs) {
 /// Narrow-pulse (flat, gently tilted) source through three formant peaks, A -> E -> I -> O -> U
 /// with formants interpolated in log frequency.
 fn vowel(x: f32, c: &mut Coefs) {
-    const AMP: [f32; 3] = [1.0, 0.6, 0.35];
-    const BW: [f32; 3] = [90.0, 110.0, 150.0];
+    use self::{VOWEL_AMP as AMP, VOWEL_BW as BW};
     let u = x * 4.0;
     let v0 = (u as usize).min(3);
     let f = u - v0 as f32;

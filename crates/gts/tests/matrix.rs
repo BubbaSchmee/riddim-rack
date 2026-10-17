@@ -548,7 +548,7 @@ fn target_table_follows_the_spec_scopes() {
     // Every FloatParam / IntParam (138) minus the 4 macros, 3 CV amounts and Polyphony.
     let n = params_info().iter().filter(|p| p.target).count();
     println!("{n} targets ({} voice scope)", params_info().iter().filter(|p| p.voice).count());
-    assert_eq!(n, 130);
+    assert_eq!(n, 136); // + 6 Track 7 sound (warp amounts, sub phase / drive, noise level / tone)
 }
 
 #[test]

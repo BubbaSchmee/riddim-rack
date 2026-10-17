@@ -11,6 +11,22 @@
 //!   frequencies. With the note known ([`MultiFilter::set_note`]) it is unity power gain over the
 //!   note's harmonic series (1/h^2 weighted), which is what a played note actually feeds it. A soft
 //!   clip (transparent below 0.5, never reaching 1.0) follows.
+//!
+//! Track 7 (G3, G5):
+//! - HP12 and Notch are the same SVF (same coefficients and tanh damping as LP12): high-pass
+//!   `x - k_e b - l`, notch `x - k_e b`.
+//! - LP24: two linear TPT sections tuned as a Butterworth-4 (1/Q 1.848 and 0.765), global feedback
+//!   `kf = LP24_FB * res` around both and `(1 + kf)` input gain, so the small-signal passband stays
+//!   at 0 dB for any res. The loop is solved zero-delay for the linear part, then the input of the
+//!   first section goes through `S * tanh(u / S)` (the drive in the loop): it bounds the
+//!   self-oscillation (onset at res 0.96, where `kf` reaches sqrt 2, the BW4 loss at cutoff) to a
+//!   clean sine of about 0.3 and saturates loud resonant input instead of letting it run away.
+//! - Formant: three parallel unity-peak band-passes (linear TPT SVFs) on F1..F3 of the
+//!   Peterson-Barney vowels (`tables::VOWELS`, levels and bandwidths as the Vowel table). The
+//!   cutoff picks the vowel: 20 Hz = A, 20 kHz = U, log-spaced (A-E-I-O-U every 2.5 octaves),
+//!   formants interpolated in log frequency. Res scales the bandwidths by `3^(1 - 2 res)`
+//!   (res 0.5 = the table's 90 / 110 / 150 Hz, res 0 three times wider, res 1 three times narrower).
+use super::tables::{VOWELS, VOWEL_AMP, VOWEL_BW};
 use crate::params::FilterType;
 use std::f64::consts::{PI, SQRT_2, TAU};
 
@@ -27,6 +43,52 @@ const SVF_KN: f64 = 2.0;
 const SVF_SAT: f64 = 0.5;
 /// Harmonics of the note used for the Comb- loudness match.
 const COMB_HARMONICS: usize = 16;
+/// LP24 feedback at res 1.0 (self-oscillation from `kf = sqrt 2`) and the loop drive level.
+pub const LP24_FB: f64 = 1.04 * SQRT_2;
+pub const LP24_SAT: f64 = 1.0;
+/// 1/Q of the two sections of a 4th-order Butterworth.
+pub const BW4_K: [f64; 2] = [1.847_759_065_022_573_5, 0.765_366_864_730_179_6];
+/// Formant output gain (three narrow peaks pass little of a broadband source).
+pub const FORMANT_GAIN: f64 = 2.0;
+
+/// Vowel position 0 (A) .. 4 (U) for a cutoff in Hz: log-spaced over 20 Hz .. 20 kHz.
+pub fn formant_pos(hz: f64) -> f64 {
+    ((hz / 20.0).log2() / 1000f64.log2()).clamp(0.0, 1.0) * 4.0
+}
+
+/// F1..F3 (Hz) at vowel position `pos` (0..4), interpolated in log frequency.
+pub fn formants(pos: f64) -> [f64; 3] {
+    let v0 = (pos as usize).min(3);
+    let f = pos - v0 as f64;
+    std::array::from_fn(|k| {
+        let (a, b) = (VOWELS[v0][k] as f64, VOWELS[v0 + 1][k] as f64);
+        a * (b / a).powf(f)
+    })
+}
+
+/// Formant bandwidths (Hz) at `res`.
+pub fn formant_bw(res: f64) -> [f64; 3] {
+    let s = 3f64.powf(1.0 - 2.0 * res.clamp(0.0, 1.0));
+    std::array::from_fn(|k| VOWEL_BW[k] as f64 * s)
+}
+
+/// TPT SVF coefficients `(a1, a2, a3)` for `g = tan(pi f / sr)` and damping `k`.
+#[inline]
+fn svf_coefs(g: f64, k: f64) -> [f64; 3] {
+    let a1 = 1.0 / (1.0 + g * (g + k));
+    [a1, g * a1, g * g * a1]
+}
+
+/// One linear TPT SVF step on state `[ic1, ic2]`: (band, low).
+#[inline]
+fn svf_tick(s: &mut [f64; 2], c: &[f64; 3], x: f64) -> (f64, f64) {
+    let v3 = x - s[1];
+    let v1 = c[0] * s[0] + c[1] * v3;
+    let v2 = s[1] + c[1] * s[0] + c[2] * v3;
+    s[0] = 2.0 * v1 - s[0];
+    s[1] = 2.0 * v2 - s[1];
+    (v1, v2)
+}
 
 pub struct MultiFilter {
     sr: f64,
@@ -57,6 +119,14 @@ pub struct MultiFilter {
     phase: f64,
     inc: f64,
     fresh: bool,
+    // ---- Track 7: LP24 (sections 0, 1) and Formant (0..2) ----
+    /// Section states `[ic1, ic2]`, coefficients `(a1, a2, a3)`, Formant band gains.
+    st: [[f64; 2]; 3],
+    sc: [[f64; 3]; 3],
+    sa: [f64; 3],
+    /// LP24 feedback and input gain.
+    kf: f64,
+    comp: f64,
 }
 
 /// Soft clip for the Comb- output: identity up to 0.5, tanh knee above, never reaches 1.0.
@@ -94,6 +164,11 @@ impl MultiFilter {
             phase: 0.0,
             inc: 0.0,
             fresh: true,
+            st: [[0.0; 2]; 3],
+            sc: [[0.0; 3]; 3],
+            sa: [0.0; 3],
+            kf: 0.0,
+            comp: 1.0,
         };
         f.set(FilterType::Lp12, 1000.0, 0.0);
         f
@@ -112,6 +187,7 @@ impl MultiFilter {
         self.buf.fill(0.0);
         self.phase = 0.0;
         self.fresh = true;
+        self.st = [[0.0; 2]; 3];
     }
 
     pub fn kind(&self) -> FilterType {
@@ -138,6 +214,7 @@ impl MultiFilter {
             (sr, kind, g, k, kn, bp_gain, ic1, ic2, v1, bp);
         (self.w, self.delay, self.delay_t, self.mix, self.fb, self.norm, self.note_hz, self.phase, self.inc, self.fresh) =
             (w, delay, delay_t, mix, fb, norm, note_hz, phase, inc, fresh);
+        (self.st, self.sc, self.sa, self.kf, self.comp) = (other.st, other.sc, other.sa, other.kf, other.comp);
     }
 
     pub fn set(&mut self, kind: FilterType, freq_hz: f32, res: f32) {
@@ -145,7 +222,7 @@ impl MultiFilter {
         let res = res.clamp(0.0, 1.0);
         let f = (freq_hz as f64).clamp(20.0, 0.45 * self.sr);
         match kind {
-            FilterType::Lp12 | FilterType::Bp12 => {
+            FilterType::Lp12 | FilterType::Bp12 | FilterType::Hp12 | FilterType::Notch => {
                 let r = res as f64;
                 self.g = (PI * f / self.sr).tan();
                 self.k = (SQRT_2 + SVF_NEG) * (1.0 - r).powf(SVF_P) - SVF_NEG;
@@ -167,6 +244,22 @@ impl MultiFilter {
             FilterType::Am => {
                 self.inc = TAU * f / self.sr;
                 self.mix = res;
+            }
+            FilterType::Lp24 => {
+                let g = (PI * f / self.sr).tan();
+                self.sc[0] = svf_coefs(g, BW4_K[0]);
+                self.sc[1] = svf_coefs(g, BW4_K[1]);
+                self.kf = LP24_FB * res as f64;
+                self.comp = 1.0 + self.kf;
+            }
+            FilterType::Formant => {
+                let (fk, bw) = (formants(formant_pos(f)), formant_bw(res as f64));
+                for k in 0..3 {
+                    let fc = fk[k].min(0.45 * self.sr);
+                    let q = fc / bw[k];
+                    self.sc[k] = svf_coefs((PI * fc / self.sr).tan(), 1.0 / q);
+                    self.sa[k] = FORMANT_GAIN * VOWEL_AMP[k] as f64 / q;
+                }
             }
         }
     }
@@ -202,7 +295,7 @@ impl MultiFilter {
 
     pub fn process(&mut self, x: f32) -> f32 {
         match self.kind {
-            FilterType::Lp12 | FilterType::Bp12 => {
+            FilterType::Lp12 | FilterType::Bp12 | FilterType::Hp12 | FilterType::Notch => {
                 // Silent in, (practically) silent state: output 0 without the work. An unused
                 // filter (Osc B off in Parallel) then costs nothing.
                 if x == 0.0 && self.ic1.abs() < 1e-15 && self.ic2.abs() < 1e-15 {
@@ -224,10 +317,11 @@ impl MultiFilter {
                 self.ic2 = 2.0 * v2 - self.ic2;
                 self.bp = 0.5 * (v1 + self.v1);
                 self.v1 = v1;
-                if self.kind == FilterType::Lp12 {
-                    v2 as f32
-                } else {
-                    (self.bp_gain * v1) as f32
+                match self.kind {
+                    FilterType::Lp12 => v2 as f32,
+                    FilterType::Bp12 => (self.bp_gain * v1) as f32,
+                    FilterType::Hp12 => (x - ke * v1 - v2) as f32,
+                    _ => (x - ke * v1) as f32,
                 }
             }
             FilterType::CombPlus => {
@@ -248,6 +342,33 @@ impl MultiFilter {
                 let m = (self.phase.sin() as f32) * self.mix;
                 self.phase = (self.phase + self.inc) % TAU;
                 x * (1.0 - self.mix) + x * m
+            }
+            FilterType::Lp24 => {
+                if x == 0.0 && self.st[..2].iter().flatten().all(|v| v.abs() < 1e-15) {
+                    self.st = [[0.0; 2]; 3];
+                    return 0.0;
+                }
+                let [c0, c1] = [self.sc[0], self.sc[1]];
+                // Each section's low output is affine in its input: lp = a3 * in + s.
+                let s0 = self.st[0][1] + c0[1] * self.st[0][0] - c0[2] * self.st[0][1];
+                let s1 = self.st[1][1] + c1[1] * self.st[1][0] - c1[2] * self.st[1][1];
+                let kf = self.kf;
+                let u = (self.comp * x as f64 - kf * (c1[2] * s0 + s1)) / (1.0 + kf * c0[2] * c1[2]);
+                let u = LP24_SAT * (u / LP24_SAT).tanh();
+                let (_, y0) = svf_tick(&mut self.st[0], &c0, u);
+                svf_tick(&mut self.st[1], &c1, y0).1 as f32
+            }
+            FilterType::Formant => {
+                if x == 0.0 && self.st.iter().flatten().all(|v| v.abs() < 1e-15) {
+                    self.st = [[0.0; 2]; 3];
+                    return 0.0;
+                }
+                let x = x as f64;
+                let mut y = 0.0;
+                for k in 0..3 {
+                    y += self.sa[k] * svf_tick(&mut self.st[k], &self.sc[k], x).0;
+                }
+                y as f32
             }
         }
     }

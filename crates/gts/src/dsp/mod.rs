@@ -6,6 +6,7 @@ pub mod filter;
 pub mod fx;
 pub mod grain;
 pub mod lfo;
+pub mod noise;
 pub mod shaper;
 pub mod tables;
 pub mod voice;
@@ -14,6 +15,7 @@ use crate::matrix::{self, flag, ModRt, Source, ENC_LEN, N_SOURCES, TICK};
 use crate::params::{
     Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
 };
+use crate::params::{NoiseType, SubShape, WarpMode};
 use fx::{FxChain, FxPatch};
 use nih_plug::prelude::NoteEvent;
 use std::sync::{Arc, OnceLock};
@@ -53,6 +55,9 @@ pub struct OscPatch {
     pub width: f32,
     pub rand_phase: f32,
     pub phase_reset: bool,
+    /// Track 7 (G4): warp mode and amount 0..1.
+    pub warp: WarpMode,
+    pub warp_amt: f32,
 }
 
 impl OscPatch {
@@ -79,6 +84,8 @@ impl OscPatch {
             width: p.width.value(),
             rand_phase: p.rand_phase.value(),
             phase_reset: p.phase_reset.value(),
+            warp: p.warp_mode.value(),
+            warp_amt: p.warp_amt.value(),
         }
     }
 }
@@ -188,6 +195,15 @@ pub struct Patch {
     pub fx: FxPatch,
     /// Macro 1..4, 0..1 (matrix sources, SPEC v2 Track 5).
     pub macros: [f32; 4],
+    // ---- Track 7 sound (G8, G10) ----
+    /// Sub shape, start phase in degrees, soft drive 0..1.
+    pub sub_shape: SubShape,
+    pub sub_phase: f32,
+    pub sub_drive: f32,
+    /// Noise layer: type, level dB (-60 = off), tone 0..1 (0.5 flat).
+    pub noise_type: NoiseType,
+    pub noise_level_db: f32,
+    pub noise_tone: f32,
 }
 
 impl Patch {
@@ -237,6 +253,13 @@ impl Patch {
             spread: p.spread.value(),
             fx: FxPatch::from_params(p),
             macros: p.macros.values(),
+            // Track 7 sound
+            sub_shape: p.sub.shape.value(),
+            sub_phase: p.sub.phase.value(),
+            sub_drive: p.sub.drive.value(),
+            noise_type: p.noise.ty.value(),
+            noise_level_db: p.noise.level.value(),
+            noise_tone: p.noise.tone.value(),
         }
     }
 }

@@ -34,6 +34,14 @@ fn spec_ids() -> Vec<String> {
         "sub_on", "sub_level", "sub_oct", "mono_xover"] {
         v.push(s.into());
     }
+    // SPEC v2 Track 7 sound: warp, sub shape / phase / drive, noise layer
+    for o in ["osca", "oscb"] {
+        v.push(format!("{o}_warp_mode"));
+        v.push(format!("{o}_warp_amt"));
+    }
+    for s in ["sub_shape", "sub_phase", "sub_drive", "noise_type", "noise_level", "noise_tone"] {
+        v.push(s.into());
+    }
     v.extend(fx_ids());
     // SPEC v2 Track 5: macro knobs
     v.extend((1..=4).map(|k| format!("macro{k}")));
@@ -72,7 +80,7 @@ fn ids_match_spec() {
     got.sort();
     want.sort();
     assert_eq!(got, want);
-    assert_eq!((fx_ids().len(), got.len()), (74, 186));
+    assert_eq!((fx_ids().len(), got.len()), (74, 196)); // + 10 Track 7 sound
 }
 
 /// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on
