@@ -369,7 +369,6 @@ pub struct Engine {
     held: [(u8, f32); MAX_HELD],
     n_held: usize,
     age: u64,
-    last_voice: usize,
     /// Raw controller values: bend -1..1, wheel 0..1.
     bend_raw: f32,
     wheel_raw: f32,
@@ -405,7 +404,6 @@ impl Engine {
             held: [(0, 0.0); MAX_HELD],
             n_held: 0,
             age: 0,
-            last_voice: 0,
             bend_raw: 0.0,
             wheel_raw: 0.0,
             gain: 0.0,
@@ -585,6 +583,11 @@ impl Engine {
         self.ctl.wheel
     }
 
+    /// The patch the voices currently read (the block's, CV included).
+    pub fn patch(&self) -> &Patch {
+        &self.patch
+    }
+
     pub fn voice(&self, i: usize) -> &Voice {
         &self.voices[i]
     }
@@ -606,11 +609,6 @@ impl Engine {
     /// Limiter gain reduction in dB (>= 0), deepest since the last call. Audio thread, once per block.
     pub fn limiter_gr_db(&mut self) -> f32 {
         self.fx.limiter_gr_db()
-    }
-
-    /// Osc A grain index (0..127) of the most recently triggered voice, for the GUI.
-    pub fn display_index(&self) -> u32 {
-        self.voices[self.last_voice].index(0).round() as u32
     }
 
     fn glide_allowed(&self, v: &Voice) -> bool {
@@ -639,7 +637,6 @@ impl Engine {
             let retrigger = !(patch.legato && v.gate);
             v.trigger(note, velocity, glide, retrigger, age, &patch, &ctl);
             v.configure_mods(&patch, &self.transport);
-            self.last_voice = 0;
             return;
         }
         let n = patch.poly.min(MAX_VOICES);
@@ -656,7 +653,6 @@ impl Engine {
         self.voices[i].trigger(note, velocity, glide, true, age, &patch, &ctl);
         // Lock synced LFOs to the grid now, not at the next block (that would step mid-note).
         self.voices[i].configure_mods(&patch, &self.transport);
-        self.last_voice = i;
     }
 
     pub fn note_off(&mut self, note: u8) {

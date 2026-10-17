@@ -1,6 +1,6 @@
 //! The editor must bind every parameter, and only real ones.
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, ParamTable, WINDOW};
+use gts::editor::{draw, BusView, Ctl, LiveView, ParamTable, WINDOW};
 use gts::params::GtsParams;
 use nih_plug::prelude::Params;
 use nih_plug_egui::egui;
@@ -65,17 +65,19 @@ fn editor_binds_every_param_exactly() {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(WINDOW.0 as f32, WINDOW.1 as f32))),
         ..Default::default()
     };
-    // Both pages; two passes each, the first one only loads the fonts.
-    let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], oversampling: 2, ..Default::default() };
+    // Both pages; two passes each, the first one only loads the fonts. The PATCH popover is open
+    // (its CV-in params live there).
+    let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], oversampling: 2, patch_open: true, ..Default::default() };
+    let mut live = LiveView::idle();
     for fx_page in [false, true] {
         bv.fx_page = fx_page;
         let mut overflow = egui::Vec2::ZERO;
         for _ in 0..2 {
             let _ = ctx.run(input.clone(), |ctx| {
-                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| overflow = draw(ui, &ctl, &tables, 64, &mut bv));
+                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| overflow = draw(ui, &ctl, &tables, &mut live, &mut bv));
             });
         }
-        // Layout: every row fits the window's body area (no clipped groups).
+        // Layout: every group's content fits its fixed rect, and the FX rows fit the body area.
         assert_eq!(overflow, egui::Vec2::ZERO, "page fx={fx_page} overflows the {WINDOW:?} window by {overflow:?}");
     }
     // (an unknown id would already have panicked inside ParamTable)

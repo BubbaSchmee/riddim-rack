@@ -4,11 +4,16 @@
 //! (timestamped inside a PaintCallback, i.e. just before swap_buffers) and how often the update
 //! closure runs.
 //!
-//!   cargo run -p gts --release --example plugin_loop -- [gts] [gl] [vsync=0|1] [repaint=every|after33|after16]
-//!                                                      [tbp] [frames=600] [scale=1.0] [shot]
+//!   cargo run -p gts --release --example plugin_loop -- [gts] [notes] [fx] [gl] [vsync=0|1] [repaint=every|after33|after16]
+//!                                                      [tbp] [frames=600] [scale=1.0] [shot] [cpu]
 //!
-//!   gts      draw the real GTS editor (else a trivial panel)
-//!   fx       also draw generated-texture effects (drop shadows, additive glow sprites, brushed noise) over the panel
+//!   gts      draw the real GTS editor (else a trivial panel); its hero is the GL paint callback
+//!   notes    an audio thread plays the riddim demo pattern (Wobble Shot) on the real engine in real
+//!            time and publishes through the plugin's own VizWriter / Meters, so every live display moves;
+//!            also reports the hero's own GPU time (timer query)
+//!   page=fx  show the FX page
+//!   cpu      force the hero's CPU fallback
+//!   fxtex    also draw generated-texture effects (drop shadows, additive glow sprites, brushed noise) over the panel
 //!   gl       also draw the 3D wavetable GL view (wavegl.rs) over the header
 //!   repaint  every   = ctx.request_repaint() each update  (what nih_plug_egui does, always)
 //!            after33 = only request_repaint_after(33 ms)  (what gts/src/editor.rs asks for)
@@ -26,8 +31,7 @@ use baseview::{Size, WindowOpenOptions, WindowScalePolicy};
 use eframe::egui::{self, pos2, vec2, Rect};
 use egui_baseview::{EguiWindow, GraphicsConfig};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, ParamTable, WINDOW};
-use gts::params::GtsParams;
+use gts::editor::{draw, BusView, LiveView, WINDOW};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -35,22 +39,13 @@ use std::time::{Duration, Instant};
 mod wavegl;
 #[path = "../../rr-ui/examples/support/fx_tex.rs"]
 mod fx_tex;
+#[path = "support/demo.rs"]
+mod demo;
 
 #[cfg(windows)]
 #[link(name = "winmm")]
 extern "system" {
     fn timeBeginPeriod(u: u32) -> u32;
-}
-
-struct DefCtl(ParamTable);
-impl Ctl for DefCtl {
-    fn get01(&self, id: &str) -> f32 { self.0.get01(id) }
-    fn default01(&self, id: &str) -> f32 { self.0.default01(id) }
-    fn readout(&self, id: &str) -> String { self.0.readout_at(id, self.0.get01(id)) }
-    fn steps(&self, id: &str) -> Option<usize> { self.0.steps(id) }
-    fn begin(&self, _: &str) {}
-    fn set01(&self, _: &str, _: f32) {}
-    fn end(&self, _: &str) {}
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -62,9 +57,12 @@ enum Repaint {
 struct State {
     gts: bool,
     gl: Option<wavegl::WaveGl>,
-    ctl: DefCtl,
+    ctl: demo::MapCtl,
     tables: Tables,
     bv: BusView,
+    live: LiveView,
+    meters: Arc<gts::editor::Meters>,
+    hero_gpu: Arc<Mutex<Vec<f32>>>,
     repaint: Repaint,
     frames: usize,
     stamps: Arc<Mutex<Vec<Instant>>>,
@@ -113,12 +111,41 @@ fn main() {
     let stamps = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let updates = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let update_ms = Arc::new(Mutex::new(Vec::<f64>::new()));
+    let (pi, preset) = demo::factory("Wobble Shot");
+    let feed = demo::Feed::new(preset.patch);
+    let (meters, viz, ring) = (feed.meters.clone(), feed.viz.clone(), feed.ring.clone());
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let audio = has("notes").then(|| {
+        let stop = stop.clone();
+        let mut feed = feed;
+        // Real-time pacing: render whatever the clock says is due, in <= 256-sample blocks.
+        std::thread::spawn(move || {
+            let t0 = Instant::now();
+            let mut done = 0usize;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                let due = (t0.elapsed().as_secs_f64() * feed.sr() as f64) as usize;
+                if due > done {
+                    let n = (due - done).min(4096);
+                    feed.render(n);
+                    done += n;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+        })
+    });
+    let mut live = LiveView::new(viz, Some(ring));
+    live.hero.force_cpu = has("cpu");
+    live.hero.measure_gpu = true;
+    let hero_gpu = Arc::new(Mutex::new(Vec::<f32>::new()));
     let state = State {
         gts: has("gts"),
         gl: has("gl").then(|| wavegl::WaveGl::new(wavegl::demo_waves())),
-        ctl: DefCtl(ParamTable::new(Arc::new(GtsParams::default()))),
+        ctl: demo::MapCtl::with_preset(Some(preset)),
         tables,
-        bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(2), peak_db: -6.0, ..Default::default() },
+        bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), peak_db: -6.0, fx_page: val("page").as_deref() == Some("fx"), ..Default::default() },
+        live,
+        meters,
+        hero_gpu: hero_gpu.clone(),
         repaint,
         frames,
         stamps: stamps.clone(),
@@ -126,13 +153,16 @@ fn main() {
         update_ms: update_ms.clone(),
         shot: has("shot"),
         fx: None,
-        want_fx: has("fx"),
+        want_fx: has("fxtex"),
         zoom: val("zoom").and_then(|v| v.parse().ok()).unwrap_or(1.0),
         zoom_pending: val("zoom").is_some(),
     };
     let desc = format!(
-        "gts={} gl={} vsync={vsync} repaint={} tbp={} scale={scale}",
+        "gts={} notes={} page={} hero={} gl-overlay={} vsync={vsync} repaint={} tbp={} scale={scale}",
         has("gts"),
+        has("notes"),
+        val("page").unwrap_or("synth".into()),
+        if has("cpu") { "CPU fallback" } else { "GL callback" },
         has("gl"),
         match repaint { Repaint::Every => "every".to_string(), Repaint::After(n) => format!("after{n}") },
         has("tbp")
@@ -177,7 +207,9 @@ fn main() {
             }
             egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
                 if st.gts {
-                    draw(ui, &st.ctl, &st.tables, 40, &mut st.bv);
+                    st.live.peaks = std::array::from_fn(|i| f32::from_bits(st.meters.peak[i].swap(0, std::sync::atomic::Ordering::Relaxed)));
+                    draw(ui, &st.ctl, &st.tables, &mut st.live, &mut st.bv);
+                    st.hero_gpu.lock().unwrap().extend(st.live.hero.take_gpu_ms());
                 } else {
                     ui.painter().rect_filled(ui.max_rect(), 0, egui::Color32::from_rgb(30, 32, 36));
                 }
@@ -241,6 +273,10 @@ fn main() {
             }
         },
     );
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    if let Some(a) = audio {
+        a.join().unwrap();
+    }
     let t = report_stamps.lock().unwrap().clone();
     println!("== {desc} ==");
     println!("painted-frame interval (ms): {}", stats(&deltas(&t)));
@@ -254,4 +290,8 @@ fn main() {
         println!("GL callback GPU (ms): {}", stats(&f(&g.gpu_samples)).split(" | ").next().unwrap_or(""));
     }
     println!("update() duration       (ms): {}", stats(&um).split(" | ").next().unwrap_or(""));
+    let d = deltas(&t);
+    println!("capture: {} painted frames over {:.2} s, intervals > 33 ms: {}, > 50 ms: {}", t.len(), d.iter().sum::<f64>() / 1e3, d.iter().filter(|&&x| x > 33.0).count(), d.iter().filter(|&&x| x > 50.0).count());
+    let hg: Vec<f64> = hero_gpu.lock().unwrap().iter().skip(30).map(|&x| x as f64).collect();
+    println!("hero GPU time (timer query, ms): {} ({} samples)", stats(&hg).split(" | ").next().unwrap_or(""), hg.len());
 }

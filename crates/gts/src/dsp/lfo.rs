@@ -73,6 +73,11 @@ impl Lfo {
         self.next = self.rand();
     }
 
+    /// Unwrapped phase in cycles (a finished one-shot sits at or above 1), for the GUI.
+    pub fn phase(&self) -> f32 {
+        self.ph as f32
+    }
+
     /// Note-on: reset phase and re-arm one-shot.
     pub fn trigger(&mut self) {
         self.ph = 0.0;
@@ -111,8 +116,23 @@ impl Lfo {
     }
 
     fn shape(&self, x: f64) -> f32 {
-        let xf = x as f32;
         match self.curve {
+            Curve::SampleHold => self.next,
+            Curve::SmoothRandom => {
+                let xf = x as f32;
+                let s = xf * xf * (3.0 - 2.0 * xf);
+                self.prev + (self.next - self.prev) * s
+            }
+            c => Self::curve_at(c, x),
+        }
+    }
+
+    /// One cycle of `curve` at phase `x` (0..1). The random curves have no fixed shape: for
+    /// display they draw a fixed four-step pattern (Sample & Hold) or its smoothed version.
+    pub fn curve_at(curve: Curve, x: f64) -> f32 {
+        let xf = x as f32;
+        const STEPS: [f32; 5] = [0.6, -0.4, 0.9, -0.8, 0.6];
+        match curve {
             Curve::Sine => (x * TAU).sin() as f32,
             Curve::Triangle => {
                 if xf < 0.25 {
@@ -132,10 +152,10 @@ impl Lfo {
                     -1.0
                 }
             }
-            Curve::SampleHold => self.next,
+            Curve::SampleHold => STEPS[((xf * 4.0) as usize).min(3)],
             Curve::SmoothRandom => {
-                let s = xf * xf * (3.0 - 2.0 * xf);
-                self.prev + (self.next - self.prev) * s
+                let (k, f) = (((xf * 4.0) as usize).min(3), (xf * 4.0).fract());
+                STEPS[k] + (STEPS[k + 1] - STEPS[k]) * f * f * (3.0 - 2.0 * f)
             }
             Curve::Decay => Self::decay(xf),
             Curve::Attack => 1.0 - Self::decay(xf),

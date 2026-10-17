@@ -73,9 +73,12 @@ pub fn caps(p: &Painter, pos: Pos2, anchor: Align2, text: &str, size: f32, color
     tracked(p, pos, anchor, &text.to_uppercase(), crate::theme::font::label(size), color, 0.5)
 }
 
-/// Points of an arc, angles in degrees, clockwise with y down (0 = 3 o'clock).
+/// Points of an arc, angles in degrees, clockwise with y down (0 = 3 o'clock). Segments are as
+/// long as a 0.05 px chord error allows (a 17 px knob arc: about 9 degrees), never over 10 degrees:
+/// vertex count, not shape count, is what tessellation costs.
 pub fn arc_points(c: Pos2, r: f32, a0: f32, a1: f32) -> Vec<Pos2> {
-    let n = (((a1 - a0).abs() / 3.0).ceil() as usize).max(2);
+    let step = (2.0 * (1.0 - 0.05 / r.max(0.1)).clamp(-1.0, 1.0).acos()).to_degrees().clamp(1.0, 10.0);
+    let n = (((a1 - a0).abs() / step).ceil() as usize).max(2);
     (0..=n)
         .map(|i| {
             let a = (a0 + (a1 - a0) * i as f32 / n as f32).to_radians();

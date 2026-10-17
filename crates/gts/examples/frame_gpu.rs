@@ -1,31 +1,23 @@
 //! Uncapped frame cost of the REAL GTS editor on this machine's GPU (eframe + glow, vsync OFF,
 //! continuous repaint). Brackets the whole egui frame with a GL timer query (GPU time of all
 //! egui draw calls) and reports the frame-to-frame interval (CPU build + tessellation + driver +
-//! swap) and the UI build time. `gl` adds the 3D wavetable PaintCallback to see what it costs on top.
+//! swap) and the UI build time. The editor's own hero is a GL PaintCallback (its GPU time is inside the
+//! total); `gl` adds the old prototype wavetable overlay on top. The real engine plays the demo pattern
+//! (735 samples per frame) through the plugin's publisher so every live display moves.
 //!
-//!   cargo run -p gts --release --example frame_gpu [-- gl] [-- fx] [-- ppp=1.5]
+//!   cargo run -p gts --release --example frame_gpu [-- gl] [-- fx] [-- ppp=1.5] [-- cpu]
 
 use eframe::egui::{self, pos2, vec2, Context, Rect, ViewportCommand};
 use egui_glow::glow::{self, HasContext as _};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, ParamTable, WINDOW};
-use gts::params::GtsParams;
+use gts::editor::{draw, BusView, LiveView, WINDOW};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 #[path = "../../rr-ui/examples/support/wavegl.rs"]
 mod wavegl;
-
-struct DefCtl(ParamTable);
-impl Ctl for DefCtl {
-    fn get01(&self, id: &str) -> f32 { self.0.get01(id) }
-    fn default01(&self, id: &str) -> f32 { self.0.default01(id) }
-    fn readout(&self, id: &str) -> String { self.0.readout_at(id, self.0.get01(id)) }
-    fn steps(&self, id: &str) -> Option<usize> { self.0.steps(id) }
-    fn begin(&self, _: &str) {}
-    fn set01(&self, _: &str, _: f32) {}
-    fn end(&self, _: &str) {}
-}
+#[path = "support/demo.rs"]
+mod demo;
 
 #[derive(Default)]
 struct Q {
@@ -37,9 +29,11 @@ struct Q {
 }
 
 struct App {
-    ctl: DefCtl,
+    ctl: demo::MapCtl,
     tables: Tables,
     bv: BusView,
+    feed: demo::Feed,
+    live: LiveView,
     gl: Option<wavegl::WaveGl>,
     q: Arc<Mutex<Q>>,
     ppp: f32,
@@ -61,6 +55,9 @@ fn stats(label: &str, v: &[f64]) {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _f: &mut eframe::Frame) {
+        // Engine time is not UI time: render the demo audio before the clock starts.
+        self.feed.render(735);
+        self.live.peaks = self.feed.take_peaks();
         let t0 = Instant::now();
         if self.frame == 0 {
             let native = ctx.native_pixels_per_point().unwrap_or(1.0);
@@ -107,7 +104,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
             let tiny = Rect::from_min_size(pos2(0.0, 0.0), vec2(1.0, 1.0));
             ui.painter().add(egui::PaintCallback { rect: tiny, callback: Arc::new(begin) });
-            draw(ui, &self.ctl, &self.tables, 40, &mut self.bv);
+            draw(ui, &self.ctl, &self.tables, &mut self.live, &mut self.bv);
             if let Some(gl) = &self.gl {
                 let t = ui.input(|i| i.time);
                 let r = Rect::from_min_size(pos2(34.0, 66.0), vec2(300.0, 150.0));
@@ -125,7 +122,7 @@ impl eframe::App for App {
         }
         self.frame += 1;
         if self.frame >= 660 {
-            println!("GTS editor, vsync OFF, ppp {}, {} frames, gl overlay {}", self.ppp, self.frame - 61, self.gl.is_some());
+            println!("GTS editor, vsync OFF, ppp {}, {} frames, page {}, hero {} ({:?}), gl overlay {}", self.ppp, self.frame - 61, if self.bv.fx_page { "FX" } else { "SYNTH" }, if self.live.hero.force_cpu { "CPU" } else { "GL" }, self.live.hero.gl_ok(), self.gl.is_some());
             stats("UI build (update) ms", &self.upd);
             stats("frame interval ms (uncapped)", &self.interval);
             let g = self.q.lock().unwrap();
@@ -141,7 +138,7 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().collect();
     let ppp: f32 = args.iter().find_map(|a| a.strip_prefix("ppp=").and_then(|s| s.parse().ok())).unwrap_or(1.0);
-    let (gl, fx) = (args.iter().any(|a| a == "gl"), args.iter().any(|a| a == "fx"));
+    let (gl, fx, cpu) = (args.iter().any(|a| a == "gl"), args.iter().any(|a| a == "fx"), args.iter().any(|a| a == "cpu"));
     let opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([WINDOW.0 as f32, WINDOW.1 as f32]).with_resizable(false),
         vsync: false,
@@ -153,11 +150,17 @@ fn main() -> eframe::Result {
         rr_ui::theme::apply(&cc.egui_ctx);
         let mut tables = Tables::new();
         tables.generate();
-        let bv = BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(2), fx_page: fx, peak_db: -6.0, ..Default::default() };
+        let (pi, preset) = demo::factory("Wobble Shot");
+        let bv = BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), fx_page: fx, peak_db: -6.0, ..Default::default() };
+        let feed = demo::Feed::new(preset.patch);
+        let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
+        live.hero.force_cpu = cpu;
         Ok(Box::new(App {
-            ctl: DefCtl(ParamTable::new(Arc::new(GtsParams::default()))),
+            ctl: demo::MapCtl::with_preset(Some(preset)),
             tables,
             bv,
+            feed,
+            live,
             gl: gl.then(|| wavegl::WaveGl::new(wavegl::demo_waves())),
             q: Arc::new(Mutex::new(Q::default())),
             ppp,

@@ -200,7 +200,7 @@ fn time(name: String, default_s: f32) -> FloatParam {
     }))
 }
 
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::{Arc, RwLock};
 
 // ---- nested groups -------------------------------------------------------------------------
@@ -955,6 +955,10 @@ pub struct GtsParams {
     /// value. Written by the editor, applied by `process` at a block start.
     #[persist = "oversampling"]
     pub oversampling: AtomicUsize,
+    /// Editor setting "Always show values" (MOTION.md 1): knobs print their value instead of
+    /// their label. Host state, not a param.
+    #[persist = "show_values"]
+    pub show_values: AtomicBool,
 }
 
 impl GtsParams {
@@ -1074,6 +1078,7 @@ impl Default for GtsParams {
             cv_sources: RwLock::new(Default::default()),
             instance_label: RwLock::new(String::new()),
             oversampling: AtomicUsize::new(2),
+            show_values: AtomicBool::new(false),
         }
 
     }

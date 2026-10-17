@@ -58,6 +58,13 @@ pub const MINT: Theme = Theme {
 /// The active theme. One variant ships; widgets read this directly.
 pub const T: Theme = MINT;
 
+/// Modulation source colours (MOTION.md 3): Mod A, Mod B, Filter Env, Macro. A source colour on
+/// a control means "this value is being moved by that source".
+pub const SRC_A: Color32 = Color32::from_rgb(0xff, 0xb4, 0x54);
+pub const SRC_B: Color32 = Color32::from_rgb(0x7a, 0xa7, 0xff);
+pub const SRC_E: Color32 = Color32::from_rgb(0xff, 0x7a, 0x90);
+pub const SRC_M: Color32 = Color32::from_rgb(0xc7, 0x92, 0xff);
+
 impl Theme {
     /// Accent at alpha `a` (0..=1).
     pub fn a(&self, a: f32) -> Color32 {

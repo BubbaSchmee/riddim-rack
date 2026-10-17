@@ -12,9 +12,10 @@ homepage = "https://github.com/BubbaSchmee/riddim-rack"
 # Exact pin: the version nih_plug_egui resolves to in Cargo.lock. No nih-plug here, so the
 # plugin editors adapt these widgets to their param setters.
 egui = { version = "=0.31.1", default-features = false }
+# Hero display (src/hero.rs): raw GL through egui's PaintCallback. The version egui-baseview and
+# eframe already pull (one copy in Cargo.lock); nih_plug_egui does not re-export it.
+egui_glow = { version = "=0.31.1", default-features = false }
 
 [dev-dependencies]
 eframe = { version = "=0.31.1" }
 png = "0.17"
-# Motion prototypes (examples/motion_gl.rs): raw GL through egui's PaintCallback. Same version eframe pulls.
-egui_glow = { version = "=0.31.1", default-features = false }

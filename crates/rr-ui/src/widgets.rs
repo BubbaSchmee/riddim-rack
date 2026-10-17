@@ -21,6 +21,16 @@ pub fn group<R>(ui: &mut Ui, title: &str, body: impl FnOnce(&mut Ui) -> R) -> R 
 /// `header` controls laid out right-to-left at the right end of the 24 px title row. The title's
 /// hairline fills the space between the title and the header controls.
 pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
+    group_impl(ui, size, title, GROUP_HEADER_GAP, header, body)
+}
+
+/// v2 panel group (MOTION.md 2): exactly `rect`, title row 24 at y + 8, body from y + 34.
+pub fn group_at<R>(ui: &mut Ui, rect: Rect, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
+    let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)));
+    group_impl(&mut child, rect.size(), title, 2.0, header, body)
+}
+
+fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
     let w = if size.x > 0.0 { size.x } else { ui.available_width() };
     let origin = ui.cursor().min;
     let p = ui.painter().clone();
@@ -49,7 +59,7 @@ pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&m
         paint::hgradient(&p, Rect::from_min_max(pos2(lx0, at.y), pos2(lx1, at.y + 1.0)), Color32::WHITE.gamma_multiply(0.14), Color32::TRANSPARENT);
     }
 
-    let body_top = header_rect.bottom() + GROUP_HEADER_GAP;
+    let body_top = header_rect.bottom() + header_gap;
     let mut bui = ui.new_child(
         UiBuilder::new()
             .max_rect(Rect::from_min_size(pos2(x0, body_top), vec2(inner_w, 4000.0)))
@@ -59,6 +69,14 @@ pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&m
     let out = body(&mut bui);
     let h = (bui.min_rect().bottom() + GROUP_PAD_BOTTOM - origin.y).max(size.y);
     let rect = Rect::from_min_size(origin, vec2(w, h));
+    // Content leaving the well (padding may be used, the neighbour's space may not).
+    let over = vec2((bui.min_rect().right() - rect.right()).max(0.0), if size.y > 0.0 { (bui.min_rect().bottom() - origin.y - size.y).max(0.0) } else { 0.0 });
+    if over != Vec2::ZERO {
+        ui.ctx().data_mut(|d| {
+            let e = d.get_temp_mut_or_default::<Vec2>(egui::Id::new(OVERFLOW));
+            *e = e.max(over);
+        });
+    }
 
     p.set(
         hi_idx,
@@ -73,6 +91,14 @@ pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&m
     );
     ui.allocate_rect(rect, Sense::hover());
     out
+}
+
+const OVERFLOW: &str = "rr-group-overflow";
+
+/// How far any group's content ran past its fixed size since the last call (zero = everything
+/// fits); resets the record. Layout tests call it after a pass.
+pub fn take_group_overflow(ctx: &egui::Context) -> Vec2 {
+    ctx.data_mut(|d| d.remove_temp::<Vec2>(egui::Id::new(OVERFLOW))).unwrap_or(Vec2::ZERO)
 }
 
 /// Horizontal run of knob cells with no spacing between them (cell widths do the spacing).
@@ -127,6 +153,8 @@ pub struct KnobResponse {
     pub drag_started: bool,
     pub drag_ended: bool,
     pub reset: bool,
+    /// Pointer over the control (or dragging it).
+    pub hovered: bool,
 }
 
 /// Knob geometry/behaviour options.
@@ -138,11 +166,18 @@ pub struct KnobStyle {
     pub cell_w: f32,
     /// Value arc runs from 12 o'clock to the value.
     pub bipolar: bool,
+    /// v2 cell (MOTION.md 5.2): no readout row; the label swaps to the value on hover / drag
+    /// (or always, see [`set_always_values`]); no resting glow. Cell height 14 + d + 2.
+    pub compact: bool,
+    /// Highlight ring (a source chip hovered over one of this knob's sources), 3 px.
+    pub ring: Option<Color32>,
+    /// Live modulation: the post-modulation value 0..1 and the source colour (live arc + dot).
+    pub live: Option<(f32, Color32)>,
 }
 
 impl Default for KnobStyle {
     fn default() -> Self {
-        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false }
+        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false, compact: false, ring: None, live: None }
     }
 }
 
@@ -159,6 +194,26 @@ impl KnobStyle {
         self.diameter = d;
         self
     }
+    pub fn compact(mut self) -> Self {
+        self.compact = true;
+        self
+    }
+    /// Cell height of this style.
+    pub fn cell_h(&self) -> f32 {
+        if self.compact { V2_LABEL_H + self.diameter + 2.0 } else { knob_cell_h(self.diameter) }
+    }
+}
+
+/// Label band of a compact (v2) knob cell.
+pub const V2_LABEL_H: f32 = 14.0;
+
+/// "Always show values": every compact knob prints its value instead of its label.
+pub fn set_always_values(ctx: &egui::Context, on: bool) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("rr-always-values"), on));
+}
+
+pub fn always_values(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(egui::Id::new("rr-always-values"))).unwrap_or(false)
 }
 
 /// Standard 40 px unipolar knob in a 56 px cell: label, arc + cap, readout.
@@ -168,7 +223,7 @@ pub fn knob(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &st
 
 pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &str, style: KnobStyle) -> KnobResponse {
     let d = style.diameter;
-    let (rect, resp) = ui.allocate_exact_size(vec2(style.cell_w, knob_cell_h(d)), Sense::click_and_drag());
+    let (rect, resp) = ui.allocate_exact_size(vec2(style.cell_w, style.cell_h()), Sense::click_and_drag());
     let hot = resp.hovered() || resp.dragged();
     if hot {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
@@ -178,18 +233,96 @@ pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, reado
 
     if ui.is_rect_visible(rect) {
         let p = ui.painter();
-        paint::caps(p, pos2(rect.center().x, rect.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
-        let c = pos2(rect.center().x, rect.top() + KNOB_LABEL_H + d / 2.0);
-        draw_knob(p, c, d, value01, style.bipolar, hot);
-        let col = if hot { T.accent } else { T.text };
-        p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, readout, font::mono(12.0), col);
+        if style.compact {
+            // Label <-> value cross-fade (90 ms), glow in 100 ms.
+            let show = ui.ctx().animate_bool_with_time(resp.id.with("v"), hot || always_values(ui.ctx()), 0.09);
+            let lc = pos2(rect.center().x, rect.top() + V2_LABEL_H / 2.0);
+            if show < 1.0 {
+                paint::caps(p, lc, Align2::CENTER_CENTER, label, 11.0, T.muted.gamma_multiply(1.0 - show));
+            }
+            if show > 0.0 {
+                p.text(lc, Align2::CENTER_CENTER, readout, font::mono(11.0), T.accent.gamma_multiply(show));
+            }
+            let c = pos2(rect.center().x, rect.top() + V2_LABEL_H + d / 2.0);
+            let glow = ui.ctx().animate_bool_with_time(resp.id.with("g"), hot, 0.1);
+            draw_knob_v2(p, c, d, value01, style, glow);
+        } else {
+            paint::caps(p, pos2(rect.center().x, rect.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
+            let c = pos2(rect.center().x, rect.top() + KNOB_LABEL_H + d / 2.0);
+            draw_knob(p, c, d, value01, style.bipolar, hot);
+            let col = if hot { T.accent } else { T.text };
+            p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, readout, font::mono(12.0), col);
+        }
     }
     out
 }
 
+/// v2 dial (MOTION.md 5.2): 2.5 px track and value arc, glow only while hot (`glow` 0..1), an
+/// optional highlight ring and the live modulation arc + dot just outside the track.
+pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, style: KnobStyle, glow: f32) {
+    let r = d / 2.0 - 3.0;
+    paint::arc_stroke(p, c, r, ARC_START, ARC_START + ARC_SWEEP, 2.5, T.track, true);
+    let ang = |v: f32| ARC_START + ARC_SWEEP * v.clamp(0.0, 1.0);
+    let a_val = ang(value01);
+    let from = if style.bipolar { ARC_START + ARC_SWEEP / 2.0 } else { ARC_START };
+    if (a_val - from).abs() > 1.0 {
+        let (a0, a1) = (from.min(a_val), from.max(a_val));
+        if glow > 0.01 {
+            paint::arc_stroke(p, c, r, a0, a1, 11.0, T.a(0.06 * glow), false);
+            paint::arc_stroke(p, c, r, a0, a1, 7.0, T.a(0.18 * glow), false);
+        }
+        paint::arc_stroke(p, c, r, a0, a1, 2.5, T.accent, true);
+    }
+    if let Some(col) = style.ring {
+        p.circle_stroke(c, r + 4.5, paint::st(3.0, col.gamma_multiply(0.8)));
+    }
+    if let Some((live, col)) = style.live {
+        let rr = r + 3.9;
+        let a_live = ang(live);
+        if (a_live - a_val).abs() > 0.5 {
+            paint::arc_stroke(p, c, rr, a_val.min(a_live), a_val.max(a_live), 2.0, col.gamma_multiply(0.95), false);
+        }
+        let dot = c + vec2(a_live.to_radians().cos(), a_live.to_radians().sin()) * rr;
+        p.circle_filled(dot, 4.5, col.gamma_multiply(0.18));
+        p.circle_filled(dot, 3.3, Color32::BLACK.gamma_multiply(0.7));
+        p.circle_filled(dot, 2.3, col);
+    }
+    let rc = r - 6.0;
+    p.circle_filled(c, rc, T.cap1);
+    p.circle_stroke(c, rc, paint::st(1.0, Color32::BLACK));
+    p.circle_filled(c - vec2(0.0, 1.0), rc - 2.0, T.cap2);
+    let a = a_val.to_radians();
+    let dir = vec2(a.cos(), a.sin());
+    p.line_segment([c + dir * rc * 0.35, c + dir * rc * 0.9], paint::st(2.0, T.text));
+}
+
+/// Source chip (MOTION.md 5.6): 20 px pill, glyph disc in the source colour, caps name, 22 x 4
+/// activity bar. Display only until the modulation matrix exists; returns the hover response.
+pub fn source_chip(ui: &mut Ui, rect: Rect, glyph: &str, name: &str, color: Color32, activity01: f32) -> egui::Response {
+    let resp = ui.interact(rect, ui.id().with(("rr-chip", name)), Sense::hover());
+    let hot = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.14);
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        let rad = rect.height() / 2.0;
+        p.rect_filled(rect, rad, T.inset);
+        p.rect_stroke(rect, rad, paint::st(1.0, color.gamma_multiply(0.35 + 0.45 * hot)), StrokeKind::Inside);
+        let gc = pos2(rect.left() + rad, rect.center().y);
+        p.circle_filled(gc, 7.0, color);
+        p.text(gc, Align2::CENTER_CENTER, glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
+        let tr = paint::tracked(p, pos2(gc.x + 12.0, rect.center().y), Align2::LEFT_CENTER, &name.to_uppercase(), font::strong(11.0), T.text, 0.5);
+        let bar = Rect::from_min_size(pos2(tr.right() + 8.0, rect.center().y - 2.0), vec2(22.0, 4.0));
+        p.rect_filled(bar, 2.0, Color32::BLACK.gamma_multiply(0.5));
+        let w = 22.0 * activity01.clamp(0.0, 1.0);
+        if w > 0.5 {
+            p.rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, color);
+        }
+    }
+    resp
+}
+
 /// Vertical-drag / double-click-reset gesture shared by every knob.
 fn knob_interact(ui: &Ui, resp: &egui::Response, value01: f32, default01: f32) -> KnobResponse {
-    let mut out = KnobResponse { drag_started: resp.drag_started(), drag_ended: resp.drag_stopped(), ..Default::default() };
+    let mut out = KnobResponse { drag_started: resp.drag_started(), drag_ended: resp.drag_stopped(), hovered: resp.hovered() || resp.dragged(), ..Default::default() };
     if resp.double_clicked() {
         out.reset = true;
         out.changed = Some(default01);

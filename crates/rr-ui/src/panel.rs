@@ -65,6 +65,42 @@ fn nameplate(p: &egui::Painter, r: Rect, name: &str, descriptor: &str, status: &
     paint::tracked(p, pos2(x + 16.0, y + 7.0), Align2::LEFT_CENTER, status, font::label(11.0), T.muted, 0.0);
 }
 
+/// Panel face, rails, slots and screws over `ui.max_rect()` (returned). Lay the content out
+/// yourself (the v2 GTS panel), or use [`rack_panel`].
+pub fn rack_frame(ui: &Ui) -> Rect {
+    let full = ui.max_rect();
+    let p = ui.painter();
+    paint::vgradient(p, full, T.panel_top, T.panel_bottom);
+    p.line_segment([full.left_top() + vec2(0.0, 0.5), full.right_top() + vec2(0.0, 0.5)], paint::st(1.0, T.hi()));
+    rail(p, Rect::from_min_size(full.min, vec2(RAIL_W, full.height())), true);
+    rail(p, Rect::from_min_size(pos2(full.right() - RAIL_W, full.top()), vec2(RAIL_W, full.height())), false);
+    let (l, r, t, b) = (full.left() + 14.0, full.right() - 14.0, full.top() + 19.0, full.bottom() - 19.0);
+    for (c, a) in [(pos2(l, t), 0), (pos2(l, b), 1), (pos2(r, t), 2), (pos2(r, b), 3)] {
+        screw(p, c, SCREW_ANGLES[a]);
+    }
+    p.rect_stroke(full, 0.0, paint::st(1.0, Color32::BLACK), StrokeKind::Inside);
+    full
+}
+
+/// Compact v2 nameplate (MOTION.md 2.1, 156 x 56): engraved name with the note LED and note name
+/// right of it (lit while a gate is open), tracked descriptor below.
+pub fn nameplate_v2(p: &egui::Painter, r: Rect, name: &str, descriptor: &str, note: Option<&str>) {
+    paint::highlight_below(p, r, GROUP_R);
+    paint::rounded_vgradient(p, r, GROUP_R, T.panel_bottom, T.well, true);
+    p.rect_stroke(r, GROUP_R, paint::st(1.0, T.lo()), StrokeKind::Inside);
+    let f = font::strong(24.0);
+    let at = pos2(r.left() + 14.0, r.top() + 7.0);
+    paint::tracked(p, at + vec2(0.0, -1.0), Align2::LEFT_TOP, name, f.clone(), Color32::BLACK.gamma_multiply(0.6), 6.0);
+    paint::tracked(p, at + vec2(0.0, 1.0), Align2::LEFT_TOP, name, f.clone(), Color32::WHITE.gamma_multiply(0.08), 6.0);
+    let nr = paint::tracked(p, at, Align2::LEFT_TOP, name, f, T.plate_text, 6.0);
+    let led = pos2(r.right() - 44.0, nr.center().y);
+    paint::led(p, led, note.is_some());
+    if let Some(n) = note {
+        p.text(led + vec2(10.0, 0.0), Align2::LEFT_CENTER, n, font::mono(12.0), T.text);
+    }
+    paint::tracked(p, pos2(r.left() + 14.0, r.bottom() - 12.0), Align2::LEFT_CENTER, &descriptor.to_uppercase(), font::label(11.0), T.muted, 1.6);
+}
+
 /// Draws the panel over `ui.max_rect()` and runs `add` with two child uis: `header` (right of
 /// the nameplate, `header_h` tall) and `body` (below the header, to the bottom padding).
 /// `plate` is the nameplate size (GTS 232 x 124, VSS 184 x 116); `status` is the line with the
@@ -77,17 +113,8 @@ pub fn rack_panel<R>(
     plate: Vec2,
     add: impl FnOnce(&mut Ui, &mut Ui) -> R,
 ) -> R {
-    let full = ui.max_rect();
+    let full = rack_frame(ui);
     let p = ui.painter().clone();
-    paint::vgradient(&p, full, T.panel_top, T.panel_bottom);
-    p.line_segment([full.left_top() + vec2(0.0, 0.5), full.right_top() + vec2(0.0, 0.5)], paint::st(1.0, T.hi()));
-    rail(&p, Rect::from_min_size(full.min, vec2(RAIL_W, full.height())), true);
-    rail(&p, Rect::from_min_size(pos2(full.right() - RAIL_W, full.top()), vec2(RAIL_W, full.height())), false);
-    let (l, r, t, b) = (full.left() + 14.0, full.right() - 14.0, full.top() + 19.0, full.bottom() - 19.0);
-    for (c, a) in [(pos2(l, t), 0), (pos2(l, b), 1), (pos2(r, t), 2), (pos2(r, b), 3)] {
-        screw(&p, c, SCREW_ANGLES[a]);
-    }
-    p.rect_stroke(full, 0.0, paint::st(1.0, Color32::BLACK), StrokeKind::Inside);
 
     let content = Rect::from_min_max(
         pos2(full.left() + PAD_X, full.top() + PAD_TOP),

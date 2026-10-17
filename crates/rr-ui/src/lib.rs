@@ -7,9 +7,12 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod fonts;
+pub mod hero;
 pub mod paint;
 pub mod panel;
 pub mod ring;
+pub mod scope;
+pub mod snap;
 pub mod theme;
 pub mod widgets;
 

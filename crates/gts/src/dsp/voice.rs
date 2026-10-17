@@ -181,6 +181,8 @@ pub struct Voice {
     pub lfo_out: [f32; 2],
     /// Mod A, Mod B.
     lfo: [Lfo; 2],
+    /// Filter A / B cutoff in Hz at the last cutoff update (for the GUI).
+    pub cutoff_hz: [f32; 2],
     /// `[channel][filter]`: Filter A, Filter B for the left (and, in stereo, right) channel.
     filt: [[MultiFilter; 2]; 2],
     /// Snapshot of `filt` taken at a Type / Routing change, faded out over `XFADE` with the old
@@ -249,7 +251,7 @@ const SEED: u32 = 0x2545_F491;
 
 /// Bipolar velocity amount -> gain: +amt fades low velocities down, -amt fades high ones down.
 #[inline]
-fn vel_scale(amt: f32, vel: f32) -> f32 {
+pub(crate) fn vel_scale(amt: f32, vel: f32) -> f32 {
     if amt >= 0.0 { 1.0 - amt * (1.0 - vel) } else { 1.0 + amt * vel }
 }
 
@@ -294,6 +296,11 @@ impl Voice {
 
     pub fn filter_env(&self) -> &Adsr {
         &self.fenv
+    }
+
+    /// Mod A / Mod B phase in cycles (unwrapped; a finished one-shot is at or above 1).
+    pub fn lfo_phase(&self, i: usize) -> f32 {
+        self.lfo[i].phase()
     }
 
     /// Current oscillator f0 in Hz (after glide, bend, octave/semi/cent and pitch modulation).
@@ -527,6 +534,7 @@ impl Voice {
                 oct += env_oct;
             }
             let hz = (fp.freq * 2f32.powf(oct)).clamp(20.0, 0.45 * ctl.sr);
+            self.cutoff_hz[j] = hz;
             for ch in &mut self.filt[..chans] {
                 ch[j].set_note(self.osc[j].freq);
                 ch[j].set(fp.ty, hz, fp.res);

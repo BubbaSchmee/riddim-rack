@@ -5,9 +5,10 @@ pub mod dsp;
 pub mod editor;
 pub mod params;
 pub mod preset;
+pub mod viz;
 
 use nih_plug::prelude::*;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use params::GtsParams;
@@ -18,10 +19,12 @@ const CV_CHUNK: usize = 32;
 pub struct Gts {
     params: Arc<GtsParams>,
     engine: dsp::Engine,
-    /// Osc A's current grain index (0..127), for the GUI readout.
-    current_index: Arc<AtomicU32>,
     /// Limiter gain reduction and output peak since the editor last looked.
     meters: Arc<editor::Meters>,
+    /// Scope ring + per-block voice / modulation record for the editor (MOTION.md section 8).
+    viz: viz::VizWriter,
+    viz_shared: Arc<viz::Viz>,
+    scope: rr_ui::ring::RingReader,
     /// Last tempo written to the log (a ramp logs every 0.5 BPM, not every block).
     logged_tempo: f64,
     /// RR-BUS publisher + CV-in slots.
@@ -41,17 +44,19 @@ pub fn write_frame(mut frame: nih_plug::buffer::ChannelSamples, (l, r): (f32, f3
 
 impl Default for Gts {
     fn default() -> Self {
+        let (viz, viz_shared, scope) = viz::VizWriter::new();
         Self {
             params: Arc::new(GtsParams::default()),
             engine: dsp::Engine::new(),
-            current_index: Arc::new(AtomicU32::new(0)),
             meters: Arc::new(editor::Meters::default()),
+            viz,
+            viz_shared,
+            scope,
             logged_tempo: dsp::Transport::default().tempo,
             bus: bus::DeviceBus::default(),
             sample_rate: 44100.0,
             oversampling: 2,
         }
-
     }
 }
 
@@ -87,7 +92,12 @@ impl Plugin for Gts {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone(), self.current_index.clone(), self.meters.clone(), self.bus.link.clone(), self.engine.tables_handle())
+        editor::create(
+            self.params.clone(),
+            editor::Feeds { meters: self.meters.clone(), viz: self.viz_shared.clone(), scope: self.scope.clone() },
+            self.bus.link.clone(),
+            self.engine.tables_handle(),
+        )
     }
 
     fn initialize(
@@ -176,7 +186,7 @@ impl Plugin for Gts {
         self.engine.set_patch(&patch);
 
         let mut next_event = context.next_event();
-        let mut peak = 0.0f32;
+        let mut peak = [0.0f32; 2];
         for (i, frame) in buffer.iter_samples().enumerate() {
             if cv_on && i > 0 && i % CV_CHUNK == 0 {
                 let mut patch = base;
@@ -200,20 +210,17 @@ impl Plugin for Gts {
             }
 
             let (l, r) = self.engine.next_frame();
-            peak = peak.max(l.abs()).max(r.abs());
+            peak = [peak[0].max(l.abs()), peak[1].max(r.abs())];
+            self.viz.push(l, r);
             write_frame(frame, (l, r));
         }
 
-        // Idle (no voice), the display follows the Osc A Index knob instead of the last note's grain.
-        let index = if self.engine.active_voices() == 0 {
-            self.params.osca.index.value().round() as u32
-        } else {
-            self.engine.display_index()
-        };
-        self.current_index.store(index, Ordering::Relaxed);
         // Non-negative f32 bits order like the values, so fetch_max keeps the peak until the editor swaps it out.
         self.meters.gr_db.fetch_max(self.engine.limiter_gr_db().to_bits(), Ordering::Relaxed);
-        self.meters.peak.fetch_max(peak.to_bits(), Ordering::Relaxed);
+        for (m, p) in self.meters.peak.iter().zip(peak) {
+            m.fetch_max(p.to_bits(), Ordering::Relaxed);
+        }
+        self.viz.publish(&self.engine, &self.params, self.engine.patch(), self.sample_rate);
         ProcessStatus::Normal
     }
 }
