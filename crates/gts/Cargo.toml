@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Riddim Rack Open Source"]
 license = "GPL-3.0-or-later"
-description = "GTS, a two-oscillator graintable synthesizer VST3/CLAP instrument"
+description = "GTS, a two-oscillator grain table synthesizer VST3/CLAP instrument"
 repository = "https://github.com/BubbaSchmee/riddim-rack"
 homepage = "https://github.com/BubbaSchmee/riddim-rack"
 

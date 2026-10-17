@@ -22,7 +22,7 @@ the plugin. Delete the plugin log first for a clean session.
 
 ## Checks (expected result)
 
-6. Loads with no warning; GUI opens, fits the screen, every group visible (no clipped rows).
+6. Loads with no warning; GUI opens, every group visible (no clipped rows). It fits a 1080p screen only at 100 % scaling, or at 125 % with the taskbar auto-hidden (about 1072 px needed, see item 26).
 7. Default (init) patch on C2 and F1: a clean, round square bass with a sine sub under it and a
    short filter-envelope "pluck" (LP12 opening on each note); no wobble, no comb, no grit. Live's
    meter peaks around -9 dBFS on a single C2 note. Set Sub > Xover to 120 Hz first (the init
@@ -93,6 +93,27 @@ the plugin. Delete the plugin log first for a clean session.
     sentence; Screech Lead's delay answers each phrase; Sub Weight stays dry and mono; no file
     clips or pumps.
 25. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
+26. Editor (window, hero, help bar). The window is 1000 x 832 with no scale steps yet: at 125 %
+    Windows scaling it needs about 1072 px of vertical space, so auto-hide the taskbar or use
+    100 % on the laptop. If the window goes black after a dock or display event, close and reopen it.
+    Then, with a note playing:
+    - Hero: the stack reads as a translucent filled ribbon surface (not a wire sketch), the lit frame
+      glows brighter than its neighbours and moves with Index; drag it sideways to scrub Index
+      (Shift = fine, double-click resets), 2D / 3D and the A / B tabs switch. Plugin log has one line
+      `GTS hero: GPU (<renderer> | GL 3.x ...)` per window open; `CPU fallback (<reason>)` means GL was refused.
+    - Rings and popups: Osc A Index shows an amber ring while Mod A moves it; dragging any knob shows a
+      value popup; the label turns into the value on hover.
+    - Source chips (Mod A, Mod B, Env): hover lights the knobs each drives and the help bar says
+      dragging to patch arrives with the modulation matrix; there is no Macro chip and nothing drags.
+    - Help bar: hovering any control names it with its value and a help line, cut with an ellipsis
+      before the Values and Reduced motion toggles; both toggles stay visible with nothing hovered too.
+      Values on prints every knob value; Reduced motion stops sway, parallax and page / popup motion.
+    - Preset list: the bar opens it, arrows step through it, a dot marks edits; PATCH chip opens the RR-BUS popover.
+    - Keyboard: click a knob and nudge it with the arrow keys. Live may take some keys first, so this is
+      best-effort; drag, wheel and double-click are the reliable ways.
+27. Close the editor in the middle of a knob drag (hold the mouse on a knob, close the plugin window
+    from Live's title bar). The host must not keep the parameter in a touched state: Live's automation
+    "latch" / parameter lane shows no stuck highlight and the knob moves normally on reopen.
 
 ## After a session, send back
 

@@ -362,7 +362,7 @@ impl eframe::App for Demo {
         let dispatch = |me: &Self, ui: &mut Ui| {
             let plate = if mode == Mode::Gts { vec2(232.0, 124.0) } else { vec2(168.0, 124.0) };
             let (name, desc, status) = if mode == Mode::Gts {
-                ("GTS", "Graintable Synth", "Two-osc graintable \u{b7} v1.0")
+                ("GTS", "Grain Table Synth", "Two-osc grain table \u{b7} v1.0")
             } else {
                 ("VSS", "Vowel Step Sequencer", "16-step formant \u{b7} v1.0")
             };

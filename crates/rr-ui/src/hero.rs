@@ -133,7 +133,31 @@ impl Scene {
         let col = [lerp(lerp(150.0, 120.0, t), 255.0, kk) / 255.0, lerp(lerp(190.0, 170.0, t), 180.0, kk) / 255.0, lerp(lerp(176.0, 170.0, t), 84.0, kk) / 255.0];
         (a, al, col, lerp(1.15, 0.9, t))
     }
+
+    /// Alpha of the translucent surface fill under background frame `gi` (the ribbon between its
+    /// line and the next nearer frame): 0.10 at the front falling to 0.05 at the back, lifted near
+    /// the lit frame.
+    fn surface_alpha(&self, gi: usize) -> f32 {
+        let t = gi as f32 / (FRAMES - 1) as f32;
+        let near = (-((gi as f32 - self.gh) / 2.5).powi(2)).exp();
+        let a = self.p.m.max(0.30 * near * (1.0 - self.p.m));
+        ((0.20 - 0.10 * t) * (1.0 + 1.0 * near) * a).min(0.4)
+    }
+
+    /// Fall length of the surface fill below its line, in rect points.
+    fn surface_fall(&self, gi: usize) -> f32 {
+        let t = gi as f32 / (FRAMES - 1) as f32;
+        SURF_FALL * (1.0 - self.p.sh * t) * self.p.k.y
+    }
 }
+
+/// Fall length of the surface fill below its line, in design px (curve-relative gradient).
+const SURF_FALL: f32 = 38.0;
+/// Lit frame: gradient fill alpha under its line, frame plane alpha at its middle, radial wash
+/// radius in design px (the wash alpha is `Scene::wash`).
+const LIT_FILL: f32 = 0.34;
+const LIT_PLANE: f32 = 0.10;
+const WASH_R: f32 = 250.0;
 
 fn rgb(c: Color32) -> [f32; 3] {
     [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0]
@@ -167,6 +191,12 @@ impl Hero {
         *g = GlShared { measure: g.measure, gpu_ms: std::mem::take(&mut g.gpu_ms), ..Default::default() };
     }
 
+    /// Drop an in-progress Index scrub (the editor window closed or reopened mid-drag; egui never
+    /// delivers the release).
+    pub fn reset_gesture(&mut self) {
+        self.drag = None;
+    }
+
     /// GL state: `None` = not tried yet (no frame painted), `Some(true)` = drawing on the GPU,
     /// `Some(false)` = refused (the CPU fallback is used).
     pub fn gl_ok(&self) -> Option<bool> {
@@ -178,7 +208,7 @@ impl Hero {
         self.gl.lock().map(|mut g| std::mem::take(&mut g.gpu_ms)).unwrap_or_default()
     }
 
-    /// GL renderer string, once the context was seen.
+    /// GL renderer / version, or the reason GL was refused, once the context was seen.
     pub fn gl_info(&self) -> String {
         self.gl.lock().map(|g| g.info.clone()).unwrap_or_default()
     }
@@ -303,7 +333,7 @@ fn build_scene(inp: &HeroInput, p: Proj, base: f32) -> Scene {
         on: inp.on,
         k,
         core: 2.1 + 0.4 * (1.0 - p.m),
-        wash: 0.10 * (0.4 + 0.6 * (inp.level * 1.2).min(1.0)),
+        wash: 0.24 * (0.4 + 0.6 * (inp.level * 1.2).min(1.0)),
     }
 }
 
@@ -443,11 +473,52 @@ fn paint_cpu(p: &egui::Painter, rect: Rect, frames: &[f32], s: &Scene) {
         p.add(Shape::mesh(mesh));
     };
     let m = s.p.m;
+    // Strip under a line fading from `top` to nothing `fall` points below it.
+    let ribbon = |pts: &[Pos2], top: Color32, fall: f32| {
+        let mut mesh = Mesh::default();
+        for (i, q) in pts.iter().enumerate() {
+            mesh.vertices.push(Vertex { pos: *q, uv: WHITE_UV, color: top });
+            mesh.vertices.push(Vertex { pos: pos2(q.x, q.y + fall), uv: WHITE_UV, color: Color32::TRANSPARENT });
+            if i > 0 {
+                let b = (i as u32 - 1) * 2;
+                mesh.indices.extend_from_slice(&[b, b + 1, b + 2, b + 2, b + 1, b + 3]);
+            }
+        }
+        p.add(Shape::mesh(mesh));
+    };
     let mut lit_done = false;
     let draw_lit = |p: &egui::Painter| {
         let pts = path(&s.lit, s.th);
+        // Frame plane and the radial wash behind the lit frame (as the GL path).
+        if m > 0.02 {
+            let (tl, br) = (s.p.pt(0.0, 1.25, s.th), s.p.pt(1.0, -1.25, s.th));
+            let (l, r, top, bot) = ((tl.x + o.x), (br.x + o.x), tl.y + o.y, br.y + o.y);
+            let mid = (top + bot) * 0.5;
+            let (edge, peak) = (Color32::TRANSPARENT, T.a(LIT_PLANE * m));
+            let mut mesh = Mesh::default();
+            for (y, c) in [(top, edge), (mid, peak), (bot, edge)] {
+                mesh.vertices.push(Vertex { pos: pos2(l, y), uv: WHITE_UV, color: c });
+                mesh.vertices.push(Vertex { pos: pos2(r, y), uv: WHITE_UV, color: c });
+            }
+            mesh.indices.extend_from_slice(&[0, 1, 2, 1, 2, 3, 2, 3, 4, 3, 4, 5]);
+            p.add(Shape::mesh(mesh));
+            for x in [l, r] {
+                p.vline(x, top..=bot, paint::hair(p, T.a(0.22 * m)));
+            }
+        }
+        let c = (s.p.pt(0.5, 0.0, s.th) + o).to_pos2();
+        let mut wash = Mesh::default();
+        wash.vertices.push(Vertex { pos: c, uv: WHITE_UV, color: T.a(s.wash) });
+        for i in 0..=24 {
+            let a = i as f32 / 24.0 * std::f32::consts::TAU;
+            wash.vertices.push(Vertex { pos: c + vec2(a.cos(), a.sin()) * WASH_R, uv: WHITE_UV, color: Color32::TRANSPARENT });
+            if i > 0 {
+                wash.indices.extend_from_slice(&[0, i as u32, i as u32 + 1]);
+            }
+        }
+        p.add(Shape::mesh(wash));
         fill(&pts, HIDE.gamma_multiply(m));
-        fill(&pts, T.a(0.12));
+        ribbon(&pts, T.a(LIT_FILL), 70.0 * s.p.k.y);
         for (w, a) in [(s.core * 6.0, 0.07 * s.k), (s.core * 3.0, 0.17 * s.k)] {
             p.add(Shape::line(pts.clone(), Stroke::new(w, T.a(a))));
         }
@@ -465,11 +536,16 @@ fn paint_cpu(p: &egui::Painter, rect: Rect, frames: &[f32], s: &Scene) {
         }
         let pts = path(&frames[gi * POINTS..(gi + 1) * POINTS], t);
         fill(&pts, HIDE.gamma_multiply((a * 1.2).min(1.0)));
-        let c = Color32::from_rgba_unmultiplied((col[0] * 255.0) as u8, (col[1] * 255.0) as u8, (col[2] * 255.0) as u8, (al * 255.0) as u8);
+        let rgb8 = |x: f32| (x * 255.0) as u8;
+        ribbon(&pts, Color32::from_rgba_unmultiplied(rgb8(col[0]), rgb8(col[1]), rgb8(col[2]), rgb8(0.7 * s.surface_alpha(gi))), s.surface_fall(gi));
+        let c = Color32::from_rgba_unmultiplied(rgb8(col[0]), rgb8(col[1]), rgb8(col[2]), rgb8(al));
         p.add(Shape::line(pts, Stroke::new(w, c)));
     }
     if !lit_done {
         draw_lit(p);
+    }
+    if m > 0.05 && s.on {
+        p.add(Shape::line(path(&s.lit, s.th), Stroke::new(1.3_f32, T.a(0.30 * m))));
     }
 }
 
@@ -563,21 +639,28 @@ void main() {
 
 const FILL_VS: &str = r#"
 in vec3 a_uak;
+uniform vec4 u_grad;
 out float v_y;
+out float v_d;
 void main() {
     vec2 p = proj(a_uak.xy);
-    if (a_uak.z > 0.5) p.y = u_size.y + 4.0;
+    float cy = p.y;
+    // Mode 2 (surface): the strip ends u_grad.y points under its line; otherwise it runs to the bottom edge.
+    if (a_uak.z > 0.5) p.y = u_grad.w > 1.5 ? cy + u_grad.y : u_size.y + 4.0;
     v_y = p.y;
+    v_d = p.y - cy;
     gl_Position = ndc(p);
 }"#;
 
 const FILL_FS: &str = r#"
 in float v_y;
+in float v_d;
 uniform vec4 u_col; uniform vec4 u_grad;
 out vec4 f;
 void main() {
     float a = u_col.a;
-    if (u_grad.w > 0.5) a *= u_grad.z * clamp((u_grad.y - v_y) / max(u_grad.y - u_grad.x, 1.0), 0.0, 1.0);
+    if (u_grad.w > 1.5) a *= u_grad.z * clamp(1.0 - v_d / max(u_grad.y, 1.0), 0.0, 1.0);
+    else if (u_grad.w > 0.5) a *= u_grad.z * clamp((u_grad.y - v_y) / max(u_grad.y - u_grad.x, 1.0), 0.0, 1.0);
     vec3 rgb = u_col.rgb * a + (ign(gl_FragCoord.xy) - 0.5) * 0.95 / 255.0 * a;
     f = vec4(rgb, a);
 }"#;
@@ -715,6 +798,7 @@ impl GlShared {
         if self.gpu.is_none() {
             if let Err(e) = unsafe { self.init(gl) } {
                 eprintln!("rr-ui hero: GL refused, using the CPU fallback: {e}");
+                self.info = format!("GL refused, CPU fallback: {e}");
                 self.status = Some(false);
                 return;
             }
@@ -792,7 +876,7 @@ unsafe fn draw_gl(gl: &glow::Context, g: &Gpu, info: &egui::PaintCallbackInfo, s
     if m > 0.02 {
         let mid = plane.center().y;
         let a = [acc[0], acc[1], acc[2], 0.0];
-        let b = [acc[0], acc[1], acc[2], 0.07 * m];
+        let b = [acc[0], acc[1], acc[2], LIT_PLANE * m];
         flat_quad(&mut flat, Rect::from_min_max(plane.min, pos2(plane.right(), mid)), a, b);
         flat_quad(&mut flat, Rect::from_min_max(pos2(plane.left(), mid), plane.max), b, a);
         let e = [acc[0], acc[1], acc[2], 0.22 * m];
@@ -802,12 +886,12 @@ unsafe fn draw_gl(gl: &glow::Context, g: &Gpu, info: &egui::PaintCallbackInfo, s
         }
         plane_n = flat.len() / 6;
     }
-    // Radial wash behind the lit frame: a 48-triangle fan, centre alpha to 0 at 190 px.
+    // Radial wash behind the lit frame: a 48-triangle fan, centre alpha to 0 at WASH_R px.
     let c = p.pt(0.5, 0.0, s.th);
     let (ci, co) = ([acc[0], acc[1], acc[2], s.wash], [acc[0], acc[1], acc[2], 0.0]);
     for i in 0..48 {
         let (a0, a1) = (i as f32 / 48.0 * std::f32::consts::TAU, (i + 1) as f32 / 48.0 * std::f32::consts::TAU);
-        flat_tri(&mut flat, [c, c + vec2(a0.cos(), a0.sin()) * 190.0, c + vec2(a1.cos(), a1.sin()) * 190.0], [ci, co, co]);
+        flat_tri(&mut flat, [c, c + vec2(a0.cos(), a0.sin()) * WASH_R, c + vec2(a1.cos(), a1.sin()) * WASH_R], [ci, co, co]);
     }
     let flat_n = flat.len() / 6;
 
@@ -855,7 +939,7 @@ unsafe fn draw_gl(gl: &glow::Context, g: &Gpu, info: &egui::PaintCallbackInfo, s
         flat_draw(plane_n, flat_n - plane_n);
         fill(g.litfill_vao, 0, s.th, hide, m, [0.0; 4]);
         let (gy0, gy1) = (p.pt(0.0, 1.2, s.th).y, p.pt(0.0, -1.2, s.th).y + 30.0);
-        fill(g.litfill_vao, 0, s.th, acc, 1.0, [gy0, gy1, 0.26, 1.0]);
+        fill(g.litfill_vao, 0, s.th, acc, 1.0, [gy0, gy1, LIT_FILL, 1.0]);
         for (w, a) in [(s.core * 6.0, 0.07 * s.k), (s.core * 3.0, 0.17 * s.k), (s.core, 1.0)] {
             line(g.lit_vao, 0, s.th, acc, a, w);
         }
@@ -874,6 +958,8 @@ unsafe fn draw_gl(gl: &glow::Context, g: &Gpu, info: &egui::PaintCallbackInfo, s
             continue;
         }
         fill(g.fill_vao, gi, t, hide, (a * 1.2).min(1.0), [0.0; 4]);
+        // Translucent surface in the frame's own colour: the ribbon up to the next nearer frame.
+        fill(g.fill_vao, gi, t, col, s.surface_alpha(gi), [0.0, s.surface_fall(gi), 1.0, 2.0]);
         line(g.line_vao, gi * SEGS, t, col, al, w);
     }
     if !lit_done {

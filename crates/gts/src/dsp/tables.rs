@@ -1,4 +1,4 @@
-//! Procedural graintables: 9 tables x 32 grains, each grain mip-mapped four levels per octave.
+//! Procedural grain tables: 9 tables x 32 grains, each grain mip-mapped four levels per octave.
 //!
 //! Every grain is one cycle defined by harmonic coefficients 1..=512 (FM is computed in the time
 //! domain and transformed), then rendered by inverse FFT into `MIPS` band-limited levels: mip `m`

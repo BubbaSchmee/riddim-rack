@@ -1,4 +1,4 @@
-//! GTS, a two-oscillator graintable synth. See SPEC.md at the repo root for the contract.
+//! GTS, a two-oscillator grain table synth. See SPEC.md at the repo root for the contract.
 
 pub mod bus;
 pub mod dsp;
@@ -114,7 +114,7 @@ impl Plugin for Gts {
             buffer_config.max_buffer_size
         );
         if let Some(t) = self.engine.initialize(buffer_config.sample_rate) {
-            nih_log!("initialize: graintables generated in {:.2} ms", t.as_secs_f64() * 1000.0);
+            nih_log!("initialize: grain tables generated in {:.2} ms", t.as_secs_f64() * 1000.0);
         }
         self.engine.log_notes = std::env::var_os("NIH_LOG").is_some();
         // Quality setting (host state, SPEC v2 1.2) and the latency it implies.
@@ -230,7 +230,7 @@ impl Plugin for Gts {
 
 impl ClapPlugin for Gts {
     const CLAP_ID: &'static str = "com.github.bubbaschmee.riddim-rack.gts";
-    const CLAP_DESCRIPTION: Option<&'static str> = Some("A two-oscillator graintable synthesizer");
+    const CLAP_DESCRIPTION: Option<&'static str> = Some("A two-oscillator grain table synthesizer");
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
     const CLAP_FEATURES: &'static [ClapFeature] =

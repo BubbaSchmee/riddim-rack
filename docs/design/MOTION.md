@@ -1,6 +1,6 @@
 # GTS visual and motion spec (v2 panel)
 
-Status: built and approved; chip drag-and-drop patching, OS-default Reduced motion and 15 Hz data snapshots were deferred. Companion to `DESIGN.md` (the static contract) and
+Status: built and approved; chip drag-and-drop patching, the Macro 1 chip, OS-default Reduced motion and 15 Hz data snapshots were deferred; the hero stack also carries a translucent per-frame surface fill (0.20 at the front to 0.10 at the back, a stronger lit-frame wash), measured at 0.29 ms GPU. Companion to `DESIGN.md` (the static contract) and
 `motion-feasibility.md` (what the stack can carry). The running reference is
 `prototype-v2.html`; the stills are `prototype-v2-1.png` to `prototype-v2-5.png`.
 
@@ -70,7 +70,7 @@ Filter Env, Shaper, Voice, Wheel, Velocity, header Volume and Spread, FX EQ), **
 | Meter | 780, 16 | 14 x 56 | stereo, peak hold |
 | Output | 802, 16 | 154 x 56 | Volume, Spread (S knobs) |
 | **Hero** | 44, 80 | **568 x 232** | wavetable, A / B tabs, table name, index readout, 2D / 3D |
-| Sources strip | 44, 320 | 568 x 20 | chips Mod A, Mod B, Env, Macro 1 with a live activity bar |
+| Sources strip | 44, 320 | 568 x 20 | chips Mod A, Mod B, Env with a live activity bar (Macro 1 is hidden until macros exist; display-only, hover lights targets) |
 | Mod A | 620, 80 | 336 x 126 | Curve combo; Sync, Div, 1-shot, Target; shape display; Rate, Pitch, Index, Shift |
 | Mod B | 620, 214 | 336 x 126 | same strip; shape display; Rate, Motion, Vol, Cutoff, Mod A |
 | Osc A | 44, 348 | 404 x 222 | Table combo + On; Oct Semi Cent Index(L) Motion Shift Vol; Att Dec Sus Rel Curve + amp display; Unison Detune D.Crv Blend Width Rand + Reset |

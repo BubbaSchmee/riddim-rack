@@ -6,7 +6,7 @@
 pub const HELP: &[(&str, &str)] = &[
     // Oscillator A
     ("osca_on", "Turns Osc A on or off. Off silences it and takes it out of the sound."),
-    ("osca_table", "Which of the nine graintables Osc A plays. Index picks the grain inside it."),
+    ("osca_table", "Which of the nine grain tables Osc A plays. Index picks the grain inside it."),
     ("osca_oct", "Octave transpose of Osc A, -4 to +4 octaves."),
     ("osca_semi", "Semitone transpose of Osc A, 0 to 12 semitones up."),
     ("osca_cent", "Fine tune of Osc A, -50 to +50 cents."),
@@ -28,7 +28,7 @@ pub const HELP: &[(&str, &str)] = &[
     ("osca_phase_reset", "On: every note starts Osc A at the same phase. Off: it free-runs."),
     // Oscillator B
     ("oscb_on", "Turns Osc B on or off (off in the init patch). Off silences it."),
-    ("oscb_table", "Which of the nine graintables Osc B plays. Index picks the grain inside it."),
+    ("oscb_table", "Which of the nine grain tables Osc B plays. Index picks the grain inside it."),
     ("oscb_oct", "Octave transpose of Osc B, -4 to +4 octaves."),
     ("oscb_semi", "Semitone transpose of Osc B, 0 to 12 semitones up."),
     ("oscb_cent", "Fine tune of Osc B, -50 to +50 cents."),

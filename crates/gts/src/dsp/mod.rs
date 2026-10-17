@@ -1,4 +1,4 @@
-//! GTS DSP: the voice engine (allocation, MIDI, output stage) over graintables and grain oscillators.
+//! GTS DSP: the voice engine (allocation, MIDI, output stage) over grain tables and grain oscillators.
 //! Everything `process` touches is preallocated here for 8 voices.
 
 pub mod env;
@@ -471,7 +471,7 @@ impl Engine {
         self.xover.reset();
     }
 
-    /// The graintables (panics before `initialize`).
+    /// The grain tables (panics before `initialize`).
     pub fn tables(&self) -> &Tables {
         self.tables.get().expect("Engine::initialize generates the tables")
     }

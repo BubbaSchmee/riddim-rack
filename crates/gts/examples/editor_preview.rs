@@ -8,7 +8,9 @@
 //!
 //!   cpu     paint the hero with its CPU fallback instead of GL (writes preview-gts-editor-cpu.png)
 //!   values  "Always show values" on
+//!   at=x,y  pointer held at window px x,y (hover state; writes %TEMP%gts-hover.png)
 //!   2d      hero in 2D (writes preview-gts-editor-2d.png)
+//!   table=saw|vowel   Osc A on Saw Stack or Vowel (writes preview-hero-saw-stack.png / preview-hero-vowel.png)
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
@@ -27,9 +29,17 @@ struct App {
     asked: bool,
     bus: BusView,
     name: &'static str,
+    pointer: Option<egui::Pos2>,
 }
 
 impl eframe::App for App {
+    /// `at=x,y`: hold the pointer there (window px) so the shot shows the hover state.
+    fn raw_input_hook(&mut self, _ctx: &Context, raw: &mut egui::RawInput) {
+        if let Some(p) = self.pointer {
+            raw.events.push(egui::Event::PointerMoved(p));
+        }
+    }
+
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         let (w, h) = (WINDOW.0 as f32, WINDOW.1 as f32);
         if self.frame == 0 {
@@ -63,7 +73,7 @@ impl eframe::App for App {
             })
         });
         if let Some(img) = shot {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design").join(self.name);
+            let path = if self.pointer.is_some() { std::env::temp_dir().join("gts-hover.png") } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design").join(self.name) };
             let file = std::io::BufWriter::new(std::fs::File::create(&path).expect("create png"));
             let mut enc = png::Encoder::new(file, img.size[0] as u32, img.size[1] as u32);
             enc.set_color(png::ColorType::Rgba);
@@ -92,6 +102,16 @@ fn main() -> eframe::Result {
             ctl.vals.borrow_mut().insert(k.to_string(), v);
         }
         let mut patch = preset.patch;
+        // table=saw|vowel: Osc A on that table, in the engine's patch and on the knob.
+        let tab = std::env::args().find_map(|a| a.strip_prefix("table=").map(str::to_string)).and_then(|t| match t.as_str() {
+            "saw" => Some((gts::params::Table::SawStack, 1, "preview-hero-saw-stack.png")),
+            "vowel" => Some((gts::params::Table::Vowel, 3, "preview-hero-vowel.png")),
+            _ => None,
+        });
+        if let Some((t, i, _)) = tab {
+            patch.osc[0].table = t;
+            ctl.vals.borrow_mut().insert("osca_table".to_string(), i as f32 / 8.0);
+        }
         if has("fx") {
             demo::fx_on(&ctl, &mut patch); // the FX shot shows the modules working
         }
@@ -116,7 +136,8 @@ fn main() -> eframe::Result {
             show_values: has("values"),
             ..Default::default()
         };
-        let name = if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
-        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name }))
+        let name = if let Some((_, _, n)) = tab { n } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
+        let pointer = std::env::args().find_map(|a| a.strip_prefix("at=").and_then(|v| v.split_once(',').map(|(x, y)| egui::pos2(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0)))));
+        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer }))
     }))
 }

@@ -364,32 +364,49 @@ pub fn delay_display(p: &Painter, r: Rect, feedback: f32, mix: f32, flash: &dyn 
     }
 }
 
-/// Reverb tail: the decay curve for the set Decay and Pre-delay (linear amplitude, -60 dB at the
-/// decay time) and a playhead at the age of the tail with a dot at the measured wet level relative to
-/// the tail's peak.
+/// Reverb tail: the decay for the set Decay and Pre-delay on a dB scale (0 to -60 dB up the left
+/// axis, seconds along the bottom), a straight line down to -60 dB at the decay time since the tail
+/// decays exponentially; a playhead at the age of the tail with a dot at the measured wet level
+/// relative to the tail's peak.
 pub fn reverb_display(p: &Painter, r: Rect, decay_s: f32, predelay_s: f32, age: f32, level_db: Option<f32>) {
     small_glass(p, r);
-    let inner = r.shrink2(vec2(8.0, 7.0));
-    let span = (decay_s * 1.25).max(0.4);
-    let (x_of, y_of) = (|t: f32| inner.left() + inner.width() * (t / span).clamp(0.0, 1.0), |a: f32| inner.bottom() - inner.height() * a.clamp(0.0, 1.0));
-    let base = snap(p, inner.bottom());
-    p.hline(inner.x_range(), base, faint(p, 0.14));
-    let amp = |t: f32| 10f32.powf(-3.0 * (t - predelay_s) / decay_s.max(0.05));
-    let n = (inner.width() as usize).max(32);
-    let mut pts = vec![pos2(inner.left(), y_of(0.0))];
-    let t0 = predelay_s.min(span * 0.9);
-    pts.push(pos2(x_of(t0), y_of(0.0)));
-    for i in 0..=n {
-        let t = t0 + (span - t0) * i as f32 / n as f32;
-        pts.push(pos2(x_of(t), y_of(amp(t))));
+    let inner = Rect::from_min_max(pos2(r.left() + 32.0, r.top() + 10.0), pos2(r.right() - 12.0, r.bottom() - 20.0));
+    let decay = decay_s.max(0.05);
+    let span = (decay * 1.15).max(predelay_s + 0.4);
+    let x_of = |t: f32| inner.left() + inner.width() * (t / span).clamp(0.0, 1.0);
+    let y_of = |d: f32| inner.top() + inner.height() * (-d / 60.0).clamp(0.0, 1.0);
+    let label = |pos: Pos2, a: Align2, s: &str| p.text(pos, a, s, font::mono(10.0), T.disp_caption);
+    // dB grid and labels.
+    for d in [0.0f32, -20.0, -40.0, -60.0] {
+        p.hline(inner.x_range(), snap(p, y_of(d)), faint(p, if d == -60.0 { 0.14 } else { 0.05 }));
+        label(pos2(inner.left() - 6.0, y_of(d)), Align2::RIGHT_CENTER, &format!("{d:.0}"));
     }
-    fill_to(p, &pts[1..], base, T.a(0.18), T.a(0.0));
-    glow_line(p, pts, 1.5, T.accent);
+    // Time grid and labels: a step that gives three to six ticks.
+    let step = [0.1f32, 0.2, 0.5, 1.0, 2.0, 5.0].into_iter().find(|s| span / s <= 6.0).unwrap_or(5.0);
+    let mut t = 0.0;
+    while t <= span + 1e-3 {
+        let x = snap(p, x_of(t));
+        p.vline(x, inner.y_range(), faint(p, 0.05));
+        let s = if step < 1.0 { format!("{t:.1}") } else { format!("{t:.0}") };
+        label(pos2(x, inner.bottom() + 9.0), if t == 0.0 { Align2::LEFT_CENTER } else { Align2::CENTER_CENTER }, &s);
+        t += step;
+    }
+    label(pos2(r.right() - 6.0, r.bottom() - 7.0), Align2::RIGHT_CENTER, "s");
+    label(pos2(r.left() + 6.0, r.top() + 8.0), Align2::LEFT_CENTER, "dB");
+    // Curve: flat at 0 dB through the pre-delay, then down to -60 dB at the decay time (and the floor).
+    let t0 = predelay_s.min(span * 0.9);
+    let t_end = (t0 + decay).min(span);
+    let mut line = vec![pos2(x_of(0.0), y_of(0.0)), pos2(x_of(t0), y_of(0.0)), pos2(x_of(t_end), y_of(-60.0 * (t_end - t0) / decay))];
+    if t_end < span {
+        line.push(pos2(x_of(span), y_of(-60.0)));
+    }
+    fill_to(p, &line, snap(p, inner.bottom()), T.a(0.18), T.a(0.0));
+    glow_line(p, line, 1.5, T.accent);
     if let Some(d) = level_db {
         if age < span {
             let x = snap(p, x_of(age));
             p.vline(x, inner.y_range(), Stroke::new(px(p), Color32::WHITE.gamma_multiply(0.45)));
-            dot(p, pos2(x, y_of(10f32.powf(d.min(0.0) / 20.0))), T.accent, 1.0);
+            dot(p, pos2(x, y_of(d.clamp(-60.0, 0.0))), T.accent, 1.0);
         }
     }
 }

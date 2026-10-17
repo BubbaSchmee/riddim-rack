@@ -17,11 +17,11 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use rr_ui::hero::{Hero, HeroInput, FRAMES, POINTS};
 use rr_ui::ring::RingReader;
 use rr_ui::theme::metrics::*;
-use rr_ui::theme::{font, SRC_A, SRC_B, SRC_E, SRC_M, T};
+use rr_ui::theme::{font, SRC_A, SRC_B, SRC_E, T};
 use rr_ui::widgets::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, OnceLock, PoisonError, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
 use crate::bus::BusLink;
 use crate::dsp::lfo::Lfo;
@@ -158,10 +158,15 @@ pub struct Feeds {
     pub scope: RingReader,
 }
 
+/// Param ids whose host gesture is open (begin sent, end not yet). [`GestureGuard`] ends whatever
+/// is still open when the editor window goes away mid-drag.
+type OpenGestures = Arc<Mutex<Vec<String>>>;
+
 /// The plugin's `Ctl`: reads through the table, writes through the host's `ParamSetter`.
 struct PlugCtl<'a> {
     table: &'a ParamTable,
     setter: &'a ParamSetter<'a>,
+    open: &'a Mutex<Vec<String>>,
 }
 
 impl Ctl for PlugCtl<'_> {
@@ -178,12 +183,17 @@ impl Ctl for PlugCtl<'_> {
         self.table.steps(id)
     }
     fn begin(&self, id: &str) {
+        let mut open = self.open.lock().unwrap_or_else(PoisonError::into_inner);
+        if !open.iter().any(|o| o == id) {
+            open.push(id.to_string());
+        }
         unsafe { self.setter.raw_context.raw_begin_set_parameter(self.table.ptr(id)) }
     }
     fn set01(&self, id: &str, v: f32) {
         unsafe { self.setter.raw_context.raw_set_parameter_normalized(self.table.ptr(id), v.clamp(0.0, 1.0)) }
     }
     fn end(&self, id: &str) {
+        self.open.lock().unwrap_or_else(PoisonError::into_inner).retain(|o| o != id);
         unsafe { self.setter.raw_context.raw_end_set_parameter(self.table.ptr(id)) }
     }
     fn readout_at(&self, id: &str, v: f32) -> String {
@@ -240,7 +250,7 @@ struct KnobLive {
     live: [Option<(f32, Color32)>; MOD_IDS.len()],
     /// Range arcs per [`MOD_IDS`] knob, one per source (MOTION.md 5.2).
     ranges: [[Option<RingRange>; 2]; MOD_IDS.len()],
-    /// Source chip under the pointer (last frame): 0 Mod A, 1 Mod B, 2 Env, 3 Macro.
+    /// Source chip under the pointer (last frame): 0 Mod A, 1 Mod B, 2 Env.
     chip: Option<usize>,
     filt_env: [bool; 2],
 }
@@ -276,10 +286,8 @@ fn glyph_of(col: Color32) -> &'static str {
         "A"
     } else if col == SRC_B {
         "B"
-    } else if col == SRC_E {
-        "E"
     } else {
-        "M"
+        "E"
     }
 }
 
@@ -325,7 +333,7 @@ fn kn(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str, mut style: KnobStyle) {
             }
             if let Some(ch) = kl.chip {
                 if sources_of(id, kl.filt_env) & (1 << ch) != 0 {
-                    style.ring = Some([SRC_A, SRC_B, SRC_E, SRC_M][ch]);
+                    style.ring = Some([SRC_A, SRC_B, SRC_E][ch]);
                 } else {
                     dim_by_chip = true;
                 }
@@ -877,7 +885,7 @@ fn place<R>(ui: &mut Ui, r: Rect, add: impl FnOnce(&mut Ui) -> R) -> R {
 fn header(ui: &mut Ui, c: &dyn Ctl, live: &mut LiveView, bv: &mut BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
     let p = ui.painter().clone();
     let note = live.frame.held_note().map(note_name);
-    rr_ui::panel::nameplate_v2(&p, at(44.0, 16.0, 156.0, 56.0), "GTS", "Graintable Synth", note.as_deref());
+    rr_ui::panel::nameplate_v2(&p, at(44.0, 16.0, 156.0, 56.0), "GTS", "Grain Table Synth", note.as_deref());
     preset_bar(ui, at(208.0, 16.0, 232.0, 56.0), bv);
     page_switch(ui, at(448.0, 16.0, 132.0, 26.0), bv);
     place(ui, at(448.0, 48.0, 56.0, 24.0), |ui| {
@@ -1118,43 +1126,62 @@ fn patch_popover(ui: &mut Ui, c: &dyn Ctl, bv: &mut BusView, chip: Rect) {
     }
 }
 
+/// `text` cut to `max_w` px with an ellipsis (unchanged when it fits).
+fn elide(p: &egui::Painter, text: &str, font: egui::FontId, max_w: f32) -> String {
+    let w = |t: &str| p.layout_no_wrap(t.to_string(), font.clone(), Color32::WHITE).size().x;
+    if w(text) <= max_w {
+        return text.to_string();
+    }
+    let mut s = text.to_string();
+    while s.pop().is_some() {
+        let t = format!("{}\u{2026}", s.trim_end());
+        if w(&t) <= max_w {
+            return t;
+        }
+    }
+    String::new()
+}
+
 /// Help bar (MOTION.md 5.10): the hovered control's name, value, live value (in its source colour,
-/// with the source letter) and one line of help; with nothing hovered, the gesture hint and the two
-/// editor settings ("Always show values", "Reduced motion") on the right.
+/// with the source letter) and one line of help, cut with an ellipsis before the two editor
+/// settings ("Always show values", "Reduced motion") that stay on the right in every state; with
+/// nothing hovered, the gesture hint.
 fn help_bar(ui: &mut Ui, r: Rect, bv: &mut BusView) {
     let hov = ui.data(|d| d.get_temp::<Hover>(hover_id()));
     let p = ui.painter().clone();
     p.rect_filled(r, 4.0, Color32::BLACK.gamma_multiply(0.5));
     let y = r.center().y;
     let mut x = r.left() + 12.0;
+    let toggles = Rect::from_min_max(pos2(r.right() - 236.0, r.top() + 2.0), pos2(r.right() - 2.0, r.bottom() - 2.0));
+    let max_x = toggles.left() - 8.0;
+    let text = |p: &egui::Painter, x: f32, s: &str, font: egui::FontId, col: Color32| p.text(pos2(x, y), Align2::LEFT_CENTER, elide(p, s, font.clone(), max_x - x), font, col);
     match hov {
         Some(h) => {
             x = rr_ui::paint::tracked(&p, pos2(x, y), Align2::LEFT_CENTER, &h.name, font::label(11.0), T.muted, 1.0).right() + 12.0;
-            x = p.text(pos2(x, y), Align2::LEFT_CENTER, &h.value, font::mono(12.0), T.accent).right() + 12.0;
+            x = text(&p, x, &h.value, font::mono(12.0), T.accent).right() + 12.0;
             if let Some((v, col, glyph)) = h.live {
-                x = p.text(pos2(x, y), Align2::LEFT_CENTER, format!("\u{203a} {glyph} {v}"), font::mono(12.0), col).right() + 14.0;
+                x = text(&p, x, &format!("\u{203a} {glyph} {v}"), font::mono(12.0), col).right() + 14.0;
             }
             if let Some(line) = h.line.or_else(|| crate::help::help(&h.id)) {
-                let clip = Rect::from_min_max(pos2(x, r.top()), pos2(r.right() - 10.0, r.bottom()));
-                p.with_clip_rect(clip.intersect(p.clip_rect())).text(pos2(x, y), Align2::LEFT_CENTER, line, font::label(12.0), T.muted);
+                text(&p, x, line, font::label(12.0), T.muted);
             }
         }
         None => {
             x = rr_ui::paint::tracked(&p, pos2(x, y), Align2::LEFT_CENTER, "HOVER A CONTROL", font::label(11.0), T.muted, 1.0).right() + 12.0;
-            p.text(pos2(x, y), Align2::LEFT_CENTER, "Drag to set, Shift for fine, double-click to reset, wheel or arrows to nudge.", font::label(12.0), T.disp_caption);
-            place(ui, Rect::from_min_max(pos2(r.right() - 236.0, r.top() + 2.0), pos2(r.right() - 2.0, r.bottom() - 2.0)), |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 6.0;
-                    if let Some(on) = led_toggle(ui, "Reduced motion", bv.reduced_motion) {
-                        bv.reduced_motion = on;
-                    }
-                    if let Some(on) = led_toggle(ui, "Values", bv.show_values) {
-                        bv.show_values = on;
-                    }
-                });
-            });
+            text(&p, x, "Drag a knob to set it, Shift for fine, double-click to reset, wheel or arrows to nudge.", font::label(12.0), T.disp_caption);
         }
     }
+    place(ui, toggles, |ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            if let Some(on) = led_toggle(ui, "Reduced motion", bv.reduced_motion) {
+                bv.reduced_motion = on;
+            }
+            if let Some(on) = led_toggle(ui, "Values", bv.show_values) {
+                bv.show_values = on;
+            }
+        });
+    });
 }
 
 // ---- SYNTH page --------------------------------------------------------------------------------
@@ -1362,7 +1389,7 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
     let src = at(44.0, 320.0, 568.0, 20.0);
     let newest = f.newest();
     let act = |k: usize| newest.map_or(0.0, |v| f.voice(v, k).abs());
-    let chips = [("A", "Mod A", SRC_A, act(vf::OUT_A), 74.0), ("B", "Mod B", SRC_B, act(vf::OUT_B), 74.0), ("E", "Env", SRC_E, act(vf::FENV), 62.0), ("M", "Macro 1", SRC_M, 0.0, 86.0)];
+    let chips = [("A", "Mod A", SRC_A, act(vf::OUT_A), 74.0), ("B", "Mod B", SRC_B, act(vf::OUT_B), 74.0), ("E", "Env", SRC_E, act(vf::FENV), 62.0)];
     let chip = rr_ui::motion::with_page_fx(ui, 320.0, |ui| {
     rr_ui::paint::tracked(ui.painter(), pos2(src.left() + 8.0, src.center().y), Align2::LEFT_CENTER, "SOURCES", font::label(11.0), T.title, 1.4);
     let mut x = src.left() + 76.0;
@@ -1372,13 +1399,9 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
         let r = source_chip(ui, Rect::from_min_size(pos2(x, src.top()), vec2(w, 20.0)), g, name, col, a);
         if r.hovered() {
             chip = Some(i);
-            let line = [
-                "Mod A: sweeps pitch, Index and Shift. Hover to light the knobs it drives.",
-                "Mod B: sweeps Motion, volume, cutoff and the Mod A depth. Hover to light its targets.",
-                "Filter envelope: opens the Filter A and B cutoff. Hover to light its targets.",
-                "Macro 1: display only until the modulation matrix arrives. It has no targets yet.",
-            ][i];
-            set_hover(ui, &name.to_uppercase(), ["source", "source", "source", "macro"][i], None, line);
+            // Display only: no dragging yet (the modulation matrix, SPEC v2 Track 2, brings it).
+            let drives = ["Pitch, Index, Shift", "Motion, Vol, Cutoff, Mod A", "Filter A / B cutoff"][i];
+            set_hover(ui, &name.to_uppercase(), drives, None, "Hover to light its targets. Drag-to-patch arrives with the modulation matrix.");
         }
         x += w + 8.0;
     }
@@ -1483,23 +1506,23 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
             fade(ui, p == "oscb" && is_off(c, "oscb_on"));
             ui.spacing_mut().item_spacing.y = 3.0;
             knob_row(ui, |ui| {
-                kn(ui, c, &kk("oct"), "Oct", km(52.0).bipolar());
-                kn(ui, c, &kk("semi"), "Semi", km(52.0));
-                kn(ui, c, &kk("cent"), "Cent", km(52.0).bipolar());
-                kn(ui, c, &kk("index"), "Index", kl(60.0));
-                kn(ui, c, &kk("motion"), "Motion", km(52.0).bipolar());
-                kn(ui, c, &kk("shift"), "Shift", km(52.0).bipolar());
-                kn(ui, c, &kk("vol"), "Vol", km(52.0));
+                kn(ui, c, &kk("oct"), "Oct", km(54.0).bipolar());
+                kn(ui, c, &kk("semi"), "Semi", km(54.0));
+                kn(ui, c, &kk("cent"), "Cent", km(54.0).bipolar());
+                kn(ui, c, &kk("index"), "Index", kl(56.0));
+                kn(ui, c, &kk("motion"), "Motion", km(54.0).bipolar());
+                kn(ui, c, &kk("shift"), "Shift", km(54.0).bipolar());
+                kn(ui, c, &kk("vol"), "Vol", km(54.0));
             });
             knob_row(ui, |ui| {
                 for (id, l) in [("att", "Att"), ("dec", "Dec"), ("sus", "Sus"), ("rel", "Rel")] {
-                    kn(ui, c, &kk(id), l, km(52.0));
+                    kn(ui, c, &kk(id), l, km(54.0));
                 }
-                kn(ui, c, &kk("curve"), "Curve", km(52.0).bipolar());
+                kn(ui, c, &kk("curve"), "Curve", km(54.0).bipolar());
                 ui.add_space(8.0);
                 ui.vertical(|ui| {
                     ui.add_space(3.0);
-                    adsr_display(ui, vec2(112.0, 50.0), c, p, &f, stage_k, level_k, T.accent);
+                    adsr_display(ui, vec2(102.0, 50.0), c, p, &f, stage_k, level_k, T.accent);
                 });
             });
             knob_row(ui, |ui| {
@@ -1515,7 +1538,7 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
         });
     }
     group_at(ui, at(868.0, 348.0, 88.0, 222.0), "Sub", |ui| tg(ui, c, "sub_on", ""), |ui| {
-        ui.spacing_mut().item_spacing.y = 6.0;
+        ui.spacing_mut().item_spacing.y = 10.0;
         // Xover is the whole-output mid/side crossover: it stays live with Sub off.
         ui.scope(|ui| {
             fade(ui, is_off(c, "sub_on"));
@@ -1599,17 +1622,6 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
     });
 }
 
-/// A toggle inside a knob row: a full knob-cell tall, centred on the knob band, 4 px of air each side.
-fn tg_cell(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str) {
-    ui.add_space(4.0);
-    ui.vertical(|ui| {
-        ui.set_min_height(knob_cell_h(KNOB_D));
-        ui.add_space(KNOB_LABEL_H + (KNOB_D - CONTROL_H) / 2.0);
-        tg(ui, c, id, label);
-    });
-    ui.add_space(4.0);
-}
-
 /// A toggle in a v2 knob-row cell for a knob of diameter `d`: the cell is as tall as a compact knob
 /// cell, the toggle centred on the knob band, 4 px of air each side.
 fn tgv(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str, d: f32) {
@@ -1651,6 +1663,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
     group_at(ui, at(44.0, 80.0, 272.0, 262.0), "Distortion", |ui| tg(ui, c, "dist_on", ""), |ui| {
         fade(ui, !on("dist_on"));
         let o = ui.cursor().min;
+        ui.spacing_mut().item_spacing.y = 2.0;
         knob_row(ui, |ui| {
             kn(ui, c, "dist_mix", "Mix", km(62.0));
             kn(ui, c, "dist_drive", "Drive", km(62.0));
@@ -1668,7 +1681,9 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
             kn(ui, c, "dist_filter_q", "F.Q", km(60.0));
         });
         let kind = crate::dsp::fx::distortion::DistType::ALL[enum_idx::<DistType>(c, "dist_type").min(7)];
-        let r = Rect::from_min_size(o + vec2(248.0 - 68.0, 62.0), vec2(68.0, 62.0));
+        // The transfer display takes the band under the filter row, the group's full width.
+        let top = ui.cursor().min.y + 4.0;
+        let r = Rect::from_min_max(pos2(o.x, top), pos2(o.x + 248.0, o.y + 262.0 - 34.0 - 8.0));
         fxview::dist_display(&ui.painter().clone(), r, kind, pv(c, "dist_drive"), pv(c, "dist_bias"), &f.dist_trail, on("dist_on"));
     });
 
@@ -1810,7 +1825,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
             kn(ui, c, "rev_hicut", "Hi Cut", km(72.0));
             kn(ui, c, "rev_width", "Width", km(76.0));
         });
-        let (r, _) = ui.allocate_exact_size(vec2(288.0, 90.0), Sense::hover());
+        let (r, _) = ui.allocate_exact_size(vec2(288.0, 98.0), Sense::hover());
         let lvl = (on("rev_on") && f.rev_db > -70.0).then_some(f.rev_db - f.rev_ref);
         fxview::reverb_display(&ui.painter().clone(), r, pv(c, "rev_decay"), pv(c, "rev_predelay") * 0.001, f.rev_age, lvl);
     });
@@ -1854,16 +1869,67 @@ pub struct EditorState {
     snap: Vec<f32>,
     /// Take `snap` on the next frame (the host applies a load's gestures between frames).
     resnap: bool,
+    /// The hero's GL status was written to the plugin log for this window.
+    gl_logged: bool,
+}
+
+/// The egui editor plus a guard on its window: if the window closes (or is destroyed) while a knob
+/// is held, the host would be left with a begun gesture that never ends. The guard ends it.
+struct GestureSafe {
+    inner: Box<dyn Editor>,
+    table: Arc<ParamTable>,
+    open: OpenGestures,
+}
+
+struct GestureGuard {
+    window: Option<Box<dyn std::any::Any + Send>>,
+    ctx: Arc<dyn GuiContext>,
+    table: Arc<ParamTable>,
+    open: OpenGestures,
+}
+
+impl Drop for GestureGuard {
+    fn drop(&mut self) {
+        drop(self.window.take()); // close the window first: no frame can begin another gesture
+        let ids = std::mem::take(&mut *self.open.lock().unwrap_or_else(PoisonError::into_inner));
+        for id in ids {
+            unsafe { self.ctx.raw_end_set_parameter(self.table.ptr(&id)) }
+        }
+    }
+}
+
+impl Editor for GestureSafe {
+    fn spawn(&self, parent: ParentWindowHandle, context: Arc<dyn GuiContext>) -> Box<dyn std::any::Any + Send> {
+        let window = self.inner.spawn(parent, context.clone());
+        Box::new(GestureGuard { window: Some(window), ctx: context, table: self.table.clone(), open: self.open.clone() })
+    }
+    fn size(&self) -> (u32, u32) {
+        self.inner.size()
+    }
+    fn set_scale_factor(&self, factor: f32) -> bool {
+        self.inner.set_scale_factor(factor)
+    }
+    fn param_value_changed(&self, id: &str, normalized_value: f32) {
+        self.inner.param_value_changed(id, normalized_value)
+    }
+    fn param_modulation_changed(&self, id: &str, modulation_offset: f32) {
+        self.inner.param_modulation_changed(id, modulation_offset)
+    }
+    fn param_values_changed(&self) {
+        self.inner.param_values_changed()
+    }
 }
 
 /// `tables` is the engine's own slot: the display reads the audio tables (no second 29 MB copy).
 /// If the editor opens before `initialize`, the GUI thread generates them and the engine reuses them.
 pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: Arc<OnceLock<Tables>>) -> Option<Box<dyn Editor>> {
-    let table = ParamTable::new(params.clone());
+    let table = Arc::new(ParamTable::new(params.clone()));
+    let open: OpenGestures = Arc::default();
+    let (guard_table, guard_open) = (table.clone(), open.clone());
     let Feeds { meters, viz, scope } = feeds;
-    create_egui_editor(
+    let inner = create_egui_editor(
         EguiState::from_size(WINDOW.0, WINDOW.1),
-        EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, live: LiveView::new(viz, Some(scope)), next_refresh: 0.0, snap: vec![], resnap: false },
+        EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, live: LiveView::new(viz, Some(scope)), next_refresh: 0.0, snap: vec![], resnap: false, gl_logged: false },
         |ctx, st| {
             rr_ui::theme::apply(ctx);
             st.next_refresh = 0.0; // egui time restarts at 0 on every open
@@ -1871,6 +1937,8 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
             st.view.preset_open = false;
             st.view.patch_open = false;
             st.live.hero.reset_gl(); // a reopened window is a new GL context
+            st.live.hero.reset_gesture(); // and never delivers the release of a drag begun in the old one
+            st.gl_logged = false;
         },
         // nih_plug_egui requests a repaint before every update, so this runs and paints on every
         // baseview tick (~62 Hz); all motion is time-based (docs/design/motion-feasibility.md 1).
@@ -1902,7 +1970,7 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
             st.view.preset_dirty = st.view.preset.is_some() && table.snapshot() != st.snap;
             let before = st.view.clone();
 
-            let ctl = PlugCtl { table: &table, setter };
+            let ctl = PlugCtl { table: &table, setter, open: &open };
             let tables = tables.get_or_init(|| {
                 let mut t = Tables::new();
                 t.generate();
@@ -1912,6 +1980,13 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
                 draw(ui, &ctl, tables, &mut st.live, &mut st.view);
             });
 
+            // Hero GL status, once per window, so a silent CPU fallback shows in the plugin log.
+            if !st.gl_logged {
+                if let Some(ok) = st.live.hero.gl_ok() {
+                    st.gl_logged = true;
+                    nih_log!("GTS hero: {} ({})", if ok { "GPU" } else { "CPU fallback" }, st.live.hero.gl_info());
+                }
+            }
             if let Some(i) = st.view.preset_pick.take() {
                 apply_preset(&table, &ctl, i.checked_sub(1).and_then(|k| preset::factory().get(k)));
                 ctx.data_mut(|d| d.insert_temp(glide_id(), now));
@@ -1941,5 +2016,6 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
                 wr(&params.cv_sources, st.view.bound.clone());
             }
         },
-    )
+    )?;
+    Some(Box::new(GestureSafe { inner, table: guard_table, open: guard_open }))
 }

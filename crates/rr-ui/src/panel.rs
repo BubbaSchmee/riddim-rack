@@ -107,7 +107,7 @@ pub fn nameplate_v2(p: &egui::Painter, r: Rect, name: &str, descriptor: &str, no
 /// Draws the panel over `ui.max_rect()` and runs `add` with two child uis: `header` (right of
 /// the nameplate, `header_h` tall) and `body` (below the header, to the bottom padding).
 /// `plate` is the nameplate size (GTS 232 x 124, VSS 184 x 116); `status` is the line with the
-/// LED, e.g. "Two-osc graintable · v1.0".
+/// LED, e.g. "Two-osc grain table · v1.0".
 pub fn rack_panel<R>(
     ui: &mut Ui,
     name: &str,

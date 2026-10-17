@@ -1,7 +1,7 @@
 # Riddim Rack — functional recreations of the Reason devices riddim producers use
 
 Open-source (GPL-3.0-or-later), Rust + nih-plug, VST3 (+CLAP), Windows first. One plugin per
-device, built in this order: **GTS** (graintable synth, this spec), then SDU (damage unit,
+device, built in this order: **GTS** (grain table synth, this spec), then SDU (damage unit,
 Scream-style), then PBG (pattern band gate, Alligator-style). Each is a crate under `crates/`.
 
 Legal boundary (non-negotiable): we recreate *behavior*, never content. Third-party trademarks
@@ -9,7 +9,7 @@ never appear in product names, code identifiers, UI strings, plugin metadata, re
 README marketing copy; the README carries exactly one "inspired by the classic Reason rack
 workflow" sentence. Nominative references (naming the original device when describing the
 behavior being recreated) are permitted ONLY in this SPEC and in `docs/` research notes. No
-copied graintables, samples, graphics or preset names. All graintables are generated
+copied grain tables, samples, graphics or preset names. All grain tables are generated
 procedurally by our own code.
 
 This file is the single source of truth. Every agent reads it first. The orchestrator owns it.
@@ -31,16 +31,16 @@ tools/CHECKLIST-gts.md
 demo/gts-demo.wav
 ```
 
-# GTS — Graintable Synth (v1)
+# GTS — Grain Table Synth (v1)
 
-A two-oscillator graintable synthesizer in the Malström lineage: each oscillator plays a table of
+A two-oscillator grain table synthesizer in the Malström lineage: each oscillator plays a table of
 short single-cycle grains; **Index** picks the grain, **Motion** scans the table automatically,
 **Shift** resamples each grain to move the spectrum/formant while the note pitch stays fixed.
 Two LFO modulators with tempo sync and one-shot mode, a shaper, two multimode filters including
 comb and AM modes, shared filter envelope, mono/legato/portamento. Instrument: MIDI in (`MidiConfig::MidiCCs`, required for
 pitch bend and CC1 to be delivered), stereo out, no audio in.
 
-## Graintables (procedural, generated once, no allocation in `process`)
+## Grain tables (procedural, generated once, no allocation in `process`)
 Representation (v2.1): a table = `G = 32` grains, each grain one cycle defined by harmonic
 coefficients 1..512 and rendered by inverse FFT into 37 mip levels, four per octave: mip `m` keeps
 harmonics `1..=round(512·2^(-m/4))` (512, 431, 362, 304, 256, …, 1). Positions are in units of the
@@ -208,7 +208,7 @@ designed look is specified in `docs/design/DESIGN.md` (Variant B mint) and repla
 Mod A | Mod B | Shaper (second row), Filter A | Filter B | Filter Env (third row), Voice | Wheel |
 Velocity | Output (bottom row). ParamSlider at width 80 with `with_width`, ComboBox for enums
 at width 110, bool as checkbox. Compute every row's width in a comment and keep rows under
-960 px (the VSS GUI overflowed; do not repeat that). Header "GTS — Graintable Synth" + version.
+960 px (the VSS GUI overflowed; do not repeat that). Header "GTS — Grain Table Synth" + version.
 A small live readout of the current grain index of Osc A (shared AtomicU32) is nice-to-have.
 
 ## Logging (nih_log!, gated: note-on lines only when NIH_LOG is set, checked once in initialize)
@@ -243,7 +243,7 @@ note, velocity, voice count. Panics land in the same file via nih-plug's hook.
    CC1, legato retrigger rules, voice stealing at 9 notes.
 
 ## Non-goals for v1
-Preset browser, factory preset bank, graintable import, oscillator direct outs, CV, custom
+Preset browser, factory preset bank, grain table import, oscillator direct outs, CV, custom
 graphics, macOS/Linux, audio input, mip-mapped tables, per-osc filter routing beyond the three
 routings above.
 

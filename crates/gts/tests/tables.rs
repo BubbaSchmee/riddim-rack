@@ -25,7 +25,7 @@ fn grains_are_sane_and_generation_is_fast() {
             start.elapsed().as_secs_f64() * 1000.0
         })
         .fold(f64::INFINITY, f64::min);
-    println!("graintable generation (9 tables, all mips, calibration): {ms:.2} ms");
+    println!("grain table generation (9 tables, all mips, calibration): {ms:.2} ms");
     // ponytail: debug builds run the synthesis loop ~10x slower; the 150 ms budget is the
     // optimized plugin's, so unoptimized test builds get a 10x allowance.
     let budget = if cfg!(debug_assertions) { 1500.0 } else { 150.0 };
