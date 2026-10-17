@@ -56,7 +56,15 @@ impl Ctl for Recorder {
 fn editor_binds_every_param_exactly() {
     let params = Arc::new(GtsParams::default());
     let all: BTreeSet<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
-    assert_eq!(all.len(), 186); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX + 4 macros
+    assert_eq!(all.len(), 220); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX + 4 macros + 34 Track 7 modulation
+    // SPEC v2 Track 7 modulation params the editor does not draw yet: UI wave binds it.
+    let pending = |id: &str| {
+        ["modc_", "modd_", "menv_"].iter().any(|p| id.starts_with(p))
+            || ["osca_pitch", "oscb_pitch", "pitch_all"].contains(&id)
+            || ["moda_", "modb_"].iter().any(|p| id.strip_prefix(p).is_some_and(|t| ["phase", "fade", "smooth", "trig"].contains(&t)))
+    };
+    assert_eq!(all.iter().filter(|id| pending(id)).count(), 34);
+    let all: BTreeSet<String> = all.into_iter().filter(|id| !pending(id)).collect();
 
     let ctl = Recorder { table: ParamTable::new(params), seen: RefCell::new(BTreeSet::new()) };
     let mut tables = Tables::new();

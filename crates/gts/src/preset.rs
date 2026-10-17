@@ -8,6 +8,10 @@
 //!   "params": { "osca_table": "Square Morph", "osca_index": 40, "macro1": 0.0, ... } }
 //! ```
 //!
+//! `lfo_shapes` (SPEC v2 Track 7) is the list of the Mod A..D custom shapes
+//! ([`crate::dsp::shape::ShapeDef`]: `mode`, `points` `[x, y, curve]`, `steps`, `glide`); it is
+//! written only when a shape differs from the default, and a file without it loads the defaults.
+//!
 //! `matrix` is the modulation matrix (SPEC v2 Track 5, [`crate::matrix`]): slots by source name
 //! and target param id. Macro values are ordinary params (`macro1..macro4`); `macros` carries the
 //! labels. Files without a `matrix` load with an empty one; a slot that does not parse or whose
@@ -22,7 +26,8 @@
 //! `ParamSetter`.
 
 use crate::dsp::fx::FxPatch;
-use crate::dsp::{FilterPatch, ModPatch, OscPatch, Patch};
+use crate::dsp::shape::LfoShapes;
+use crate::dsp::{FilterPatch, LfoExt, ModPatch, OscPatch, Patch};
 use crate::matrix::{Matrix, Slot as ModSlot, MACROS};
 use crate::params::GtsParams;
 use nih_plug::prelude::{Enum, ParamPtr, Params};
@@ -46,6 +51,8 @@ pub struct Preset {
     /// Modulation matrix slots.
     pub matrix: Vec<ModSlot>,
     pub patch: Patch,
+    /// Custom LFO shapes, Mod A..D (SPEC v2 Track 7).
+    pub lfo_shapes: LfoShapes,
 }
 
 impl Default for Preset {
@@ -59,6 +66,7 @@ impl Default for Preset {
             macros: vec![],
             matrix: vec![],
             patch: Patch::default(),
+            lfo_shapes: LfoShapes::default(),
         }
     }
 }
@@ -89,6 +97,8 @@ struct File {
     matrix: Vec<Value>,
     #[serde(default)]
     params: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    lfo_shapes: Option<Value>,
 }
 
 /// A writable view of one `Patch` field (also the matrix's field table, `crate::matrix`).
@@ -157,6 +167,19 @@ fn mod_slots<'a>(pre: &str, m: &'a mut ModPatch, out: &mut Vec<(String, Slot<'a>
     let ModPatch { curve, rate, sync, div, oneshot, target } = m;
     let v = [("curve", E(curve)), ("rate", F(rate)), ("sync", B(sync)), ("div", E(div)), ("oneshot", B(oneshot)), ("target", E(target))];
     prefixed(pre, v, out);
+}
+
+/// Mod C / Mod D: the Mod A / B set without `target`.
+fn mod_cd_slots<'a>(pre: &str, m: &'a mut ModPatch, out: &mut Vec<(String, Slot<'a>)>) {
+    use Slot::*;
+    let ModPatch { curve, rate, sync, div, oneshot, target: _ } = m;
+    prefixed(pre, [("curve", E(curve)), ("rate", F(rate)), ("sync", B(sync)), ("div", E(div)), ("oneshot", B(oneshot))], out);
+}
+
+fn lfo_ext_slots<'a>(pre: &str, e: &'a mut LfoExt, out: &mut Vec<(String, Slot<'a>)>) {
+    use Slot::*;
+    let LfoExt { phase, fade, smooth, trig } = e;
+    prefixed(pre, [("phase", F(phase)), ("fade", F(fade)), ("smooth", F(smooth)), ("trig", E(trig))], out);
 }
 
 fn filt_slots<'a>(pre: &str, f: &'a mut FilterPatch, out: &mut Vec<(String, Slot<'a>)>) {
@@ -232,6 +255,9 @@ pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
         fenv_amt, fenv_inv, fenv_curve, sub_on, sub_level_db, sub_oct, mono_xover, routing, poly, legato, porta,
         bend_range, wheel_index, wheel_shift, wheel_cutoff, wheel_mod, vel_vol_a, vel_vol_b, vel_fenv, vel_att,
         vel_shift, vel_mod, volume_db, spread, fx, macros: [m1, m2, m3, m4],
+        // SPEC v2 Track 7
+        modc, modd, lfo_ext: [ext_a, ext_b, ext_c, ext_d], menv_att, menv_dec, menv_sus, menv_rel, menv_curve,
+        osca_pitch, oscb_pitch, pitch_all,
     } = p;
     osc_slots("osca", osca, &mut out);
     osc_slots("oscb", oscb, &mut out);
@@ -256,6 +282,19 @@ pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
         ("macro1", F(m1)), ("macro2", F(m2)), ("macro3", F(m3)), ("macro4", F(m4)),
     ];
     out.extend(rest.into_iter().map(|(k, s)| (k.to_string(), s)));
+    // SPEC v2 Track 7 (appended)
+    mod_cd_slots("modc", modc, &mut out);
+    mod_cd_slots("modd", modd, &mut out);
+    for (pre, e) in [("moda", ext_a), ("modb", ext_b), ("modc", ext_c), ("modd", ext_d)] {
+        lfo_ext_slots(pre, e, &mut out);
+    }
+    #[rustfmt::skip]
+    let t7: [(&str, Slot<'_>); 8] = [
+        ("menv_att", F(menv_att)), ("menv_dec", F(menv_dec)), ("menv_sus", F(menv_sus)), ("menv_rel", F(menv_rel)),
+        ("menv_curve", F(menv_curve)), ("osca_pitch", F(osca_pitch)), ("oscb_pitch", F(oscb_pitch)),
+        ("pitch_all", F(pitch_all)),
+    ];
+    out.extend(t7.into_iter().map(|(k, s)| (k.to_string(), s)));
     out
 }
 
@@ -321,6 +360,8 @@ impl Preset {
             macros: self.macros.iter().map(|l| Macro { label: l.clone() }).collect(),
             matrix: self.matrix.iter().map(|s| serde_json::to_value(s).expect("a slot always serialises")).collect(),
             params,
+            lfo_shapes: (self.lfo_shapes != LfoShapes::default())
+                .then(|| serde_json::to_value(&self.lfo_shapes).expect("shapes always serialise")),
         };
         serde_json::to_string_pretty(&file).expect("a preset always serialises") + "\n"
     }
@@ -386,6 +427,13 @@ impl Preset {
             }
         }
         drop(slots);
+        let lfo_shapes = match file.lfo_shapes {
+            None => LfoShapes::default(),
+            Some(v) => serde_json::from_value(v).unwrap_or_else(|e| {
+                warnings.push(format!("lfo_shapes: {e}; default shapes loaded"));
+                LfoShapes::default()
+            }),
+        };
         let preset = Preset {
             name: file.name,
             author: file.author,
@@ -395,6 +443,7 @@ impl Preset {
             macros: file.macros.into_iter().map(|m| m.label).collect(),
             matrix: matrix.slots,
             patch,
+            lfo_shapes,
         };
         Ok((preset, warnings))
     }
@@ -432,7 +481,7 @@ mod tests {
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        assert_eq!(got.len(), 180); // 102 + 74 FX + 4 macros
+        assert_eq!(got.len(), 214); // 102 + 74 FX + 4 macros + 34 Track 7 modulation
     }
 
     #[test]
@@ -512,7 +561,7 @@ mod tests {
         let params = v["params"].as_object_mut().unwrap();
         let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
         params.retain(|k, _| !fx_prefixes.iter().any(|f| k.starts_with(f)));
-        assert_eq!(params.len(), 106);
+        assert_eq!(params.len(), 140);
         let (q, w) = Preset::from_json(&serde_json::to_string(&v).unwrap()).unwrap();
         assert!(w.is_empty(), "{w:?}");
         assert_eq!(q.patch.fx, Patch::default().fx);

@@ -84,7 +84,7 @@ pub const SMOOTH_S: f32 = 0.005;
 /// Encoded slot: source index (-1 = empty), target param index, amount, bipolar, enabled.
 pub const ENC_STRIDE: usize = 5;
 pub const ENC_LEN: usize = MAX_SLOTS * ENC_STRIDE;
-pub const N_SOURCES: usize = 18;
+pub const N_SOURCES: usize = 21;
 
 // ---- sources ---------------------------------------------------------------------------------
 
@@ -111,11 +111,17 @@ pub enum Source {
     BusCv1,
     BusCv2,
     BusCv3,
+    // SPEC v2 Track 7 (appended): per-voice, matrix-only modulators.
+    ModC,
+    ModD,
+    /// The mod envelope, 0..1.
+    ModEnv,
 }
 
 const SOURCE_NAMES: [&str; N_SOURCES] = [
     "Mod A", "Mod B", "Filter Env", "Amp Env A", "Amp Env B", "Velocity", "Keytrack", "Random", "Poly Aftertouch",
     "Mod Wheel", "Channel Aftertouch", "Macro 1", "Macro 2", "Macro 3", "Macro 4", "Bus CV 1", "Bus CV 2", "Bus CV 3",
+    "Mod C", "Mod D", "Mod Env",
 ];
 
 impl Source {
@@ -138,6 +144,9 @@ impl Source {
         Source::BusCv1,
         Source::BusCv2,
         Source::BusCv3,
+        Source::ModC,
+        Source::ModD,
+        Source::ModEnv,
     ];
 
     /// Display name, also the preset / state spelling.
@@ -155,7 +164,7 @@ impl Source {
 
     /// Per-voice source (one value per voice); false = one global value.
     pub fn per_voice(self) -> bool {
-        self as usize <= Source::PolyAftertouch as usize
+        self as usize <= Source::PolyAftertouch as usize || matches!(self, Source::ModC | Source::ModD | Source::ModEnv)
     }
 
     /// Natural range -1..1 (LFOs, keytrack, random, bus CV); false = 0..1.
@@ -363,8 +372,16 @@ fn flags_of(id: &str) -> u8 {
     {
         return flag::UPDATE;
     }
+    // SPEC v2 Track 7: Mod Env times / curve are set in `Voice::update`; Mod C / D rates and every
+    // LFO extension in `Voice::configure_mods`. The pitch offsets are read per sample (no flag).
+    if id.starts_with("menv_") {
+        return flag::UPDATE;
+    }
+    let lfo = ["moda_", "modb_", "modc_", "modd_"];
+    if lfo.iter().any(|p| id.strip_prefix(p).is_some_and(|t| matches!(t, "rate" | "phase" | "fade" | "smooth"))) {
+        return flag::LFO;
+    }
     match id {
-        "moda_rate" | "modb_rate" => flag::LFO,
         "vel_vol_a" | "vel_vol_b" => flag::VEL_GAIN,
         "porta" => flag::PORTA,
         "mono_xover" => flag::XOVER,
@@ -1015,7 +1032,10 @@ const BIPOLAR: [bool; N_SOURCES] = {
     let mut b = [false; N_SOURCES];
     let mut i = 0;
     while i < N_SOURCES {
-        b[i] = matches!(Source::ALL[i], Source::ModA | Source::ModB | Source::Keytrack | Source::Random | Source::BusCv1 | Source::BusCv2 | Source::BusCv3);
+        b[i] = matches!(
+            Source::ALL[i],
+            Source::ModA | Source::ModB | Source::Keytrack | Source::Random | Source::BusCv1 | Source::BusCv2 | Source::BusCv3 | Source::ModC | Source::ModD
+        );
         i += 1;
     }
     b

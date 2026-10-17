@@ -147,7 +147,13 @@ impl ParamTable {
     /// and the macro labels.
     pub fn current_preset(&self) -> Preset {
         let m = self.matrix().get();
-        Preset { patch: crate::dsp::Patch::from_params(&self._keep), matrix: m.slots.clone(), macros: m.macros.to_vec(), ..Preset::default() }
+        Preset {
+            patch: crate::dsp::Patch::from_params(&self._keep),
+            matrix: m.slots.clone(),
+            macros: m.macros.to_vec(),
+            lfo_shapes: self._keep.lfo_shapes.get(), // Track 7 engine wave
+            ..Preset::default()
+        }
     }
     /// [`ParamTable::snapshot`] of a fresh instance: every param at its default, an empty matrix.
     pub fn default_snapshot(&self) -> Vec<f32> {
@@ -173,6 +179,7 @@ impl ParamTable {
 /// sound: never touched.
 pub fn apply_preset(table: &ParamTable, c: &dyn Ctl, preset: Option<&Preset>) {
     table._keep.matrix.replace(preset.map_or_else(Default::default, Preset::matrix_state));
+    table._keep.lfo_shapes.replace(preset.map_or_else(Default::default, |p| p.lfo_shapes.clone())); // Track 7 engine wave
     let json = preset.and_then(|p| serde_json::from_str::<serde_json::Value>(&p.to_json()).ok());
     let params = json.as_ref().and_then(|j| j.get("params")).and_then(|p| p.as_object());
     for id in &table.sound_ids {

@@ -82,6 +82,32 @@ fn empty_matrix_is_bit_identical_to_the_pre_matrix_engine() {
 /// Recorded at 788edb8 (before the matrix existed).
 const GOLDEN: u64 = 0xdd4d_2e6a_1c5e_4fe1;
 
+/// SPEC v2 Track 7 acceptance 1: the modulation wave's new defaults, custom shapes loaded on every
+/// LFO, and Mod C / Mod D / Mod Env set to anything while unrouted leave the render bit-identical.
+#[test]
+fn track7_modulation_defaults_and_unrouted_modulators_are_bit_identical() {
+    use gts::dsp::shape::{library, LfoShapes};
+    use gts::params::Trigger;
+    let mut shapes = LfoShapes::default();
+    for (k, s) in shapes.0.iter_mut().enumerate() {
+        *s = library()[k + 2].1.clone();
+    }
+    let mut p = busy_patch();
+    p.modc.curve = Curve::Custom;
+    p.modc.rate = 77.0;
+    p.modd.curve = Curve::SampleHold;
+    p.modd.oneshot = true;
+    for e in &mut p.lfo_ext[2..] {
+        (e.phase, e.fade, e.smooth, e.trig) = (90.0, 1.0, 0.5, Trigger::Free);
+    }
+    (p.menv_att, p.menv_dec, p.menv_sus, p.menv_rel, p.menv_curve) = (0.2, 0.1, 0.7, 1.0, 0.5);
+    let mut e = Engine::new();
+    e.initialize(SR);
+    e.set_lfo_shapes(&shapes.encode());
+    e.set_patch(&p);
+    assert_eq!(render_scenario(&mut e, &p, 2.0), GOLDEN);
+}
+
 // ---- helpers ---------------------------------------------------------------------------------
 
 use gts::editor::{apply_preset, Ctl, ParamTable};
@@ -532,7 +558,9 @@ fn preset_load_sets_matrix_labels_and_macro_values() {
 fn target_table_follows_the_spec_scopes() {
     #[rustfmt::skip]
     let voice = ["osca_index", "oscb_unison", "osca_cent", "sub_level", "filta_freq", "filtb_res", "filta_kbd", "fenv_amt",
-        "fenv_att", "osca_att", "osca_detune", "shaper_amt", "porta", "moda_rate", "modb_cutoff", "vel_fenv"];
+        "fenv_att", "osca_att", "osca_detune", "shaper_amt", "porta", "moda_rate", "modb_cutoff", "vel_fenv",
+        // SPEC v2 Track 7
+        "modc_rate", "modd_phase", "moda_fade", "modb_smooth", "menv_dec", "osca_pitch", "oscb_pitch", "pitch_all"];
     for id in voice {
         assert!(info(id).target && info(id).voice, "{id} should be a voice-scope target");
     }
@@ -545,10 +573,10 @@ fn target_table_follows_the_spec_scopes() {
     for id in ["macro1", "macro4", "cv1_amount", "cv2_target", "poly", "osca_table", "osca_on", "routing", "fenv_inv", "dly_mode"] {
         assert!(!info(id).target, "{id} must not be a target");
     }
-    // Every FloatParam / IntParam (138) minus the 4 macros, 3 CV amounts and Polyphony.
+    // Every FloatParam / IntParam (138 + 22 Track 7) minus the 4 macros, 3 CV amounts and Polyphony.
     let n = params_info().iter().filter(|p| p.target).count();
     println!("{n} targets ({} voice scope)", params_info().iter().filter(|p| p.voice).count());
-    assert_eq!(n, 130);
+    assert_eq!(n, 152);
 }
 
 #[test]

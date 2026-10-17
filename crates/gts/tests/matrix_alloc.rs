@@ -3,7 +3,9 @@
 //! note / pressure / CC events, the 32-sample evaluation and the ModLive publish. Debug builds run
 //! it under nih-plug's `assert_no_alloc` allocator (aborts on any allocation); release builds
 //! count allocations with the allocator below. One test per binary, so no other test allocates
-//! meanwhile.
+//! meanwhile. SPEC v2 Track 7 acceptance 10: the same with all four LFOs Custom, Mod C / D / Mod
+//! Env routed, and the custom-shape snapshot polled and re-published between blocks.
+use gts::dsp::shape::{library, LfoShapes, ShapesShared, SHAPES_ENC};
 use gts::dsp::{Engine, Patch};
 use gts::matrix::{Matrix, MatrixShared, Slot, Source, ENC_LEN, MAX_SLOTS};
 use gts::params::GtsParams;
@@ -71,8 +73,8 @@ fn full_matrix(shift: f32) -> Matrix {
     let targets = [
         "osca_index", "oscb_index", "osca_shift", "filta_freq", "filtb_res", "fenv_amt", "osca_att", "fenv_dec",
         "osca_unison", "osca_detune", "shaper_amt", "sub_level", "moda_rate", "modb_rate", "vel_vol_a", "porta",
-        "osca_cent", "osca_oct", "rev_mix", "dly_feedback", "dist_drive", "cho_voices", "mb_depth", "eq_peak_gain",
-        "dim_size", "lim_gain", "mono_xover", "volume", "spread", "bend_range", "oscb_width", "moda_index",
+        "pitch_all", "osca_oct", "rev_mix", "dly_feedback", "dist_drive", "cho_voices", "mb_depth", "eq_peak_gain",
+        "dim_size", "lim_gain", "mono_xover", "volume", "spread", "menv_dec", "modc_phase", "moda_index",
     ];
     let slots = targets
         .iter()
@@ -103,6 +105,23 @@ fn full_matrix_audio_path_never_allocates() {
     patch.macros = [0.3, 0.6, 0.9, 0.2];
     patch.fx.rev.on = true;
     patch.fx.dly.on = true;
+    for m in [&mut patch.moda, &mut patch.modb, &mut patch.modc, &mut patch.modd] {
+        m.curve = gts::params::Curve::Custom;
+    }
+    for x in &mut patch.lfo_ext {
+        (x.phase, x.fade, x.smooth) = (30.0, 0.05, 0.2);
+    }
+    let lib = library();
+    let shapes_for = |b: usize| {
+        let mut s = LfoShapes::default();
+        for (k, d) in s.0.iter_mut().enumerate() {
+            *d = lib[(k + b) % lib.len()].1.clone();
+        }
+        s
+    };
+    let shapes = ShapesShared::default();
+    shapes.replace(shapes_for(0));
+    let (mut sseen, mut srec) = (u32::MAX, [0.0f32; SHAPES_ENC]);
     let mut e = Engine::new();
     e.initialize(48000.0);
     e.set_patch(&patch);
@@ -120,6 +139,9 @@ fn full_matrix_audio_path_never_allocates() {
     let mut block = |e: &mut Engine, viz: &mut VizWriter, b: usize| {
         if shared.poll(&mut seen, &mut rec) {
             e.set_matrix(&rec);
+        }
+        if shapes.poll(&mut sseen, &mut srec) {
+            e.set_lfo_shapes(&srec);
         }
         e.set_bus_cv([0.5, -0.5, 0.25]);
         e.set_patch(&patch);
@@ -142,6 +164,7 @@ fn full_matrix_audio_path_never_allocates() {
         // A GUI edit between blocks (allocates on the GUI side, as it may).
         if b % 10 == 5 {
             shared.replace(full_matrix(0.05 * (b / 10) as f32));
+            shapes.replace(shapes_for(b));
         }
         no_alloc(|| block(&mut e, &mut viz, b));
     }
