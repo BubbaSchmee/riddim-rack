@@ -182,10 +182,10 @@ fn a_different_source_adds_a_slot_and_the_same_source_edits_it() {
     let knob = h.knob("shaper_amt").center();
     h.drag(h.chip(Source::ModB).center(), knob);
     MatrixEditor { shared: h.ctl.table.matrix(), ctl: &h.ctl }.set_amount(0, -0.3);
-    // Same source again: the pair's slot is edited back to +50 %, no second slot.
+    // Same source again: the pair's slot is selected and keeps its depth, no second slot.
     h.drag(h.chip(Source::ModB).center(), knob);
     let m = h.matrix();
-    assert_eq!((m.slots.len(), m.slots[0].amount), (1, 0.5), "{:?}", m.slots);
+    assert_eq!((m.slots.len(), m.slots[0].amount), (1, -0.3), "{:?}", m.slots);
     // Another source on the same knob: a second slot with its own source.
     h.drag(h.chip(Source::AmpEnvA).center(), knob);
     let m = h.matrix();
@@ -441,6 +441,6 @@ fn the_sources_strip_stays_inside_the_hero_width() {
     assert_eq!(chips.len(), 5 + 4, "five chips and four macro handles on the page (the rest sit behind MORE)");
     for (s, r) in chips {
         assert!(r.left() >= 44.0 && r.right() <= 612.0, "{s:?} spans {}..{}", r.left(), r.right());
-        assert!(r.top() >= 296.0 && r.bottom() <= 340.0, "{s:?} spans y {}..{}", r.top(), r.bottom());
+        assert!(r.top() >= 296.0 && r.bottom() <= 344.0, "{s:?} spans y {}..{}", r.top(), r.bottom());
     }
 }

@@ -89,27 +89,6 @@
       "target": "eq_low_gain"
     },
     {
-      "amount": 0.25,
-      "bipolar": false,
-      "enabled": true,
-      "source": "Macro 3",
-      "target": "dim_mix"
-    },
-    {
-      "amount": 0.5,
-      "bipolar": false,
-      "enabled": true,
-      "source": "Macro 3",
-      "target": "dim_size"
-    },
-    {
-      "amount": 0.23999999463558197,
-      "bipolar": false,
-      "enabled": true,
-      "source": "Macro 3",
-      "target": "osca_detune"
-    },
-    {
       "amount": 0.5,
       "bipolar": false,
       "enabled": true,
@@ -164,6 +143,13 @@
       "enabled": true,
       "source": "Random",
       "target": "filta_freq"
+    },
+    {
+      "amount": 0.6499999761581421,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dim_mix"
     }
   ],
   "params": {

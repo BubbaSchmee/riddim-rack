@@ -11,6 +11,8 @@ pub mod preset;
 pub mod viz;
 
 use nih_plug::prelude::*;
+use std::any::Any;
+use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -87,26 +89,43 @@ impl Plugin for Gts {
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
 
     type SysExMessage = ();
-    type BackgroundTask = ();
+    type BackgroundTask = Task;
 
     fn task_executor(&mut self) -> TaskExecutor<Self> {
-        // The one background task: refresh the bus bindings (see bus::BusLink::refresh).
         let (link, params) = (self.bus.link.clone(), self.params.clone());
-        Box::new(move |()| link.refresh(&params))
+        Box::new(move |task| match task {
+            Task::BusRefresh => link.refresh(&params),
+            // Still the host's value (a GUI edit or a state load may have moved on since).
+            Task::MatrixRev(rev) => {
+                if params.matrix.rev.value() == rev {
+                    params.matrix.restore(rev);
+                }
+            }
+        })
     }
 
     fn params(&self) -> Arc<dyn Params> {
-        self.params.clone()
+        Arc::new(HostParams(self.params.clone()))
     }
 
     /// nih-plug restores only the fields a state contains, so a pre-matrix state (or one whose
     /// matrix does not parse) would keep the instance's current matrix and macros. Such states
     /// load an empty matrix and zero macros instead (SPEC v2 Track 5: older states sound identical).
+    ///
+    /// A matrix that parses as JSON but not as a whole (a newer version's source name in one
+    /// slot) keeps every slot that parses and the macro labels.
     fn filter_state(state: &mut PluginState) {
         let ok = state.fields.get("matrix").is_some_and(|s| serde_json::from_str::<matrix::Matrix>(s).is_ok());
         if !ok {
-            let empty = serde_json::to_string(&matrix::Matrix::default()).expect("the empty matrix serialises");
-            state.fields.insert("matrix".into(), empty);
+            let v: serde_json::Value = state.fields.get("matrix").and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default();
+            let mut m = matrix::Matrix::default();
+            if let Some(slots) = v.get("slots").and_then(|s| s.as_array()) {
+                m.slots = slots.iter().filter_map(|s| serde_json::from_value(s.clone()).ok()).collect();
+            }
+            if let Some(labels) = v.get("macros").and_then(|l| serde_json::from_value(l.clone()).ok()) {
+                m.macros = labels;
+            }
+            state.fields.insert("matrix".into(), serde_json::to_string(&m).expect("a matrix serialises"));
         }
         for k in 1..=matrix::MACROS {
             state.params.entry(format!("macro{k}")).or_insert(nih_plug::wrapper::state::ParamValue::F32(0.0));
@@ -114,12 +133,13 @@ impl Plugin for Gts {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(
+        let inner = editor::create(
             self.params.clone(),
             editor::Feeds { meters: self.meters.clone(), viz: self.viz_shared.clone(), scope: self.scope.clone() },
             self.bus.link.clone(),
             self.engine.tables_handle(),
-        )
+        )?;
+        Some(Box::new(MatrixHostHook { inner, params: self.params.clone() }))
     }
 
     fn initialize(
@@ -203,6 +223,10 @@ impl Plugin for Gts {
                 context.set_latency_samples(self.engine.latency() as u32);
             }
         }
+        // Host undo / redo of a matrix edit: the snapshot is restored off the audio thread.
+        if let Some(rev) = self.params.matrix.host_moved(self.params.matrix.rev.value()) {
+            context.execute_background(Task::MatrixRev(rev));
+        }
         // Matrix edits from the editor, a preset or a state load: lock-free snapshot, read once per block.
         if self.params.matrix.poll(&mut self.matrix_seen, &mut self.matrix_rec) {
             self.engine.set_matrix(&self.matrix_rec);
@@ -214,7 +238,7 @@ impl Plugin for Gts {
             if self.bus.needs_register() {
                 util::permit_alloc(|| self.bus.ensure_registered(&self.params));
             }
-            context.execute_background(());
+            context.execute_background(Task::BusRefresh);
         }
         // CV targets are re-applied every CV_CHUNK samples so the 5 ms smoothing reaches the
         // cutoff/index inside large blocks instead of stepping at block edges. With the matrix
@@ -271,6 +295,73 @@ impl Plugin for Gts {
         let fx = self.engine.fx_telemetry();
         self.viz.publish(&self.engine, &self.params, self.engine.patch(), self.sample_rate, &fx);
         ProcessStatus::Normal
+    }
+}
+
+/// Background work requested from `process`.
+pub enum Task {
+    /// Refresh the bus bindings (see bus::BusLink::refresh).
+    BusRefresh,
+    /// The host moved `matrix_rev` to this rev (its undo / redo): restore that matrix.
+    MatrixRev(i32),
+}
+
+/// What the host sees: every `GtsParams` param plus `matrix_rev` ([`matrix::MatrixShared::rev`]),
+/// kept out of `GtsParams::param_map` so the editor, help and preset tables stay sound params only.
+struct HostParams(Arc<GtsParams>);
+
+// SAFETY: the pointers point into the `GtsParams` this keeps alive, as the derived impl's do.
+unsafe impl Params for HostParams {
+    fn param_map(&self) -> Vec<(String, ParamPtr, String)> {
+        let mut v = self.0.param_map();
+        v.push(("matrix_rev".into(), self.0.matrix.rev.as_ptr(), String::new()));
+        v
+    }
+
+    fn serialize_fields(&self) -> BTreeMap<String, String> {
+        self.0.serialize_fields()
+    }
+
+    fn deserialize_fields(&self, serialized: &BTreeMap<String, String>) {
+        self.0.deserialize_fields(serialized)
+    }
+}
+
+/// The editor, plus its host context handed to the matrix while it is open (GUI matrix edits
+/// move `matrix_rev` through it).
+struct MatrixHostHook {
+    inner: Box<dyn Editor>,
+    params: Arc<GtsParams>,
+}
+
+/// Detaches the context when the editor closes (no plugin -> context -> plugin cycle).
+struct Detach(#[allow(dead_code)] Box<dyn Any + Send>, Arc<GtsParams>);
+
+impl Drop for Detach {
+    fn drop(&mut self) {
+        self.1.matrix.attach(None);
+    }
+}
+
+impl Editor for MatrixHostHook {
+    fn spawn(&self, parent: ParentWindowHandle, context: Arc<dyn GuiContext>) -> Box<dyn Any + Send> {
+        self.params.matrix.attach(Some(context.clone()));
+        Box::new(Detach(self.inner.spawn(parent, context), self.params.clone()))
+    }
+    fn size(&self) -> (u32, u32) {
+        self.inner.size()
+    }
+    fn set_scale_factor(&self, factor: f32) -> bool {
+        self.inner.set_scale_factor(factor)
+    }
+    fn param_value_changed(&self, id: &str, normalized_value: f32) {
+        self.inner.param_value_changed(id, normalized_value)
+    }
+    fn param_modulation_changed(&self, id: &str, modulation_offset: f32) {
+        self.inner.param_modulation_changed(id, modulation_offset)
+    }
+    fn param_values_changed(&self) {
+        self.inner.param_values_changed()
     }
 }
 

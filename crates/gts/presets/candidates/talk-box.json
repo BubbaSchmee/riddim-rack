@@ -75,25 +75,18 @@
       "target": "filta_freq"
     },
     {
-      "amount": 0.44999998807907104,
+      "amount": 0.30000001192092896,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 3",
       "target": "filta_res"
     },
     {
-      "amount": 0.07289999723434448,
+      "amount": 0.10000000149011612,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 3",
       "target": "filta_freq"
-    },
-    {
-      "amount": -0.05000000074505806,
-      "bipolar": false,
-      "enabled": true,
-      "source": "Macro 3",
-      "target": "volume"
     },
     {
       "amount": 0.699999988079071,
@@ -143,6 +136,13 @@
       "enabled": true,
       "source": "Velocity",
       "target": "filta_freq"
+    },
+    {
+      "amount": -0.029999999329447746,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "volume"
     }
   ],
   "params": {

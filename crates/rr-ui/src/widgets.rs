@@ -597,7 +597,35 @@ pub fn amount_bar(ui: &mut Ui, rect: Rect, key: &str, value01: f32, default01: f
     }
     let mut out = KnobResponse { drag_started: resp.drag_started() && enabled, drag_ended: resp.drag_stopped() && enabled, hovered: hot, pointer_over: ui.rect_contains_pointer(rect), ..Default::default() };
     if enabled {
-        if resp.double_clicked() {
+        if resp.drag_started() || resp.clicked() {
+            resp.request_focus();
+        }
+        if resp.has_focus() {
+            // Arrows nudge like a knob (5 %, Shift 0.5 %), Home resets.
+            ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() }));
+            let (mut d, mut home) = (0.0f32, false);
+            ui.input(|i| {
+                for e in &i.events {
+                    if let egui::Event::Key { key, pressed: true, modifiers, .. } = e {
+                        let st = KEY_STEP * if modifiers.shift { FINE } else { 1.0 };
+                        match key {
+                            egui::Key::ArrowUp | egui::Key::ArrowRight => d += st,
+                            egui::Key::ArrowDown | egui::Key::ArrowLeft => d -= st,
+                            egui::Key::Home => home = true,
+                            _ => {}
+                        }
+                    }
+                }
+            });
+            if home {
+                out.changed = Some(default01);
+            } else if d != 0.0 {
+                out.changed = Some((value01 + d).clamp(0.0, 1.0));
+            }
+        }
+        if out.changed.is_some() {
+            // keyboard handled above
+        } else if resp.double_clicked() {
             out.reset = true;
             out.changed = Some(default01);
         } else if resp.dragged() {
@@ -632,6 +660,9 @@ pub fn amount_bar(ui: &mut Ui, rect: Rect, key: &str, value01: f32, default01: f
         if bipolar {
             p.vline(x_of(0.5), inner.y_range(), paint::hair(p, Color32::WHITE.gamma_multiply(0.18)));
         }
+        // The digits sit on a dark plate so neither the bar edge nor the centre hairline runs through them.
+        let g = p.layout_no_wrap(text.to_string(), font::mono(11.0), Color32::WHITE);
+        p.rect_filled(Rect::from_center_size(rect.center(), g.size() + vec2(6.0, 2.0)), 3.0, T.inset.gamma_multiply(0.85));
         p.text(rect.center(), Align2::CENTER_CENTER, text, font::mono(11.0), if hot { T.accent } else { T.text.gamma_multiply(if enabled { 1.0 } else { 0.5 }) });
     }
     out

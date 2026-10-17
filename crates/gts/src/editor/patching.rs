@@ -63,6 +63,22 @@ fn label_of(m: &Matrix, s: Source) -> String {
     macro_index(s).map_or_else(|| src_style(s).name.to_string(), |k| m.macros[k].clone())
 }
 
+/// The label first, Live's host name after it ("Growl \u{b7} Macro 1"); a macro still called "Macro 1" says it once.
+fn label_full(m: &Matrix, s: Source) -> String {
+    match macro_index(s) {
+        Some(k) if !m.macros[k].eq_ignore_ascii_case(&format!("Macro {}", k + 1)) => format!("{} \u{b7} Macro {}", m.macros[k], k + 1),
+        _ => label_of(m, s),
+    }
+}
+
+/// Matrix source cell: a renamed macro carries its slot, "Growl (M1)".
+fn cell_label(m: &Matrix, s: Source) -> String {
+    match macro_index(s) {
+        Some(k) if !m.macros[k].eq_ignore_ascii_case(&format!("Macro {}", k + 1)) => format!("{} (M{})", m.macros[k], k + 1),
+        _ => label_of(m, s),
+    }
+}
+
 fn pidx(id: &str) -> Option<usize> {
     static M: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
     M.get_or_init(|| params_info().iter().enumerate().map(|(i, p)| (p.id.as_str(), i)).collect()).get(id).copied()
@@ -426,7 +442,7 @@ pub(super) fn after_knob(ui: &mut Ui, c: &dyn Ctl, id: &str, r: &KnobResponse, m
                 ArcEdit::Slot(i) => format!("{:+.0} %", mv.matrix.slots.get(i).map_or(0.0, |s| s.amount) * 100.0),
                 ArcEdit::Route(p) => c.readout(p),
             };
-            set_hover(ui, &format!("{} \u{203a} {}", label_of(&mv.matrix, src), c.name(id)).to_uppercase(), &value, None, crate::help::ui_help("ring").unwrap_or(""));
+            set_hover(ui, &format!("{} \u{203a} {}", label_full(&mv.matrix, src), c.name(id)).to_uppercase(), &value, None, crate::help::ui_help("ring").unwrap_or(""));
         }
     }
 }
@@ -505,7 +521,7 @@ pub(super) fn sources_strip(ui: &mut Ui, c: &dyn Ctl, f: &VizFrame, bv: &mut Bus
     let act = |k: usize| newest.map(|v| f.voice(v, k).abs());
     let mut hovered = None;
     rr_ui::motion::with_page_fx(ui, 296.0, |ui| {
-        let (row1, row2) = (at(44.0, 296.0, 568.0, 20.0), at(44.0, 320.0, 568.0, 20.0));
+        let (row1, row2) = (at(44.0, 296.0, 568.0, 20.0), at(44.0, 318.0, 568.0, 26.0));
         let p = ui.painter().clone();
         rr_ui::paint::tracked(&p, pos2(row1.left() + 8.0, row1.center().y), Align2::LEFT_CENTER, "SOURCES", font::label(11.0), T.title, 1.4);
         rr_ui::paint::tracked(&p, pos2(row2.left() + 8.0, row2.center().y), Align2::LEFT_CENTER, "MACROS", font::label(11.0), T.title, 1.4);
@@ -526,10 +542,10 @@ pub(super) fn sources_strip(ui: &mut Ui, c: &dyn Ctl, f: &VizFrame, bv: &mut Bus
         }
         let mut x = row2.left() + 76.0;
         for (k, src) in MACROS.into_iter().enumerate() {
-            macro_pill(ui, c, &mv, k, src, Rect::from_min_size(pos2(x, row2.top()), vec2(100.0, 20.0)), &mut hovered);
+            macro_pill(ui, c, &mv, k, src, Rect::from_min_size(pos2(x, row2.top()), vec2(100.0, 26.0)), &mut hovered);
             x += 106.0;
         }
-        more_chip(ui, &mv, Rect::from_min_size(pos2(x, row2.top()), vec2(row2.right() - x, 20.0)), bv);
+        more_chip(ui, &mv, Rect::from_min_size(pos2(x, row2.top() + 2.0), vec2(row2.right() - x, 20.0)), bv);
     });
     hovered
 }
@@ -558,15 +574,15 @@ fn macro_pill(ui: &mut Ui, c: &dyn Ctl, mv: &MView, k: usize, src: Source, rect:
     let id = format!("macro{}", k + 1);
     let p = ui.painter().clone();
     let cy = rect.center().y;
-    let handle = Rect::from_center_size(pos2(rect.left() + 10.0, cy), vec2(20.0, 20.0));
-    let dial = Rect::from_center_size(pos2(rect.right() - 14.0, cy), vec2(18.0, 18.0));
-    let label = Rect::from_min_max(pos2(rect.left() + 22.0, rect.top()), pos2(dial.left() - 3.0, rect.bottom()));
+    let handle = Rect::from_center_size(pos2(rect.left() + 13.0, cy), vec2(20.0, 20.0));
+    let dial = Rect::from_center_size(pos2(rect.right() - 15.0, cy), vec2(24.0, 24.0));
+    let label = Rect::from_min_max(pos2(rect.left() + 26.0, rect.top()), pos2(dial.left() - 3.0, rect.bottom()));
     let hr = ui.interact(handle, Id::new(("gts-macro-handle", k)), Sense::drag());
     let lr = ui.interact(label, Id::new(("gts-macro-label", k)), Sense::click());
     let v = c.get01(&id);
     let hot_h = rr_ui::motion::tween(ui.ctx(), Id::new(("gts-macro-hot", k)), hr.hovered() || hr.dragged(), 0.14);
-    p.rect_filled(rect, 10.0, T.inset);
-    p.rect_stroke(rect, 10.0, rr_ui::paint::hair(&p, SRC_M.gamma_multiply(0.35 + 0.45 * hot_h)), StrokeKind::Inside);
+    p.rect_filled(rect, 13.0, T.inset);
+    p.rect_stroke(rect, 13.0, rr_ui::paint::hair(&p, SRC_M.gamma_multiply(0.35 + 0.45 * hot_h)), StrokeKind::Inside);
     p.circle_filled(handle.center(), 7.0, SRC_M);
     p.text(handle.center(), Align2::CENTER_CENTER, src_style(src).glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
     let dr = mini_dial(ui, dial, &id, v, c.default01(&id), SRC_M);
@@ -627,12 +643,12 @@ fn macro_pill(ui: &mut Ui, c: &dyn Ctl, mv: &MView, k: usize, src: Source, rect:
             *hovered = Some(src);
             let n = mv.routes_of(src);
             let value = if n == 0 { "no routings".to_string() } else { format!("{n} routing{}", if n == 1 { "" } else { "s" }) };
-            set_hover(ui, &name.to_uppercase(), &value, None, crate::help::ui_help(&format!("src:{}", src.name())).unwrap_or(""));
+            set_hover(ui, &label_full(&mv.matrix, src).to_uppercase(), &value, None, crate::help::ui_help(&format!("src:{}", src.name())).unwrap_or(""));
         } else if lr.hovered() {
-            set_hover(ui, &name.to_uppercase(), "double-click to rename", None, crate::help::ui_help("macro:label").unwrap_or(""));
+            set_hover(ui, &label_full(&mv.matrix, src).to_uppercase(), "double-click to rename", None, crate::help::ui_help("macro:label").unwrap_or(""));
         } else if dr.hovered {
             let value = c.readout_at(&id, v);
-            ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: name.to_uppercase(), id: id.clone(), value, ..Default::default() }));
+            ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: label_full(&mv.matrix, src).to_uppercase(), id: id.clone(), value, ..Default::default() }));
         }
     }
 }
@@ -785,7 +801,7 @@ fn knob_menu(ui: &mut Ui, c: &dyn Ctl, mv: &MView) {
             let head = Rect::from_min_size(pos2(r.left() + 10.0, y), vec2(MENU_W - 20.0, 20.0));
             ui.painter().circle_filled(pos2(head.left() + 7.0, head.center().y), 7.0, st.color);
             ui.painter().text(pos2(head.left() + 7.0, head.center().y), Align2::CENTER_CENTER, st.glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
-            let name = label_of(&mv.matrix, ct.src).to_uppercase();
+            let name = label_full(&mv.matrix, ct.src).to_uppercase();
             let amount = match ct.kind {
                 Kind::Slot(_) => format!("{:+.0} %", ct.amount * 100.0),
                 Kind::Fixed(f) => format!("{} (built in)", c.readout(f.route)),
@@ -839,7 +855,7 @@ fn knob_menu(ui: &mut Ui, c: &dyn Ctl, mv: &MView) {
         if mv.record {
             hook_push(ui, "gts-hook-menu", ("all", 0usize, all));
         }
-        if menu_button(ui, all, Id::new("gts-kmenu-all"), "Remove all modulation", false, T.accent, crate::help::ui_help("menu:all").unwrap_or("")) {
+        if menu_button(ui, all, Id::new("gts-kmenu-all"), "Remove all (incl. built-in)", false, T.accent, crate::help::ui_help("menu:all").unwrap_or("")) {
             act = Some(("all", 0));
         }
     });
@@ -1092,7 +1108,7 @@ pub(super) fn matrix_body(ui: &mut Ui, c: &dyn Ctl, at: &dyn Fn(f32, f32, f32, f
     // ---- slots
     let n = mv.matrix.slots.len();
     // Source names as the user sees them: a renamed macro shows its label.
-    let labels: Vec<String> = Source::ALL.iter().map(|s| label_of(&mv.matrix, *s)).collect();
+    let labels: Vec<String> = Source::ALL.iter().map(|s| cell_label(&mv.matrix, *s)).collect();
     let names: Vec<&str> = labels.iter().map(String::as_str).collect();
     let mut report: Vec<SlotRow> = vec![];
     group_at(ui, at(44.0, 314.0, 912.0, 462.0), "Routings", |ui| caption(ui, &format!("{n} of {MAX_SLOTS} slots in use")), |ui| {
@@ -1101,6 +1117,10 @@ pub(super) fn matrix_body(ui: &mut Ui, c: &dyn Ctl, at: &dyn Fn(f32, f32, f32, f
             for col in 0..2 {
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
+                    let (h, _) = ui.allocate_exact_size(vec2(SLOT_COL_W, 12.0), Sense::hover());
+                    for (o, t) in [(34.0, "Source"), (138.0, "Pol"), (184.0, "Amount"), (272.0, "Target")] {
+                        rr_ui::paint::caps(ui.painter(), pos2(h.left() + o, h.center().y), Align2::LEFT_CENTER, t, 10.0, T.muted);
+                    }
                     for row in 0..16 {
                         let i = col * 16 + row;
                         let (rect, _) = ui.allocate_exact_size(vec2(SLOT_COL_W, 24.0), Sense::hover());
@@ -1248,7 +1268,7 @@ fn slot_row(ui: &mut Ui, ed: &MatrixEditor, mv: &MView, names: &[&str], rect: Re
         (None, Some(s), Some(t)) => {
             match ed.add_or_edit(s, &t, 0.5) {
                 Err(EditError::Full) => notice(ui.ctx(), "The matrix is full: remove a routing first."),
-                Ok(Edit::Fixed(_)) => notice(ui.ctx(), "That pair is a built-in route: its amount is now +50 %."),
+                Ok(Edit::Fixed(_)) => notice(ui.ctx(), "That pair is a built-in route: edit its amount in the built-in rows above."),
                 _ => {}
             }
             ui.data_mut(|d| d.remove_temp::<(Option<Source>, Option<String>)>(draft_id()));

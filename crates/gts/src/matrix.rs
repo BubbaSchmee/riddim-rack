@@ -29,9 +29,10 @@
 //!
 //! # GUI API
 //! [`MatrixEditor`] wraps `params.matrix` ([`MatrixShared`]) and the editor's [`Ctl`]:
-//! * [`MatrixEditor::add_or_edit`]`(source, target, amount)` -> [`Edit::Slot`]`(index)` (new slot,
-//!   or the existing slot of that pair) or [`Edit::Fixed`]`(route param id)` (the pair is a live
-//!   fixed route: its param was set through `Ctl` as one gesture);
+//! * [`MatrixEditor::add_or_edit`]`(source, target, amount)` -> [`Edit::Slot`]`(index)` (new slot
+//!   at `amount`, or the existing slot of that pair: amount kept, re-enabled) or
+//!   [`Edit::Fixed`]`(route param id)` (the pair is a live fixed route: kept when non-zero, else
+//!   set to `amount` through `Ctl` as one gesture);
 //! * [`MatrixEditor::set_amount`], [`MatrixEditor::set_bipolar`], [`MatrixEditor::set_enabled`],
 //!   [`MatrixEditor::remove`], [`MatrixEditor::remove_all_for_target`] (slots removed, live fixed
 //!   routes set to 0), [`MatrixEditor::set_macro_label`];
@@ -46,15 +47,33 @@
 //! `[f32; ENC_LEN]` record and published through an [`rr_ui::snap::Snap`] (the mutex keeps it
 //! single-writer). The audio thread [`MatrixShared::poll`]s it once per block: wait-free, no
 //! allocation, no lock.
+//!
+//! # Host dirty flag and undo
+//! nih-plug exposes no "state changed" call (no VST3 `IComponentHandler2::setDirty`, no CLAP
+//! `clap_host_state.mark_dirty`), and the matrix is not a parameter, so a matrix edit alone would
+//! neither mark the host project modified nor make a host undo step. [`MatrixShared::rev`] is
+//! one extra host parameter, `matrix_rev` (0..65535, non-automatable, hidden from generic UIs;
+//! added to the host list by the plugin's `Params` wrapper, not by `GtsParams::param_map`). Every
+//! GUI edit ([`MatrixShared::edit`], [`MatrixShared::replace`]) with an editor attached
+//! ([`MatrixShared::attach`]) moves it to a new value as one gesture, and records the matrix
+//! before and after in a bounded history keyed by rev ([`HISTORY`] entries; consecutive amount
+//! edits of one slot within [`COALESCE`] are one step, so a ring drag is one undo step). When the
+//! host moves `matrix_rev` itself (its undo / redo), process sees a value it did not produce
+//! ([`MatrixShared::host_moved`]) and a background task restores that rev's snapshot
+//! ([`MatrixShared::restore`]); an unknown rev leaves the matrix as it is. The history is
+//! session-only: a state load clears it and adopts the loaded rev.
 
 use crate::dsp::{Patch, MAX_VOICES};
 use crate::editor::Ctl;
 use crate::params::{CvTarget, GtsParams};
 use nih_plug::params::persist::PersistentField;
-use nih_plug::prelude::{Enum, FloatRange, IntRange, ParamPtr, Params};
+use nih_plug::prelude::{Enum, FloatRange, GuiContext, IntParam, IntRange, ParamPtr, ParamSetter, Params};
 use rr_ui::snap::Snap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicI32, Ordering::SeqCst};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 pub const MAX_SLOTS: usize = 32;
 pub const MACROS: usize = 4;
@@ -584,10 +603,61 @@ pub fn route_amount(r: &FixedRoute, c: &dyn Ctl) -> f32 {
 
 // ---- shared state and GUI API ----------------------------------------------------------------
 
-/// `params.matrix`: the canonical matrix (non-audio threads) and its audio-side snapshot.
+/// Matrix snapshots kept for host undo / redo (session only).
+pub const HISTORY: usize = 128;
+/// Amount edits of one slot closer together than this are one host undo step (a ring drag).
+pub const COALESCE: Duration = Duration::from_millis(500);
+/// `matrix_rev` range is 0..=REV_MAX, wrapping.
+pub const REV_MAX: i32 = 65535;
+/// `applied` after a state load: adopt whatever rev the host holds.
+const ADOPT: i32 = -1;
+const NONE: i32 = -2;
+
+/// Rev -> matrix snapshots, newest last.
+#[derive(Default)]
+struct Undo {
+    snaps: VecDeque<(i32, Matrix)>,
+    /// Last rev handed out.
+    next: i32,
+    /// The last edit: its rev, when, and the slot whose amount alone it changed.
+    last: Option<(i32, Instant, Option<usize>)>,
+}
+
+impl Undo {
+    fn put(&mut self, rev: i32, m: Matrix) {
+        self.snaps.retain(|(r, _)| *r != rev);
+        self.snaps.push_back((rev, m));
+        while self.snaps.len() > HISTORY {
+            self.snaps.pop_front();
+        }
+    }
+}
+
+/// The one slot whose amount alone differs between `a` and `b`.
+fn amount_change(a: &Matrix, b: &Matrix) -> Option<usize> {
+    if a.macros != b.macros || a.slots.len() != b.slots.len() {
+        return None;
+    }
+    let mut diff = a.slots.iter().zip(&b.slots).enumerate().filter(|(_, (x, y))| x != y);
+    let (i, (x, y)) = diff.next()?;
+    (diff.next().is_none() && Slot { amount: y.amount, ..x.clone() } == *y).then_some(i)
+}
+
+/// `params.matrix`: the canonical matrix (non-audio threads), its audio-side snapshot, and the
+/// `matrix_rev` host parameter with its undo history (module docs, "Host dirty flag and undo").
 pub struct MatrixShared {
     state: Mutex<Matrix>,
     snap: Snap,
+    /// Host parameter `matrix_rev`: moved by every GUI edit so the host marks its project
+    /// modified and records an undo step.
+    pub rev: IntParam,
+    undo: Mutex<Undo>,
+    /// Rev the plugin last produced or applied ([`ADOPT`] after a state load).
+    applied: AtomicI32,
+    /// Rev a GUI edit moved away from, until the host reports the new one ([`NONE`]).
+    pending: AtomicI32,
+    /// The open editor's host context (GUI edits set `rev` through it).
+    host: Mutex<Option<Arc<dyn GuiContext>>>,
 }
 
 impl Default for MatrixShared {
@@ -595,7 +665,15 @@ impl Default for MatrixShared {
         let m = Matrix::default();
         let snap = Snap::new(ENC_LEN);
         snap.write(&m.encode());
-        Self { state: Mutex::new(m), snap }
+        Self {
+            state: Mutex::new(m),
+            snap,
+            rev: IntParam::new("Matrix Edit", 0, IntRange::Linear { min: 0, max: REV_MAX }).non_automatable().hide_in_generic_ui(),
+            undo: Mutex::default(),
+            applied: AtomicI32::new(0),
+            pending: AtomicI32::new(NONE),
+            host: Mutex::new(None),
+        }
     }
 }
 
@@ -604,23 +682,108 @@ impl MatrixShared {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    fn undo(&self) -> MutexGuard<'_, Undo> {
+        self.undo.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// GUI: a copy of the matrix.
     pub fn get(&self) -> Matrix {
         self.lock().clone()
     }
 
-    /// GUI / preset / state load: replaces the matrix (sanitized) and publishes it.
+    /// GUI (preset load) / initialize: replaces the matrix (sanitized) and publishes it; one host
+    /// undo step like [`MatrixShared::edit`].
     pub fn replace(&self, mut m: Matrix) {
         m.sanitize();
         self.edit(|cur| *cur = m);
     }
 
-    /// GUI: edits the matrix in place and publishes the result (one snapshot write).
+    /// GUI: edits the matrix in place and publishes the result (one snapshot write). A change
+    /// moves `matrix_rev` (one host gesture) while an editor is attached.
     pub fn edit<R>(&self, f: impl FnOnce(&mut Matrix) -> R) -> R {
         let mut g = self.lock();
+        let before = g.clone();
         let r = f(&mut g);
-        self.snap.write(&g.encode());
+        if *g != before {
+            self.snap.write(&g.encode());
+            let after = g.clone();
+            drop(g);
+            self.record(before, after);
+        }
         r
+    }
+
+    /// Publishes `m` without a host undo step (state load, host undo / redo).
+    fn publish(&self, m: Matrix) {
+        let mut g = self.lock();
+        *g = m;
+        self.snap.write(&g.encode());
+    }
+
+    /// Editor open (`Some`, its context) / closed (`None`). Without one, GUI edits make no host
+    /// undo step.
+    pub fn attach(&self, ctx: Option<Arc<dyn GuiContext>>) {
+        *self.host.lock().unwrap_or_else(PoisonError::into_inner) = ctx;
+    }
+
+    /// History + host gesture for one GUI change `before` -> `after`.
+    fn record(&self, before: Matrix, after: Matrix) {
+        let Some(ctx) = self.host.lock().unwrap_or_else(PoisonError::into_inner).clone() else { return };
+        let old = match self.applied.load(SeqCst) {
+            ADOPT => self.rev.value(),
+            a => a,
+        };
+        let slot = amount_change(&before, &after);
+        let mut u = self.undo();
+        if let (Some(i), Some((r, t, Some(j)))) = (slot, u.last) {
+            if i == j && r == old && t.elapsed() < COALESCE {
+                // Same drag: the host already holds this rev; its snapshot follows the drag.
+                u.put(r, after);
+                u.last = Some((r, Instant::now(), slot));
+                return;
+            }
+        }
+        u.put(old, before);
+        let mut new = (u.next + 1) & REV_MAX;
+        if new == old {
+            new = (new + 1) & REV_MAX;
+        }
+        u.next = new;
+        u.put(new, after);
+        u.last = Some((new, Instant::now(), slot));
+        drop(u);
+        self.pending.store(old, SeqCst);
+        self.applied.store(new, SeqCst);
+        let s = ParamSetter::new(&*ctx);
+        s.begin_set_parameter(&self.rev);
+        s.set_parameter(&self.rev, new);
+        s.end_set_parameter(&self.rev);
+    }
+
+    /// Audio thread, once per block, with `matrix_rev`'s current value: `Some(rev)` when the host
+    /// moved it to a rev the plugin did not produce (its undo / redo), to be restored off the
+    /// audio thread ([`MatrixShared::restore`]). Atomics only.
+    pub fn host_moved(&self, host: i32) -> Option<i32> {
+        let a = self.applied.load(SeqCst);
+        if host == a {
+            if self.pending.load(SeqCst) != NONE {
+                self.pending.store(NONE, SeqCst);
+            }
+            return None;
+        }
+        // The host has not caught up with the GUI's last edit yet.
+        if host == self.pending.load(SeqCst) || self.applied.compare_exchange(a, host, SeqCst, SeqCst).is_err() {
+            return None;
+        }
+        (a != ADOPT).then_some(host)
+    }
+
+    /// Background: loads the snapshot of `rev` (host undo / redo). Returns false, matrix
+    /// unchanged, when the history has no such rev (older than [`HISTORY`] edits, or from
+    /// another session).
+    pub fn restore(&self, rev: i32) -> bool {
+        let m = self.undo().snaps.iter().find(|(r, _)| *r == rev).map(|(_, m)| m.clone());
+        m.map(|m| self.publish(m)).is_some()
     }
 
     /// Audio thread, once per block: when a newer matrix was published than `seen`, copies its
@@ -637,8 +800,16 @@ impl MatrixShared {
 }
 
 impl<'a> PersistentField<'a, Matrix> for MatrixShared {
-    fn set(&self, new_value: Matrix) {
-        self.replace(new_value);
+    /// Host state load: no undo step; the session history is dropped and the loaded rev adopted.
+    fn set(&self, mut new_value: Matrix) {
+        new_value.sanitize();
+        {
+            let mut u = self.undo();
+            *u = Undo { next: u.next, ..Default::default() };
+        }
+        self.pending.store(NONE, SeqCst);
+        self.applied.store(ADOPT, SeqCst);
+        self.publish(new_value);
     }
 
     fn map<F, R>(&self, f: F) -> R
@@ -672,15 +843,19 @@ pub struct MatrixEditor<'a> {
 }
 
 impl MatrixEditor<'_> {
-    /// Drop of `source` on `target` at `amount`: edits the live fixed route of the pair, else the
-    /// pair's slot, else adds a slot.
+    /// Drop of `source` on `target`: a pair that already exists (the pair's slot, or its live
+    /// fixed route with a non-zero amount) keeps its amount (a slot is re-enabled) and its handle
+    /// is returned for ring editing; otherwise the live fixed route is set to `amount`, else a
+    /// slot is added at `amount`.
     pub fn add_or_edit(&self, source: Source, target: &str, amount: f32) -> Result<Edit, EditError> {
         if let Some(r) = live_route(source, target, self.ctl) {
-            let i = param_index(r.route).expect("fixed routes name real params");
-            let v = params_info()[i].norm(amount).clamp(0.0, 1.0);
-            self.ctl.begin(r.route);
-            self.ctl.set01(r.route, v);
-            self.ctl.end(r.route);
+            if route_amount(r, self.ctl) == 0.0 {
+                let i = param_index(r.route).expect("fixed routes name real params");
+                let v = params_info()[i].norm(amount).clamp(0.0, 1.0);
+                self.ctl.begin(r.route);
+                self.ctl.set01(r.route, v);
+                self.ctl.end(r.route);
+            }
             return Ok(Edit::Fixed(r.route));
         }
         if !is_target(target) {
@@ -689,7 +864,7 @@ impl MatrixEditor<'_> {
         let amount = amount.clamp(-1.0, 1.0);
         self.shared.edit(|m| match m.find(source, target) {
             Some(i) => {
-                m.slots[i].amount = amount;
+                m.slots[i].enabled = true;
                 Ok(Edit::Slot(i))
             }
             None if m.slots.len() < MAX_SLOTS => {

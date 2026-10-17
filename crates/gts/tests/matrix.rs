@@ -94,7 +94,7 @@ use gts::preset::Preset;
 use nih_plug::prelude::Params;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 fn info(id: &str) -> &'static ParamInfo {
     &params_info()[param_index(id).unwrap_or_else(|| panic!("{id}"))]
@@ -567,9 +567,15 @@ fn editor_api_adds_edits_and_removes() {
     let (shared, c) = (MatrixShared::default(), FakeCtl::new());
     let ed = MatrixEditor { shared: &shared, ctl: &c };
     assert_eq!(ed.add_or_edit(Source::Macro1, "filta_freq", 0.5), Ok(Edit::Slot(0)));
-    assert_eq!(ed.add_or_edit(Source::Macro1, "filta_freq", 0.2), Ok(Edit::Slot(0)), "same pair edits");
+    ed.set_amount(0, 0.2);
+    assert_eq!(ed.add_or_edit(Source::Macro1, "filta_freq", 0.5), Ok(Edit::Slot(0)), "same pair returns its slot");
     assert_eq!(ed.add_or_edit(Source::Macro2, "filta_freq", 0.3), Ok(Edit::Slot(1)), "another source adds");
-    assert_eq!(shared.get().slots[0].amount, 0.2);
+    assert_eq!(shared.get().slots[0].amount, 0.2, "a re-drop keeps the amount");
+    // A bypassed slot: the re-drop enables it and keeps its amount.
+    ed.set_enabled(0, false);
+    assert_eq!(ed.add_or_edit(Source::Macro1, "filta_freq", 0.5), Ok(Edit::Slot(0)));
+    let s0 = shared.get().slots[0].clone();
+    assert!(s0.enabled && s0.amount == 0.2, "{s0:?}");
     assert_eq!(ed.slots_for_target("filta_freq"), vec![0, 1]);
     assert_eq!(ed.targets_of_source(Source::Macro1), vec!["filta_freq".to_string()]);
     for bad in ["poly", "osca_table", "macro1", "cv1_amount", "nope"] {
@@ -579,6 +585,8 @@ fn editor_api_adds_edits_and_removes() {
     // Fixed routes edit their param through Ctl: Mod A -> Osc A Index is Mod A Index (Target Both).
     assert_eq!(ed.add_or_edit(Source::ModA, "osca_index", 0.4), Ok(Edit::Fixed("moda_index")));
     near(c.get01("moda_index"), 0.7, 1e-6, "moda_index normalized");
+    assert_eq!(ed.add_or_edit(Source::ModA, "osca_index", -0.9), Ok(Edit::Fixed("moda_index")), "a live route returns its handle");
+    near(c.get01("moda_index"), 0.7, 1e-6, "a live non-zero route keeps its amount");
     assert_eq!(ed.fixed_routes_for_target("osca_index").len(), 1);
     assert!(ed.targets_of_source(Source::ModA).contains(&"osca_index".to_string()));
     // Mod A Target = B: the route does not reach Osc A Index, so the drop makes a slot.
@@ -673,4 +681,189 @@ fn new_note_snap_reads_the_reset_lfo() {
     e.note_on(48, 1.0);
     let i = voice_of(&e, 48);
     near(e.voice_patch(i).filt[0].freq, moved("filta_freq", 1000.0, 0.5), 1.0, "opens on the peak");
+}
+
+// ---- host dirty flag and undo (matrix_rev) ---------------------------------------------------
+
+/// A host stand-in for the editor's context: records the gestures and each rev set.
+#[derive(Default)]
+struct FakeHost {
+    log: Mutex<Vec<String>>,
+}
+
+impl FakeHost {
+    fn log(&self) -> Vec<String> {
+        self.log.lock().unwrap().clone()
+    }
+}
+
+impl nih_plug::prelude::GuiContext for FakeHost {
+    fn plugin_api(&self) -> nih_plug::prelude::PluginApi {
+        nih_plug::prelude::PluginApi::Vst3
+    }
+    fn request_resize(&self) -> bool {
+        false
+    }
+    unsafe fn raw_begin_set_parameter(&self, _: nih_plug::prelude::ParamPtr) {
+        self.log.lock().unwrap().push("begin".into());
+    }
+    unsafe fn raw_set_parameter_normalized(&self, _: nih_plug::prelude::ParamPtr, v: f32) {
+        self.log.lock().unwrap().push(format!("{}", (v * gts::matrix::REV_MAX as f32).round()));
+    }
+    unsafe fn raw_end_set_parameter(&self, _: nih_plug::prelude::ParamPtr) {
+        self.log.lock().unwrap().push("end".into());
+    }
+    fn get_state(&self) -> nih_plug::prelude::PluginState {
+        unimplemented!()
+    }
+    fn set_state(&self, _: nih_plug::prelude::PluginState) {}
+}
+
+fn attached() -> (MatrixShared, Arc<FakeHost>) {
+    let (shared, host) = (MatrixShared::default(), Arc::new(FakeHost::default()));
+    shared.attach(Some(host.clone()));
+    (shared, host)
+}
+
+/// The host sees matrix_rev, not automatable and not read-only; GtsParams (editor, help and
+/// preset tables) does not.
+#[test]
+fn matrix_rev_is_a_host_param_outside_the_sound_params() {
+    use nih_plug::prelude::{ParamFlags, Plugin};
+    let plugin = gts::Gts::default();
+    let params = plugin.params();
+    let map = params.param_map();
+    let (_, ptr, _) = map.iter().find(|(id, _, _)| id == "matrix_rev").expect("matrix_rev reaches the host");
+    // SAFETY: `params` outlives `ptr`.
+    let flags = unsafe { ptr.flags() };
+    assert!(flags.contains(ParamFlags::NON_AUTOMATABLE) && !flags.contains(ParamFlags::HIDDEN), "{flags:?}");
+    let sound = GtsParams::default().param_map().into_iter().map(|(id, _, _)| id).collect::<Vec<_>>();
+    assert_eq!(map.len(), sound.len() + 1);
+    assert!(!sound.iter().any(|id| id == "matrix_rev"));
+}
+
+/// Every GUI edit moves matrix_rev as one gesture; a host undo (rev back) restores the matrix
+/// from the background task; redo returns; an unknown rev changes nothing.
+#[test]
+fn gui_edits_bump_matrix_rev_and_host_undo_restores() {
+    let (shared, host) = attached();
+    let c = FakeCtl::new();
+    let ed = MatrixEditor { shared: &shared, ctl: &c };
+    let empty = shared.get();
+    ed.add_or_edit(Source::Macro1, "filta_freq", 0.5).unwrap();
+    assert_eq!(host.log(), ["begin", "1", "end"]);
+    let one = shared.get();
+    ed.set_macro_label(0, "Growl");
+    let two = shared.get();
+    assert_eq!(host.log()[3..], ["begin", "2", "end"]);
+    // Process before the host reports the GUI's value, then after: nothing to restore.
+    assert_eq!(shared.host_moved(1), None, "host not caught up yet");
+    assert_eq!(shared.host_moved(2), None, "the GUI's own rev");
+    // Host undo: rev 1, then rev 0.
+    assert_eq!(shared.host_moved(1), Some(1));
+    assert!(shared.restore(1));
+    assert_eq!(shared.get(), one);
+    assert_eq!(shared.host_moved(0), Some(0));
+    assert!(shared.restore(0));
+    assert_eq!(shared.get(), empty);
+    // Redo.
+    assert_eq!(shared.host_moved(2), Some(2));
+    assert!(shared.restore(2));
+    assert_eq!(shared.get(), two);
+    // Unknown rev: unchanged.
+    assert_eq!(shared.host_moved(999), Some(999));
+    assert!(!shared.restore(999));
+    assert_eq!(shared.get(), two);
+    // An edit after an undo moves from the host's rev to a fresh one; its undo is the undone state.
+    assert_eq!(shared.host_moved(1), Some(1));
+    assert!(shared.restore(1));
+    ed.remove(0);
+    assert_eq!(host.log()[host.log().len() - 3..], ["begin", "3", "end"]);
+    assert_eq!(shared.host_moved(1), None, "host not caught up");
+    assert_eq!(shared.host_moved(3), None);
+    assert!(shared.get().slots.is_empty());
+    assert_eq!(shared.host_moved(1), Some(1));
+    assert!(shared.restore(1));
+    assert_eq!(shared.get(), one, "undo of the remove");
+}
+
+/// A ring drag (amount edits of one slot in quick succession) is one host step; no change is no
+/// step; the history keeps the last HISTORY revs; without an editor, edits make no step.
+#[test]
+fn drags_coalesce_and_history_is_bounded() {
+    let (shared, host) = attached();
+    let c = FakeCtl::new();
+    let ed = MatrixEditor { shared: &shared, ctl: &c };
+    ed.add_or_edit(Source::Macro1, "filta_freq", 0.5).unwrap();
+    for k in 1..=20 {
+        ed.set_amount(0, 0.5 + k as f32 * 0.01);
+    }
+    let end = shared.get().slots[0].amount;
+    ed.set_amount(0, end); // unchanged
+    assert_eq!(host.log(), ["begin", "1", "end", "begin", "2", "end"], "add + one drag step");
+    assert_eq!(shared.host_moved(2), None);
+    assert_eq!(shared.host_moved(1), Some(1));
+    assert!(shared.restore(1));
+    assert_eq!(shared.get().slots[0].amount, 0.5, "undo returns to before the drag");
+    assert_eq!(shared.host_moved(2), Some(2));
+    assert!(shared.restore(2));
+    assert_eq!(shared.get().slots[0].amount, end, "redo returns to the drag's end");
+
+    // Bounded: after HISTORY + 10 more edits the oldest revs are gone, the newest restore.
+    let n = gts::matrix::HISTORY + 10;
+    for k in 0..n {
+        ed.set_macro_label(1, &format!("L{k}"));
+    }
+    assert!(!shared.restore(1), "rev 1 fell out of the history");
+    let last = shared.get();
+    let newest = 2 + n as i32;
+    assert_eq!(host.log()[host.log().len() - 2], newest.to_string());
+    assert!(shared.restore(newest));
+    assert_eq!(shared.get(), last);
+
+    // No editor attached: edits apply, no gesture.
+    shared.attach(None);
+    let before = host.log().len();
+    ed.set_macro_label(1, "Off");
+    assert_eq!(shared.get().macros[1], "Off");
+    assert_eq!(host.log().len(), before);
+}
+
+/// A host state load drops the session history and adopts the loaded rev: no restore follows,
+/// and the next edit's undo returns to the loaded matrix.
+#[test]
+fn state_load_adopts_the_loaded_rev() {
+    let (shared, _host) = attached();
+    let c = FakeCtl::new();
+    let ed = MatrixEditor { shared: &shared, ctl: &c };
+    ed.add_or_edit(Source::Macro1, "filta_freq", 0.5).unwrap();
+    assert_eq!(shared.host_moved(1), None);
+    let loaded = Matrix { slots: sample_matrix(), ..Default::default() };
+    nih_plug::params::persist::PersistentField::set(&shared, loaded.clone());
+    assert_eq!(shared.get(), loaded);
+    // The loaded state carried rev 0 (the param keeps its value here): adopted, not restored.
+    assert_eq!(shared.host_moved(0), None);
+    assert!(!shared.restore(1), "history dropped");
+    ed.remove(0);
+    assert_eq!(shared.host_moved(0), None, "host not caught up");
+    assert_eq!(shared.host_moved(2), None);
+    assert_eq!(shared.host_moved(0), Some(0));
+    assert!(shared.restore(0));
+    assert_eq!(shared.get(), loaded);
+}
+
+/// A state whose matrix has one slot from a newer version keeps the other slots and the labels.
+#[test]
+fn state_with_an_unknown_source_keeps_the_rest() {
+    use nih_plug::prelude::{Plugin, PluginState};
+    let m = Matrix { slots: sample_matrix(), macros: ["A".into(), "B".into(), "C".into(), "D".into()] };
+    let mut v = serde_json::to_value(&m).unwrap();
+    let future = serde_json::json!({"source": "Future LFO", "target": "filta_freq", "amount": 0.3, "bipolar": true, "enabled": true});
+    v["slots"].as_array_mut().unwrap().insert(1, future);
+    let mut st = PluginState { version: String::new(), params: Default::default(), fields: Default::default() };
+    st.fields.insert("matrix".into(), v.to_string());
+    <gts::Gts as Plugin>::filter_state(&mut st);
+    let b = GtsParams::default();
+    b.deserialize_fields(&st.fields);
+    assert_eq!(b.matrix.get(), m);
 }

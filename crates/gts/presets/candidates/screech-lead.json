@@ -33,21 +33,21 @@
       "target": "osca_detune"
     },
     {
-      "amount": 0.5,
+      "amount": 0.4000000059604645,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 1",
       "target": "osca_width"
     },
     {
-      "amount": 0.30000001192092896,
+      "amount": 0.550000011920929,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 1",
       "target": "filtb_res"
     },
     {
-      "amount": 0.666700005531311,
+      "amount": 0.16670000553131104,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 1",

@@ -566,7 +566,7 @@ pub fn print_sweep(name: &str, k: usize, label: &str, s: &Sweep) {
         s.peak_db
     );
     let curve = |f: fn(&Win) -> f64| s.delta.iter().map(|w| format!("{:+.2}", f(w))).collect::<Vec<_>>().join(" ");
-    println!("    LUFS {} | oct {}", curve(|w| w.lufs), curve(|w| w.centroid_oct));
+    println!("    LUFS {} | oct {} | corr>200 {}", curve(|w| w.lufs), curve(|w| w.centroid_oct), curve(|w| w.corr_hi));
 }
 
 pub fn slug(s: &str) -> String {

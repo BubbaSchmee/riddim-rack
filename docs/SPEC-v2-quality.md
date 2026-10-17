@@ -114,9 +114,13 @@ they differ. Decisions:
 
 **Model.** 32 matrix slots, each `{source, target param id, amount −1..+1, bipolar, enabled}`,
 stored by stable param id (MM: flat slot array, Vital/Phase Plant). Amount is applied in the
-target's **normalized** space; all contributions to one target (fixed routes + slots) are summed
-and clamped once at the destination; a negative amount inverts (MM amount semantics). Unipolar
-mode maps a bipolar source −1..1 to 0..1 before scaling.
+target's **normalized** space; a negative amount inverts (MM amount semantics). Unipolar
+mode maps a bipolar source −1..1 to 0..1 before scaling. **Clamp order (as implemented, two
+stages):** the enabled slots on one target are summed, smoothed and clamped once to 0..1 in the
+target's normalized space on top of the knob; the fixed routes are then applied by the DSP at
+their existing stage with their own scaling and clamps. One shared clamp over fixed routes and
+slots would change where the v1 routes saturate, so saved sets and presets with no slots would
+no longer render bit-identically (acceptance 1); bit-identity wins.
 
 **Fixed routes stay.** The existing route params (moda_pitch/index/shift, modb_motion/vol/
 cutoff/moda, wheel_*, vel_*, fenv_amt, cv1..3_*) keep their ids and meaning, so every saved set
@@ -143,8 +147,9 @@ sources strip; each knob carries a drag handle for patching. Param count 182 →
 
 **Drag-to-patch UX.** Dragging a source chip or macro handle highlights every valid target knob
 and dims the rest; the slot is created only on release over a valid knob, at +0.5 (MM: create on
-release, default 50 %); dropping the same source on a knob edits that slot or fixed route; a
-different source adds a slot. Depth is edited by dragging the ring band around the knob
+release, default 50 %); dropping a source on a knob it already moves (its slot, or its live fixed
+route with a non-zero amount) keeps that amount, re-enables a bypassed slot and selects that
+row for ring editing (a live fixed route at 0 is set to +0.5); a different source adds a slot. Depth is edited by dragging the ring band around the knob
 (vertical drag, Shift = fine, double-click = 0); the ring shows each contributing source's range
 in its colour (stacked arcs) plus the live dot. Right-click on a modulated knob: per source
 Bipolar/Unipolar, Invert, Bypass, Remove; and Remove all modulation. Hovering a source highlights
@@ -155,8 +160,16 @@ adds a slot.
 **Persistence.** Slots and macro labels live in persisted plugin state (survive set save/reopen)
 and in the preset format (`matrix` and `macros` fields of format_version 1; older files load with
 an empty matrix). GUI → audio handoff is lock-free and allocation-free (fixed-size snapshot).
-Undo of matrix edits is deferred to the general undo/redo item (3.8); right-click Remove is the
-recovery path until then (Live's undo does not cover plugin state).
+Host dirty flag and undo: nih-plug exposes no "state changed" call (VST3 `setDirty`, CLAP
+`mark_dirty`), so every GUI matrix edit (drag-to-patch, ring depth, right-click menu, MATRIX page,
+macro rename, preset load) moves one extra host parameter, `matrix_rev` (0..65535, wrapping,
+non-automatable, hidden from generic UIs, not counted in the 186 sound params), as one gesture:
+the host marks the project modified and records an undo step. A ring drag is one step
+(amount edits of one slot within 500 ms coalesce). The plugin keeps the matrix before / after
+each step for the last 128 revs; when the host moves `matrix_rev` itself (its undo / redo),
+process notices a rev it did not produce and a background task restores that snapshot; an
+unknown rev leaves the matrix unchanged. The history is session-only: a state load clears it.
+The plugin-side Ctrl+Z history stays item 3.8.
 
 **Live feedback.** ModLive generalises from 14 fixed targets to every currently modulated target
 (up to 48 entries: fixed routes + slots), so every modulated knob shows its live dot.
@@ -169,7 +182,7 @@ specified. (5) Zero allocation in process with 32 slots active (debug bundle und
 an assert_no_alloc test with a full matrix). (6) CPU: 8 voices with 32 voice-scope slots active
 ≤ +5 % of a core over the matrix-empty engine at 48 kHz (measured). (7) Preset and state
 round-trips including macros. (8) Headless editor tests: chip drag → drop on knob creates a
-slot at +0.5; same-source drop edits; ring drag changes the amount; right-click Remove clears;
+slot at +0.5; same-source drop keeps the amount and re-enables; ring drag changes the amount; right-click Remove clears;
 MATRIX page rows equal the matrix. (9) Frame gates of MOTION.md still hold on all three pages.
 (10) The six candidate presets gain four labelled macros and matrix routes that make each macro
 musically obvious, and still pass the preset QA band.

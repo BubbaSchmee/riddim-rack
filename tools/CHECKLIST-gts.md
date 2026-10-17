@@ -107,7 +107,7 @@ the plugin. Delete the plugin log first for a clean session.
       drives. Drag a chip or a macro handle onto a knob: dashed rings show every valid target, release
       patches at +50 %, Esc cancels; dropping the same source again resets the amount.
     - Rings: drag a ring band up / down to set depth (Shift fine, double-click zero). Right-click a
-      modulated knob: Bipolar / Invert / Bypass / Remove / Remove all. There is no undo for matrix edits yet.
+      modulated knob: Bipolar / Invert / Bypass / Remove / Remove all (incl. built-in). <br>Live save and undo: after one drag-to-patch, closing the Set must prompt to save; Edit > Undo must show "Matrix Edit" and restore the previous routing (ring disappears), Redo brings it back. If either fails, report it: the fallback is making the hidden "Matrix Edit" parameter automatable (one line in matrix.rs).
     - MATRIX page: built-in routes listed; edit a slot's source, target, polarity and amount (drag the
       bar), X removes a row, an empty row adds one. Double-click a macro name to rename it (Enter or
       click away commits, Esc cancels); the old name starts selected.
