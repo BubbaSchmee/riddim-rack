@@ -104,3 +104,72 @@ per sample (5–20 ms). No allocation in process; all delay/reverb buffers preal
 Build: three Opus agents in worktrees on disjoint module files (4.1+4.2+4.8, 4.3+4.4+4.5, 4.6+4.7)
 with per-module tests; then one Opus integration agent wires the chain, params, presets and
 host state; then Sonnet builds the editor FX page; then the review ladder.
+
+---
+
+## Track 5 — Modulation matrix, macros, drag-to-patch (added 2026-10-18)
+
+Source checklist: `docs/standards/mod-matrix.md` (MM-n). Supersedes items 2.1, 2.2, 3.1–3.3 where
+they differ. Decisions:
+
+**Model.** 32 matrix slots, each `{source, target param id, amount −1..+1, bipolar, enabled}`,
+stored by stable param id (MM: flat slot array, Vital/Phase Plant). Amount is applied in the
+target's **normalized** space; all contributions to one target (fixed routes + slots) are summed
+and clamped once at the destination; a negative amount inverts (MM amount semantics). Unipolar
+mode maps a bipolar source −1..1 to 0..1 before scaling.
+
+**Fixed routes stay.** The existing route params (moda_pitch/index/shift, modb_motion/vol/
+cutoff/moda, wheel_*, vel_*, fenv_amt, cv1..3_*) keep their ids and meaning, so every saved set
+and preset sounds identical. They are presented as built-in rows of the same matrix: the MATRIX
+page lists them with their amount bound to the existing param, and dropping a source on a knob
+that already has a fixed route from that source edits that route instead of adding a slot.
+
+**Sources.** Per-voice: Mod A, Mod B, Filter Env, Amp Env A, Amp Env B, Velocity, Keytrack
+(note relative to C4, ±60 st → ±1), Random (new value per note-on), Poly Aftertouch. Global:
+Mod Wheel, Channel Aftertouch, Macro 1–4, Bus CV 1–3. (Pitch bend stays a fixed control.)
+
+**Targets.** Every continuous FloatParam and IntParam except: macro params themselves, cv*
+params, oversampling/host settings, and enums/bools (MM: skip enums). Slot-amount targets
+deferred. **Voice-scope targets** (osc, unison, sub level, filter A/B freq/res/kbd, filter env
+amt/times, amp env times, shaper amt, porta) are evaluated **per voice** with that voice's sources.
+**Global targets** (FX, output volume/spread, crossover, mod rates of free-running LFOs) use global
+sources directly and per-voice sources from the **newest sounding voice**, never a sum of voices
+(MM convention). Evaluation every 32 samples with the existing 5 ms smoothing, as offsets on the
+Patch (global) and on a per-voice patch copy (voice scope); host parameter values are never written.
+
+**Macros.** Four new host-automatable params `macro1..macro4` (0..1, default 0), labels persisted
+per project and per preset (default "Macro 1".."Macro 4"), shown as four labelled knobs in the
+sources strip; each knob carries a drag handle for patching. Param count 182 → 186.
+
+**Drag-to-patch UX.** Dragging a source chip or macro handle highlights every valid target knob
+and dims the rest; the slot is created only on release over a valid knob, at +0.5 (MM: create on
+release, default 50 %); dropping the same source on a knob edits that slot or fixed route; a
+different source adds a slot. Depth is edited by dragging the ring band around the knob
+(vertical drag, Shift = fine, double-click = 0); the ring shows each contributing source's range
+in its colour (stacked arcs) plus the live dot. Right-click on a modulated knob: per source
+Bipolar/Unipolar, Invert, Bypass, Remove; and Remove all modulation. Hovering a source highlights
+its targets (exists). The MATRIX page (third tab: SYNTH | FX | MATRIX) lists fixed routes and
+slots: enable toggle, source, polarity, amount, target (grouped by section), remove; an empty row
+adds a slot.
+
+**Persistence.** Slots and macro labels live in persisted plugin state (survive set save/reopen)
+and in the preset format (`matrix` and `macros` fields of format_version 1; older files load with
+an empty matrix). GUI → audio handoff is lock-free and allocation-free (fixed-size snapshot).
+Undo of matrix edits is deferred to the general undo/redo item (3.8); right-click Remove is the
+recovery path until then (Live's undo does not cover plugin state).
+
+**Live feedback.** ModLive generalises from 14 fixed targets to every currently modulated target
+(up to 48 entries: fixed routes + slots), so every modulated knob shows its live dot.
+
+**Acceptance.** (1) Equivalence: with no slots, output is bit-identical to before (render test).
+(2) Per-voice: two notes with different velocities through a Velocity→Filter A Freq slot reach
+different cutoffs; a global target fed by Velocity follows the newest voice. (3) Sum and clamp:
+two slots to one target add and clamp at 0..1. (4) Unipolar/bipolar/invert/bypass behave as
+specified. (5) Zero allocation in process with 32 slots active (debug bundle under pluginval and
+an assert_no_alloc test with a full matrix). (6) CPU: 8 voices with 32 voice-scope slots active
+≤ +5 % of a core over the matrix-empty engine at 48 kHz (measured). (7) Preset and state
+round-trips including macros. (8) Headless editor tests: chip drag → drop on knob creates a
+slot at +0.5; same-source drop edits; ring drag changes the amount; right-click Remove clears;
+MATRIX page rows equal the matrix. (9) Frame gates of MOTION.md still hold on all three pages.
+(10) The six candidate presets gain four labelled macros and matrix routes that make each macro
+musically obvious, and still pass the preset QA band.
