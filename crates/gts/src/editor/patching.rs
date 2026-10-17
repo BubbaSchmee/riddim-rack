@@ -1293,7 +1293,7 @@ mod tests {
         for id in matrix::target_ids() {
             let s = section_of(id);
             // Track 7 engine wave: Mod C / D, Mod Env and Pitch All have no section yet (UI wave binds it).
-            let pending = ["modc_", "modd_", "menv_", "pitch_all"].iter().any(|p| id.starts_with(p));
+            let pending = ["modc_", "modd_", "menv_", "pitch_all", "phs_", "flg_"].iter().any(|p| id.starts_with(p));
             assert!(s < 20 || id.starts_with("lim_") || pending, "{id} fell through to {}", section_name(s));
             seen.push(id);
         }

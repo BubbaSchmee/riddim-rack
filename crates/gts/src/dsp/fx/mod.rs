@@ -1,9 +1,19 @@
-//! Built-in effects (SPEC v2 Track 4): the eight modules, one per file, and [`FxChain`], which runs
-//! them in the fixed order Distortion -> Multiband -> EQ -> Chorus -> Dimension -> Delay -> Reverb
-//! -> Limiter on the summed stereo output (after the voice sum and the mono crossover).
+//! Built-in effects (SPEC v2 Tracks 4 and 7): the ten modules, one per file, and [`FxChain`], which
+//! runs nine of them in a reorderable order ([`FxOrder`], default Distortion -> Multiband -> EQ ->
+//! Phaser -> Chorus -> Flanger -> Dimension -> Delay -> Reverb), then the Limiter, always last, on
+//! the summed stereo output (after the voice sum and the mono crossover).
 //!
-//! - The master volume is applied between the Reverb and the Limiter (`process`'s `volume`):
-//!   modules 1..7 see the voice level whatever the volume (the distortion's drive and autogain and
+//! - Reordering ([`FxChain::set_order`], once per block, lock-free: the order is a fixed `[u8; 9]`
+//!   snapshot of `params.fx_order`) is click-free: the old order's output crossfades (raised
+//!   cosine, 5 ms) to the dry chain input (aligned by the distortion's latency), the order swaps
+//!   while only dry is heard, dry holds 10 ms while the modules' short memories settle on their
+//!   new inputs, and the dry crossfades into the new order (5 ms): 10 ms of crossfade, 20 ms in
+//!   all. (A crossfade straight from the old order's output to the new one would need a second
+//!   copy of every module's state; the stateful modules can only run once per sample.) Delay and
+//!   reverb tails carry over into the new order. The latency is the same in every order (the
+//!   distortion's compensation delay runs wherever it sits).
+//! - The master volume is applied between the last reorderable module and the Limiter (`process`'s
+//!   `volume`): modules 1..9 see the voice level whatever the volume (the distortion's drive and autogain and
 //!   the compressor's thresholds are calibrated to it), and the limiter guards the real output, so
 //!   no sample leaves the plugin above -0.3 dBFS at any volume. It replaces the old tanh safety
 //!   limiter, which is gone. (A limiter before the volume would clamp a raw voice that a -12 dB
@@ -30,11 +40,10 @@ pub mod delay;
 pub mod dimension;
 pub mod distortion;
 pub mod eq;
+pub mod flanger;
 pub mod limiter;
 pub mod multiband;
 pub mod reverb;
-// Track 7 G9 modules (not wired into FxChain yet).
-pub mod flanger;
 pub mod phaser;
 
 use crate::params::{Division, GtsParams};
@@ -43,6 +52,8 @@ use delay::{Delay, DelayParams};
 use dimension::{Dimension, DimensionParams};
 use distortion::{Distortion, DistortionParams};
 use eq::{Eq, EqParams};
+use flanger::{Flanger, FlangerParams};
+use phaser::{Phaser, PhaserParams};
 use limiter::{Limiter, LimiterParams};
 use multiband::{Multiband, MultibandParams};
 use reverb::{Reverb, ReverbParams};
@@ -63,6 +74,11 @@ pub struct FxPatch {
     pub rev: ReverbParams,
     /// Limiter input gain, dB.
     pub lim_gain: f32,
+    /// SPEC v2 Track 7 (G9). `phs.sync_beats` / `flg.sync_beats` come from the divisions.
+    pub phs: PhaserParams,
+    pub phs_div: Division,
+    pub flg: FlangerParams,
+    pub flg_div: Division,
 }
 
 impl FxPatch {
@@ -154,9 +170,157 @@ impl FxPatch {
                 mix: r.mix.value(),
             },
             lim_gain: p.lim.gain.value(),
+            phs: PhaserParams {
+                on: p.phs.on.value(),
+                stages: p.phs.stages.value().clamp(phaser::MIN_STAGES as i32, phaser::MAX_STAGES as i32) as u32,
+                rate_hz: p.phs.rate.value(),
+                sync: p.phs.sync.value(),
+                sync_beats: crate::dsp::lfo::beats(p.phs.div.value()) as f32,
+                depth: p.phs.depth.value(),
+                feedback: p.phs.feedback.value(),
+                centre_hz: p.phs.centre.value(),
+                spread: p.phs.spread.value(),
+                mix: p.phs.mix.value(),
+            },
+            phs_div: p.phs.div.value(),
+            flg: FlangerParams {
+                on: p.flg.on.value(),
+                rate_hz: p.flg.rate.value(),
+                sync: p.flg.sync.value(),
+                sync_beats: crate::dsp::lfo::beats(p.flg.div.value()) as f32,
+                depth: p.flg.depth.value(),
+                delay_ms: p.flg.delay.value(),
+                feedback: p.flg.feedback.value(),
+                spread: p.flg.spread.value(),
+                mix: p.flg.mix.value(),
+            },
+            flg_div: p.flg.div.value(),
         }
     }
 }
+
+// ---- chain order (SPEC v2 Track 7, G9) ------------------------------------------------------
+
+/// Reorderable modules (the Limiter is fixed last).
+pub const MODULES: usize = 9;
+/// Module names in [`FxOrder`] index order (the default order); the preset / state spelling.
+pub const MODULE_NAMES: [&str; MODULES] =
+    ["Distortion", "Multiband", "EQ", "Phaser", "Chorus", "Flanger", "Dimension", "Delay", "Reverb"];
+const DIST: u8 = 0;
+const MB: u8 = 1;
+const EQ: u8 = 2;
+const PHS: u8 = 3;
+const CHO: u8 = 4;
+const FLG: u8 = 5;
+const DIM: u8 = 6;
+const DLY: u8 = 7;
+
+/// Processing order: module indices ([`MODULE_NAMES`]) first to last, always a permutation of
+/// 0..9. Serialised as the list of names; a list that is not a permutation of the nine names
+/// (a trailing "Limiter" is accepted) does not parse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FxOrder(pub [u8; MODULES]);
+
+impl Default for FxOrder {
+    fn default() -> Self {
+        Self(std::array::from_fn(|i| i as u8))
+    }
+}
+
+impl FxOrder {
+    /// `Some` when `v` is a permutation of 0..9.
+    pub fn new(v: [u8; MODULES]) -> Option<Self> {
+        let mut seen = 0u16;
+        for &m in &v {
+            if m as usize >= MODULES || seen & (1 << m) != 0 {
+                return None;
+            }
+            seen |= 1 << m;
+        }
+        Some(Self(v))
+    }
+
+    pub fn from_names<S: AsRef<str>>(names: &[S]) -> Option<Self> {
+        let names: Vec<&str> = names.iter().map(|s| s.as_ref()).filter(|s| *s != "Limiter").collect();
+        if names.len() != MODULES {
+            return None;
+        }
+        let mut v = [0u8; MODULES];
+        for (o, n) in v.iter_mut().zip(&names) {
+            *o = MODULE_NAMES.iter().position(|m| m == n)? as u8;
+        }
+        Self::new(v)
+    }
+
+    pub fn names(&self) -> [&'static str; MODULES] {
+        self.0.map(|m| MODULE_NAMES[m as usize])
+    }
+
+    /// Four bits per position (lock-free storage in [`FxOrderShared`]).
+    pub fn encode(&self) -> u64 {
+        self.0.iter().enumerate().fold(0, |a, (i, &m)| a | (m as u64) << (4 * i))
+    }
+
+    pub fn decode(x: u64) -> Option<Self> {
+        Self::new(std::array::from_fn(|i| ((x >> (4 * i)) & 15) as u8))
+    }
+}
+
+impl serde::Serialize for FxOrder {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.names().serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for FxOrder {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = Vec::<String>::deserialize(d)?;
+        Self::from_names(&v).ok_or_else(|| {
+            serde::de::Error::custom(format!("fx_order must list each of {MODULE_NAMES:?} once, got {v:?}"))
+        })
+    }
+}
+
+/// `params.fx_order` (persisted as `"fx_order"`): written by the GUI, a preset load or a state
+/// load, read by the audio thread once per block with one atomic load.
+#[derive(Debug)]
+pub struct FxOrderShared(std::sync::atomic::AtomicU64);
+
+impl Default for FxOrderShared {
+    fn default() -> Self {
+        Self(std::sync::atomic::AtomicU64::new(FxOrder::default().encode()))
+    }
+}
+
+impl FxOrderShared {
+    pub fn get(&self) -> FxOrder {
+        FxOrder::decode(self.0.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or_default()
+    }
+
+    pub fn replace(&self, o: FxOrder) {
+        self.0.store(o.encode(), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+impl<'a> nih_plug::params::persist::PersistentField<'a, FxOrder> for FxOrderShared {
+    fn set(&self, new_value: FxOrder) {
+        self.replace(new_value);
+    }
+
+    fn map<F, R>(&self, f: F) -> R
+    where
+        F: Fn(&FxOrder) -> R,
+    {
+        f(&self.get())
+    }
+}
+
+/// Reorder crossfade: each half (old order -> dry, dry -> new order), seconds.
+const REORDER_HALF_S: f32 = 0.005;
+/// Dry hold between the halves, seconds.
+const REORDER_HOLD_S: f32 = 0.01;
+/// Dry ring for the reorder crossfade (>= the distortion latency).
+const DRY_N: usize = 64;
 
 /// What the editor's FX displays read (docs/design/MOTION.md 5.8): peaks since the last
 /// [`FxChain::telemetry`] call plus a few instantaneous values. Plain `Copy` data, no allocation.
@@ -193,9 +357,24 @@ pub struct FxChain {
     dim: Dimension,
     dly: Delay,
     rev: Reverb,
+    phs: Phaser,
+    flg: Flanger,
     lim: Limiter,
-    /// Modules 2..7 have work this block (decided in `set`, after their own fade-outs).
+    /// Modules other than the distortion have work this block (decided in `set`, after their
+    /// own fade-outs).
     active: bool,
+    /// Order in use, the order asked for, and the reorder crossfade position (1 = the order's
+    /// output only, 0 = dry only) with its per-sample step.
+    order: FxOrder,
+    want: FxOrder,
+    xf: f32,
+    xf_step: f32,
+    /// Dry-only samples left after a swap, and their number per swap.
+    hold: u32,
+    hold_n: u32,
+    /// Chain input history for the crossfade's dry path.
+    dry: [[f32; 2]; DRY_N],
+    dry_w: usize,
 }
 
 /// Power-button fade shared by the distortion, multiband, delay and reverb: glides `en` toward 1
@@ -232,8 +411,18 @@ impl FxChain {
             dim: Dimension::new(),
             dly: Delay::new(),
             rev: Reverb::new(),
+            phs: Phaser::new(),
+            flg: Flanger::new(),
             lim: Limiter::new(),
             active: false,
+            order: FxOrder::default(),
+            want: FxOrder::default(),
+            xf: 1.0,
+            xf_step: 1.0 / (REORDER_HALF_S * 44100.0),
+            hold: 0,
+            hold_n: (REORDER_HOLD_S * 44100.0) as u32,
+            dry: [[0.0; 2]; DRY_N],
+            dry_w: 0,
         }
     }
 
@@ -246,7 +435,11 @@ impl FxChain {
         self.dim.set_sample_rate(sr as f64);
         self.dly.set_sample_rate(sr);
         self.rev.set_sample_rate(sr);
+        self.phs.set_sample_rate(sr);
+        self.flg.set_sample_rate(sr);
         self.lim.set_sample_rate(sr);
+        self.xf_step = 1.0 / (REORDER_HALF_S * sr);
+        self.hold_n = (REORDER_HOLD_S * sr) as u32;
     }
 
     /// Clears every line, tail and envelope.
@@ -258,13 +451,40 @@ impl FxChain {
         self.dim.reset();
         self.dly.reset();
         self.rev.reset();
+        self.phs.reset();
+        self.flg.reset();
         self.lim.reset();
+        (self.order, self.xf, self.hold, self.dry, self.dry_w) = (self.want, 1.0, 0, [[0.0; 2]; DRY_N], 0);
         (self.tel, self.tel_prev, self.tel_n) = (FxTelemetry::default(), FxTelemetry::default(), 0);
     }
 
-    /// Constant delay in samples: distortion oversampler + limiter lookahead.
+    /// Constant delay in samples, the same in every order: the sum of the modules' latencies
+    /// (distortion oversampler + limiter lookahead; the phaser and flanger have none).
     pub fn latency(&self) -> usize {
-        self.dist.latency() + self.lim.latency()
+        self.dist.latency() + self.phs.latency() + self.flg.latency() + self.lim.latency()
+    }
+
+    /// Once per block: the module order. A change crossfades over 10 ms (see the module docs);
+    /// while the chain is bypassed it applies at once (every order sounds the same then).
+    pub fn set_order(&mut self, o: FxOrder) {
+        self.want = o;
+        if !self.active {
+            (self.order, self.xf, self.hold) = (o, 1.0, 0);
+        }
+    }
+
+    /// The order in use (a crossfade swaps to the wanted one halfway through).
+    pub fn order(&self) -> FxOrder {
+        self.order
+    }
+
+    /// Phaser break frequency per side (Hz) and flanger swept delay per side (ms), for displays.
+    pub fn phaser_break_hz(&self) -> [f32; 2] {
+        self.phs.break_hz()
+    }
+
+    pub fn flanger_delay_ms(&self) -> [f64; 2] {
+        self.flg.delay_ms()
     }
 
     /// Limiter gain reduction in dB (>= 0), deepest since the last call (the GUI meter).
@@ -316,12 +536,58 @@ impl FxChain {
         self.dly.set(&DelayParams { tempo: tempo as f32, ..p.dly });
         self.rev.set(&p.rev);
         self.lim.set(&LimiterParams { on: true, gain_db: p.lim_gain });
+        self.phs.set(&PhaserParams { sync_beats: crate::dsp::lfo::beats(p.phs_div) as f32, ..p.phs });
+        self.phs.set_transport(tempo, beat);
+        self.flg.set(&FlangerParams { sync_beats: crate::dsp::lfo::beats(p.flg_div) as f32, ..p.flg });
+        self.flg.set_transport(tempo, beat);
         self.active = !self.mb.is_bypassed()
             || !self.eq.is_bypassed()
             || !self.cho.is_bypassed()
             || !self.dim.is_bypassed()
             || !self.dly.is_bypassed()
-            || !self.rev.is_bypassed();
+            || !self.rev.is_bypassed()
+            || !self.phs.is_bypassed()
+            || !self.flg.is_bypassed();
+        if !self.active {
+            (self.order, self.xf, self.hold) = (self.want, 1.0, 0);
+        }
+    }
+
+    /// Module `m` ([`MODULE_NAMES`] index) on one sample, gathering the delay / reverb telemetry.
+    #[inline(always)]
+    fn run(&mut self, m: u8, l: &mut f32, r: &mut f32) {
+        match m {
+            DIST => self.dist.process(l, r),
+            MB => self.mb.process(l, r),
+            EQ => self.eq.process(l, r),
+            PHS => self.phs.process(l, r),
+            CHO => self.cho.process(l, r),
+            FLG => self.flg.process(l, r),
+            DIM => self.dim.process(l, r),
+            DLY => {
+                let (il, ir) = (*l, *r);
+                self.dly.process(l, r);
+                let t = &mut self.tel;
+                t.dly_in = t.dly_in.max(il.abs()).max(ir.abs());
+                // out - in = mix * (wet - in), with the mix the module actually used this sample.
+                let m = self.dly.wet_mix();
+                if m >= 1e-3 {
+                    let k = 1.0 / m;
+                    t.dly_wet = t.dly_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
+                }
+            }
+            _ => {
+                let (il, ir) = (*l, *r);
+                self.rev.process(l, r);
+                let t = &mut self.tel;
+                t.rev_in = t.rev_in.max(il.abs()).max(ir.abs());
+                let m = self.rev.wet_mix();
+                if m >= 1e-3 {
+                    let k = 1.0 / m;
+                    t.rev_wet = t.rev_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
+                }
+            }
+        }
     }
 
     /// One stereo sample; `volume` (linear, the smoothed master volume) is applied before the
@@ -333,31 +599,40 @@ impl FxChain {
         if !(l.is_finite() && r.is_finite()) {
             (*l, *r) = (if l.is_finite() { *l } else { 0.0 }, if r.is_finite() { *r } else { 0.0 });
         }
-        // Off, the distortion is its 23-sample compensation delay.
-        self.dist.process(l, r);
         self.tel_n = self.tel_n.saturating_add(1);
-        if self.active {
-            self.mb.process(l, r);
-            self.eq.process(l, r);
-            self.cho.process(l, r);
-            self.dim.process(l, r);
-            let (il, ir) = (*l, *r);
-            self.dly.process(l, r);
-            let t = &mut self.tel;
-            t.dly_in = t.dly_in.max(il.abs()).max(ir.abs());
-            // out - in = mix * (wet - in), with the mix the module actually used this sample.
-            let m = self.dly.wet_mix();
-            if m >= 1e-3 {
-                let k = 1.0 / m;
-                t.dly_wet = t.dly_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
-            }
-            let (il, ir) = (*l, *r);
-            self.rev.process(l, r);
-            t.rev_in = t.rev_in.max(il.abs()).max(ir.abs());
-            let m = self.rev.wet_mix();
-            if m >= 1e-3 {
-                let k = 1.0 / m;
-                t.rev_wet = t.rev_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
+        if !self.active {
+            // Off, the distortion is its 23-sample compensation delay (the same in every order).
+            self.dist.process(l, r);
+        } else {
+            // The dry input for a reorder crossfade, kept current so a crossfade starts clean.
+            let w = self.dry_w;
+            self.dry[w] = [*l, *r];
+            self.dry_w = (w + 1) % DRY_N;
+            if self.xf >= 1.0 && self.order == self.want {
+                // Steady: the order as it is.
+                for k in 0..MODULES {
+                    self.run(self.order.0[k], l, r);
+                }
+            } else {
+                // Reorder crossfade: the order's output against the dry input, delayed like the
+                // chain; the swap happens at dry only, and dry holds while the modules' short
+                // memories (filters, phaser, flanger comb) settle on their new inputs.
+                for k in 0..MODULES {
+                    self.run(self.order.0[k], l, r);
+                }
+                let g = 0.5 - 0.5 * (std::f32::consts::PI * self.xf).cos();
+                let d = self.dry[(w + DRY_N - self.dist.latency().min(DRY_N - 1)) % DRY_N];
+                (*l, *r) = (d[0] + g * (*l - d[0]), d[1] + g * (*r - d[1]));
+                if self.order != self.want {
+                    self.xf = (self.xf - self.xf_step).max(0.0);
+                    if self.xf == 0.0 {
+                        (self.order, self.hold) = (self.want, self.hold_n);
+                    }
+                } else if self.hold > 0 {
+                    self.hold -= 1;
+                } else {
+                    self.xf = (self.xf + self.xf_step).min(1.0);
+                }
             }
         }
         (*l, *r) = (*l * volume, *r * volume);

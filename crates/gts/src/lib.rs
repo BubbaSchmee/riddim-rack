@@ -141,6 +141,11 @@ impl Plugin for Gts {
             let d = serde_json::to_string(&dsp::shape::LfoShapes::default()).expect("shapes serialise");
             state.fields.insert("lfo_shapes".into(), d);
         }
+        // And the FX order: absent or unreadable = the default order.
+        if !state.fields.get("fx_order").is_some_and(|s| serde_json::from_str::<dsp::fx::FxOrder>(s).is_ok()) {
+            let d = serde_json::to_string(&dsp::fx::FxOrder::default()).expect("an order serialises");
+            state.fields.insert("fx_order".into(), d);
+        }
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
@@ -245,6 +250,8 @@ impl Plugin for Gts {
         if self.params.lfo_shapes.poll(&mut self.shapes_seen, &mut self.shapes_rec) {
             self.engine.set_lfo_shapes(&self.shapes_rec);
         }
+        // SPEC v2 Track 7 (G9): one atomic load; the chain crossfades a change.
+        self.engine.set_fx_order(self.params.fx_order.get());
         let n = buffer.samples();
         self.bus.exchange(self.engine.bus_signals());
         if self.bus.refresh_due(n, self.sample_rate) {

@@ -719,6 +719,17 @@ impl Engine {
         self.bus_cv = cv;
     }
 
+    /// SPEC v2 Track 7 (G9): the FX module order, once per block (a change crossfades, see
+    /// `dsp::fx`).
+    pub fn set_fx_order(&mut self, o: fx::FxOrder) {
+        self.fx.set_order(o);
+    }
+
+    /// The FX order in use.
+    pub fn fx_order(&self) -> fx::FxOrder {
+        self.fx.order()
+    }
+
     /// Takes new custom LFO shapes (`dsp::shape::ShapesShared::poll`) at a block start: every
     /// voice's Mod A..D gets its shape. Allocation-free.
     pub fn set_lfo_shapes(&mut self, enc: &[f32; shape::SHAPES_ENC]) {
@@ -1119,7 +1130,7 @@ impl Engine {
         // Mono below the crossover.
         let (m, s) = self.xover.process(0.5 * (l as f64 + r as f64), 0.5 * (l as f64 - r as f64), self.ctl.smooth as f64);
         let (mut l, mut r) = ((m + s) as f32 * self.norm, (m - s) as f32 * self.norm);
-        // FX 1..7, master volume, then the -0.3 dBFS limiter (the output stage).
+        // FX modules in the chain order, master volume, then the -0.3 dBFS limiter (the output stage).
         self.fx.process(&mut l, &mut r, self.gain);
         (l, r)
     }

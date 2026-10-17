@@ -12,6 +12,11 @@
 //! ([`crate::dsp::shape::ShapeDef`]: `mode`, `points` `[x, y, curve]`, `steps`, `glide`); it is
 //! written only when a shape differs from the default, and a file without it loads the defaults.
 //!
+//! `fx_order` (SPEC v2 Track 7) is the FX chain order, the nine reorderable module names first to
+//! last (`["Distortion", "Multiband", "EQ", "Phaser", "Chorus", "Flanger", "Dimension", "Delay",
+//! "Reverb"]` is the default; the Limiter is always last); written only when not the default, and
+//! a file without it (or with a list that is not a permutation of the nine) loads the default.
+//!
 //! `matrix` is the modulation matrix (SPEC v2 Track 5, [`crate::matrix`]): slots by source name
 //! and target param id. Macro values are ordinary params (`macro1..macro4`); `macros` carries the
 //! labels. Files without a `matrix` load with an empty one; a slot that does not parse or whose
@@ -25,7 +30,7 @@
 //! outside a host context); the browser wave pushes the loaded `Patch` into the host params via
 //! `ParamSetter`.
 
-use crate::dsp::fx::FxPatch;
+use crate::dsp::fx::{FxOrder, FxPatch};
 use crate::dsp::shape::LfoShapes;
 use crate::dsp::{FilterPatch, LfoExt, ModPatch, OscPatch, Patch};
 use crate::matrix::{Matrix, Slot as ModSlot, MACROS};
@@ -53,6 +58,8 @@ pub struct Preset {
     pub patch: Patch,
     /// Custom LFO shapes, Mod A..D (SPEC v2 Track 7).
     pub lfo_shapes: LfoShapes,
+    /// FX chain order (SPEC v2 Track 7).
+    pub fx_order: FxOrder,
 }
 
 impl Default for Preset {
@@ -67,6 +74,7 @@ impl Default for Preset {
             matrix: vec![],
             patch: Patch::default(),
             lfo_shapes: LfoShapes::default(),
+            fx_order: FxOrder::default(),
         }
     }
 }
@@ -99,6 +107,8 @@ struct File {
     params: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     lfo_shapes: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fx_order: Option<Value>,
 }
 
 /// A writable view of one `Patch` field (also the matrix's field table, `crate::matrix`).
@@ -194,7 +204,7 @@ fn filt_slots<'a>(pre: &str, f: &'a mut FilterPatch, out: &mut Vec<(String, Slot
 /// parameters (the chain derives the first two; the last is a test hook), so they have no slot.
 fn fx_slots<'a>(f: &'a mut FxPatch, out: &mut Vec<(String, Slot<'a>)>) {
     use Slot::*;
-    let FxPatch { dist: d, mb, eq, cho, cho_div, dim, dly, rev, lim_gain } = f;
+    let FxPatch { dist: d, mb, eq, cho, cho_div, dim, dly, rev, lim_gain, phs, phs_div, flg, flg_div } = f;
     #[rustfmt::skip]
     prefixed("dist", [
         ("on", B(&mut d.on)), ("type", E(&mut d.kind)), ("drive", F(&mut d.drive_db)), ("bias", F(&mut d.bias)),
@@ -245,12 +255,25 @@ fn fx_slots<'a>(f: &'a mut FxPatch, out: &mut Vec<(String, Slot<'a>)>) {
         ("hicut", F(&mut rev.hicut_hz)), ("width", F(&mut rev.width)), ("mix", F(&mut rev.mix)),
     ], out);
     prefixed("lim", [("gain", F(lim_gain))], out);
+    // SPEC v2 Track 7 (G9); `sync_beats` comes from the division.
+    #[rustfmt::skip]
+    prefixed("phs", [
+        ("on", B(&mut phs.on)), ("stages", U(&mut phs.stages)), ("rate", F(&mut phs.rate_hz)), ("sync", B(&mut phs.sync)),
+        ("div", E(phs_div)), ("depth", F(&mut phs.depth)), ("feedback", F(&mut phs.feedback)),
+        ("centre", F(&mut phs.centre_hz)), ("spread", F(&mut phs.spread)), ("mix", F(&mut phs.mix)),
+    ], out);
+    #[rustfmt::skip]
+    prefixed("flg", [
+        ("on", B(&mut flg.on)), ("rate", F(&mut flg.rate_hz)), ("sync", B(&mut flg.sync)), ("div", E(flg_div)),
+        ("depth", F(&mut flg.depth)), ("delay", F(&mut flg.delay_ms)), ("feedback", F(&mut flg.feedback)),
+        ("spread", F(&mut flg.spread)), ("mix", F(&mut flg.mix)),
+    ], out);
 }
 
 /// Every preset parameter of `p` under its param id (all GtsParams ids except the CV slots).
 pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     use Slot::*;
-    let mut out = Vec::with_capacity(240);
+    let mut out = Vec::with_capacity(256);
     let Patch {
         osc: [osca, oscb], moda, modb, moda_pitch, moda_index, moda_shift, modb_motion, modb_vol, modb_cutoff,
         modb_moda, shaper_on, shaper_mode, shaper_amt, filt: [filta, filtb], fenv_att, fenv_dec, fenv_sus, fenv_rel,
@@ -369,6 +392,8 @@ impl Preset {
             params,
             lfo_shapes: (self.lfo_shapes != LfoShapes::default())
                 .then(|| serde_json::to_value(&self.lfo_shapes).expect("shapes always serialise")),
+            fx_order: (self.fx_order != FxOrder::default())
+                .then(|| serde_json::to_value(self.fx_order).expect("an order always serialises")),
         };
         serde_json::to_string_pretty(&file).expect("a preset always serialises") + "\n"
     }
@@ -441,6 +466,13 @@ impl Preset {
                 LfoShapes::default()
             }),
         };
+        let fx_order = match file.fx_order {
+            None => FxOrder::default(),
+            Some(v) => serde_json::from_value(v).unwrap_or_else(|e| {
+                warnings.push(format!("fx_order: {e}; default order loaded"));
+                FxOrder::default()
+            }),
+        };
         let preset = Preset {
             name: file.name,
             author: file.author,
@@ -451,6 +483,7 @@ impl Preset {
             matrix: matrix.slots,
             patch,
             lfo_shapes,
+            fx_order,
         };
         Ok((preset, warnings))
     }
@@ -488,7 +521,7 @@ mod tests {
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        assert_eq!(got.len(), 224); // 102 + 74 FX + 4 macros + 34 Track 7 modulation + 10 Track 7 sound
+        assert_eq!(got.len(), 243); // 102 + 74 FX + 4 macros + 34 Track 7 modulation + 10 Track 7 sound + 19 phaser / flanger
     }
 
     #[test]
@@ -566,7 +599,7 @@ mod tests {
         p.patch.volume_db = -7.5;
         let mut v: Value = serde_json::from_str(&p.to_json()).unwrap();
         let params = v["params"].as_object_mut().unwrap();
-        let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
+        let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_", "phs_", "flg_"];
         params.retain(|k, _| !fx_prefixes.iter().any(|f| k.starts_with(f)));
         assert_eq!(params.len(), 150); // 106 + 34 Track 7 modulation + 10 Track 7 sound
         let (q, w) = Preset::from_json(&serde_json::to_string(&v).unwrap()).unwrap();

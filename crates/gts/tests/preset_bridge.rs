@@ -121,10 +121,10 @@ fn init_restores_defaults_and_routing_is_untouched() {
         assert_eq!(fake.params.cv_sources.read().unwrap()[0], "VSS 1 · Step Gate");
         assert_eq!(fake.params.oversampling.load(Ordering::Relaxed), 4);
     }
-    // No gesture ever touched a CV slot, and the 224 sound params (180 + 34 Track 7 modulation + 10 Track 7 sound) were each driven.
+    // No gesture ever touched a CV slot, and the 243 sound params (180 + 34 Track 7 modulation + 10 Track 7 sound + 19 phaser / flanger) were each driven.
     let touched = fake.gestures.borrow();
     assert!(!touched.iter().any(|id| id.starts_with("cv")), "a CV slot was written");
-    assert_eq!(touched.len(), 7 * 224);
+    assert_eq!(touched.len(), 7 * 243);
     // The last load was Init: every sound param sits at its default, the Patch is the default Patch.
     for id in fake.sound_ids() {
         assert_eq!(fake.get01(&id), fake.default01(&id), "{id}");

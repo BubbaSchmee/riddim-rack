@@ -64,6 +64,13 @@ fn spec_ids() -> Vec<String> {
         v.push(format!("menv_{s}"));
     }
     v.extend(["osca_pitch", "oscb_pitch", "pitch_all"].map(String::from));
+    // SPEC v2 Track 7 FX: phaser, flanger.
+    for s in ["on", "stages", "rate", "sync", "div", "depth", "feedback", "centre", "spread", "mix"] {
+        v.push(format!("phs_{s}"));
+    }
+    for s in ["on", "rate", "sync", "div", "depth", "delay", "feedback", "spread", "mix"] {
+        v.push(format!("flg_{s}"));
+    }
     v
 }
 
@@ -95,7 +102,7 @@ fn ids_match_spec() {
     got.sort();
     want.sort();
     assert_eq!(got, want);
-    assert_eq!((fx_ids().len(), got.len()), (74, 230)); // + 34 Track 7 modulation + 10 Track 7 sound
+    assert_eq!((fx_ids().len(), got.len()), (74, 249)); // + 34 Track 7 modulation + 10 Track 7 sound + 19 phaser / flanger
 }
 
 /// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on
@@ -124,6 +131,12 @@ fn fx_ranges_and_defaults() {
         ("rev_decay", 0.1, 20.0, 1.5), ("rev_damp", 0.0, 1.0, 0.3), ("rev_predelay", 0.0, 300.0, 0.0),
         ("rev_lowcut", 20.0, 1000.0, 200.0), ("rev_hicut", 1000.0, 20000.0, 12000.0), ("rev_width", 0.0, 1.0, 1.0),
         ("rev_mix", 0.0, 1.0, 0.15), ("lim_gain", -24.0, 12.0, 0.0),
+        // SPEC v2 Track 7 (G9)
+        ("phs_stages", 4.0, 12.0, 8.0), ("phs_rate", 0.02, 20.0, 0.3), ("phs_depth", 0.0, 1.0, 0.5),
+        ("phs_feedback", -0.95, 0.95, 0.3), ("phs_centre", 20.0, 10000.0, 800.0), ("phs_spread", 0.0, 0.5, 0.25),
+        ("phs_mix", 0.0, 1.0, 0.5), ("flg_rate", 0.02, 20.0, 0.2), ("flg_depth", 0.0, 1.0, 0.8),
+        ("flg_delay", 0.1, 10.0, 4.0), ("flg_feedback", -0.95, 0.95, 0.5), ("flg_spread", 0.0, 0.5, 0.25),
+        ("flg_mix", 0.0, 1.0, 0.5),
     ];
     let params = GtsParams::default();
     let map = params.param_map();
@@ -144,6 +157,8 @@ fn fx_ranges_and_defaults() {
     assert_eq!(fx.dly, delay::DelayParams::default());
     assert_eq!(fx.rev, reverb::ReverbParams::default());
     assert_eq!(fx.lim_gain, 0.0);
+    assert_eq!(fx.phs, phaser::PhaserParams::default());
+    assert_eq!(fx.flg, flanger::FlangerParams::default());
 }
 
 /// Knob readouts: crossover floor says Off (and parses it), chorus feedback is a percentage,

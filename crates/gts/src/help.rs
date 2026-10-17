@@ -254,6 +254,26 @@ pub const HELP: &[(&str, &str)] = &[
     ("osca_pitch", "Pitch offset of Osc A, -48 to +48 semitones. A matrix target for pitch envelopes and dives."),
     ("oscb_pitch", "Pitch offset of Osc B, -48 to +48 semitones. A matrix target for pitch envelopes and dives."),
     ("pitch_all", "Pitch offset of Osc A, Osc B and the sub together, -48 to +48 semitones (punch, dive)."),
+    // SPEC v2 Track 7 FX (G9)
+    ("phs_on", "Turns the Phaser on or off."),
+    ("phs_stages", "All-pass stages of the phaser, 4 to 12: each pair adds one notch to the sweep."),
+    ("phs_rate", "Speed of the phaser sweep when Sync is off, 0.02 to 20 Hz."),
+    ("phs_sync", "Locks the phaser sweep to the host tempo, using Div instead of Rate."),
+    ("phs_div", "Length of one phaser sweep when synced, from 4/1 down to 1/32, with triplets (T) and dotted (D)."),
+    ("phs_depth", "How far the phaser notches sweep, up to two octaves either side of the Centre."),
+    ("phs_feedback", "Feeds the phaser output back in, -95 to +95 %: sharper, ringing notches."),
+    ("phs_centre", "Centre frequency the phaser notches sweep around, 20 Hz to 10 kHz."),
+    ("phs_spread", "Offsets the right channel's sweep from the left, 0 to 180 degrees (0 = mono sweep)."),
+    ("phs_mix", "Dry / wet balance of the phaser, 0 to 100 %. 50 % gives the deepest notches."),
+    ("flg_on", "Turns the Flanger on or off."),
+    ("flg_rate", "Speed of the flanger sweep when Sync is off, 0.02 to 20 Hz."),
+    ("flg_sync", "Locks the flanger sweep to the host tempo, using Div instead of Rate."),
+    ("flg_div", "Length of one flanger sweep when synced, from 4/1 down to 1/32, with triplets (T) and dotted (D)."),
+    ("flg_depth", "How much of the delay the flanger sweeps down from its top, 0 to 1."),
+    ("flg_delay", "Longest flanger delay, at the top of the sweep, 0.1 to 10 ms."),
+    ("flg_feedback", "Feeds the flanger output back in, -95 to +95 %: a metallic, resonant comb. Negative is hollower."),
+    ("flg_spread", "Offsets the right channel's sweep from the left, 0 to 180 degrees (0 = mono sweep)."),
+    ("flg_mix", "Dry / wet balance of the flanger, 0 to 100 %."),
 ];
 
 /// The help line for a parameter id.

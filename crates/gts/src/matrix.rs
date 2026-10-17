@@ -358,7 +358,7 @@ pub mod flag {
     pub const VOLUME: u8 = 64;
 }
 
-const FX_PREFIXES: [&str; 8] = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
+const FX_PREFIXES: [&str; 10] = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_", "phs_", "flg_"];
 
 fn is_global_id(id: &str) -> bool {
     FX_PREFIXES.iter().any(|p| id.starts_with(p)) || matches!(id, "volume" | "spread" | "mono_xover" | "bend_range")

@@ -593,7 +593,8 @@ pub struct VelocityParams {
 }
 
 // ---- FX section (SPEC v2 Track 4) ----------------------------------------------------------
-// Chain order Distortion -> Multiband -> EQ -> Chorus -> Dimension -> Delay -> Reverb -> Limiter.
+// Default chain order Distortion -> Multiband -> EQ -> Phaser -> Chorus -> Flanger -> Dimension -> Delay ->
+// Reverb, reorderable (`fx_order`, Track 7), then the Limiter, always last.
 // Every module is off by default except the always-on limiter (no `on` param, `lim_gain` only).
 // Plain values are the units the DSP modules take (`dsp::fx::*Params`), so the preset slots point
 // straight at them: ms for chorus / delay / pre-delay times, seconds for the reverb decay, 0..2
@@ -993,6 +994,111 @@ impl Default for LimiterFxParams {
     }
 }
 
+// ---- SPEC v2 Track 7 FX (G9): phaser and flanger, off by default ---------------------------
+
+/// Right-side LFO lead in turns (0..0.5), shown in degrees.
+fn spread_turns(name: String) -> FloatParam {
+    FloatParam::new(name, 0.25, FloatRange::Linear { min: 0.0, max: 0.5 })
+        .with_value_to_string(Arc::new(|v| format!("{:.0}°", v * 360.0)))
+        .with_string_to_value(Arc::new(|s| s.trim().trim_end_matches('°').trim().parse::<f32>().ok().map(|d| d / 360.0)))
+}
+
+fn feedback_pct(name: String, default: f32) -> FloatParam {
+    linear(name, default, -0.95, 0.95)
+        .with_unit("%")
+        .with_value_to_string(formatters::v2s_f32_percentage(0))
+        .with_string_to_value(formatters::s2v_f32_percentage())
+}
+
+/// Ids `phs_{on,stages,rate,sync,div,depth,feedback,centre,spread,mix}` (`dsp::fx::phaser`).
+#[derive(Params)]
+pub struct PhaserFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    /// All-pass stages per side, 4..12 (odd counts round down).
+    #[id = "stages"]
+    pub stages: IntParam,
+    /// Free rate, Hz.
+    #[id = "rate"]
+    pub rate: FloatParam,
+    #[id = "sync"]
+    pub sync: BoolParam,
+    /// LFO period when synced.
+    #[id = "div"]
+    pub div: EnumParam<Division>,
+    #[id = "depth"]
+    pub depth: FloatParam,
+    #[id = "feedback"]
+    pub feedback: FloatParam,
+    /// Centre break frequency, Hz.
+    #[id = "centre"]
+    pub centre: FloatParam,
+    #[id = "spread"]
+    pub spread: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+impl Default for PhaserFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Phaser {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            stages: IntParam::new(n("Stages"), 8, IntRange::Linear { min: 4, max: 12 }),
+            rate: skewed(n("Rate"), 0.3, 0.02, 20.0, " Hz"),
+            sync: BoolParam::new(n("Sync"), false),
+            div: EnumParam::new(n("Division"), Division::Bar1),
+            depth: unit(n("Depth"), 0.5),
+            feedback: feedback_pct(n("Feedback"), 0.3),
+            centre: hz(n("Centre"), 800.0, 20.0, 10000.0),
+            spread: spread_turns(n("Spread")),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
+/// Ids `flg_{on,rate,sync,div,depth,delay,feedback,spread,mix}` (`dsp::fx::flanger`).
+#[derive(Params)]
+pub struct FlangerFxParams {
+    #[id = "on"]
+    pub on: BoolParam,
+    #[id = "rate"]
+    pub rate: FloatParam,
+    #[id = "sync"]
+    pub sync: BoolParam,
+    #[id = "div"]
+    pub div: EnumParam<Division>,
+    /// Fraction of the delay swept down, 0..1.
+    #[id = "depth"]
+    pub depth: FloatParam,
+    /// Top-of-sweep delay, ms.
+    #[id = "delay"]
+    pub delay: FloatParam,
+    #[id = "feedback"]
+    pub feedback: FloatParam,
+    #[id = "spread"]
+    pub spread: FloatParam,
+    #[id = "mix"]
+    pub mix: FloatParam,
+}
+
+impl Default for FlangerFxParams {
+    fn default() -> Self {
+        let n = |s: &str| format!("Flanger {s}");
+        Self {
+            on: BoolParam::new(n("On"), false),
+            rate: skewed(n("Rate"), 0.2, 0.02, 20.0, " Hz"),
+            sync: BoolParam::new(n("Sync"), false),
+            div: EnumParam::new(n("Division"), Division::Bar1),
+            depth: unit(n("Depth"), 0.8),
+            delay: skewed(n("Delay"), 4.0, 0.1, 10.0, " ms"),
+            feedback: feedback_pct(n("Feedback"), 0.5),
+            spread: spread_turns(n("Spread")),
+            mix: percent(n("Mix"), 0.5, 1.0),
+        }
+    }
+}
+
 // ---- SPEC v2 Track 7 modulation (G1, G2, G6, G7) -------------------------------------------
 // Appended block. Every default is neutral: Mod C / Mod D and Mod Env are matrix-only sources
 // (no fixed routes), the extensions default to the v1 behaviour, the pitch offsets to 0.
@@ -1221,6 +1327,16 @@ pub struct GtsParams {
     #[nested(group = "Pitch")]
     pub pitch: PitchParams,
 
+    // ---- SPEC v2 Track 7 FX (appended) ----
+    #[nested(id_prefix = "phs", group = "Phaser")]
+    pub phs: PhaserFxParams,
+    #[nested(id_prefix = "flg", group = "Flanger")]
+    pub flg: FlangerFxParams,
+    /// FX chain order (SPEC v2 Track 7, G9): project and preset state, read lock-free by the
+    /// audio thread (see `crate::dsp::fx::FxOrderShared`).
+    #[persist = "fx_order"]
+    pub fx_order: crate::dsp::fx::FxOrderShared,
+
     /// Persisted CV-in sources, `"<label> · <name>"`, empty = none (GUI thread only).
     #[persist = "cv_sources"]
     pub cv_sources: RwLock<[String; 3]>,
@@ -1404,6 +1520,9 @@ impl Default for GtsParams {
             modd_ext: LfoExtParams::new("D"),
             menv: ModEnvParams::default(),
             pitch: PitchParams::default(),
+            phs: PhaserFxParams::default(),
+            flg: FlangerFxParams::default(),
+            fx_order: Default::default(),
             lfo_shapes: Default::default(),
         }
 
