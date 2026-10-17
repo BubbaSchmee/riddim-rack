@@ -295,6 +295,11 @@ impl Delay {
     }
 
     /// True once off and faded out: `process` is then a pass-through.
+    /// The wet share the last `process` mixed in (smoothed mix x on/off fade; 0 when bypassed).
+    pub fn wet_mix(&self) -> f32 {
+        self.mix * self.en
+    }
+
     pub fn is_bypassed(&self) -> bool {
         !self.p.on && self.en == 0.0
     }

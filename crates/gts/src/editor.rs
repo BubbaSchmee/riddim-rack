@@ -382,6 +382,11 @@ const INACTIVE: f32 = 0.45;
 
 /// Dims everything `ui` draws from here on (a group body whose module or section is off), easing
 /// over 180 ms when the state changes.
+/// Routing is Bypass: both filters are out of the path (voice.rs chan).
+fn bypass(c: &dyn Ctl) -> bool {
+    enum_idx::<Routing>(c, "routing") == Routing::variants().len() - 1
+}
+
 fn fade(ui: &mut Ui, inactive: bool) {
     let p = ui.next_widget_position();
     let k = rr_ui::motion::tween(ui.ctx(), Id::new(("gts-fade", p.x as i32, p.y as i32)), inactive, 0.18);
@@ -563,6 +568,13 @@ impl LiveView {
         }
     }
 
+    /// egui time restarts at 0 on every editor open: drop the stamps taken on the old clock.
+    pub fn reset_clock(&mut self) {
+        self.next_fft = 0.0;
+        self.hold_t = [0.0; 2];
+        self.last_t = None;
+    }
+
     /// Nothing connected (tests, previews): a default record, no scope.
     pub fn idle() -> Self {
         Self::new(Arc::new(Viz::default()), None)
@@ -683,7 +695,7 @@ impl LiveView {
         let oscb_on = c.get01("oscb_on") > 0.5;
         for (k, id) in MOD_IDS.iter().enumerate() {
             let Some(v) = self.frame.live01(id) else { continue };
-            if (v - c.get01(id)).abs() <= 0.004 || (id.starts_with("oscb") && !oscb_on) {
+            if (v - c.get01(id)).abs() <= 0.004 || (id.starts_with("oscb") && !oscb_on) || (id.starts_with("filt") && bypass(c)) {
                 continue;
             }
             let col = match *id {
@@ -727,7 +739,7 @@ pub fn ring_ranges(c: &dyn Ctl, id: &str) -> [Option<RingRange>; 2] {
                 out[0] = rg(lo.max(if id.ends_with("vol") { 0.0 } else { f32::MIN }), hi, SRC_B);
             }
         }
-        "filta_freq" | "filtb_freq" if enum_idx::<Routing>(c, "routing") != Routing::variants().len() - 1 || osc == 0 => {
+        "filta_freq" | "filtb_freq" if !bypass(c) => {
             let base = p(id);
             let amt = p("fenv_amt");
             let env_id = if osc == 0 { "filta_env" } else { "filtb_env" };
@@ -817,6 +829,8 @@ pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: 
     let ctx = ui.ctx().clone();
     rr_ui::motion::set_reduced_motion(&ctx, bv.reduced_motion);
     live.reduced_motion = bv.reduced_motion;
+    // egui's own popup / Area fade-in follows Reduced motion too.
+    ctx.style_mut(|st| st.animation_time = if bv.reduced_motion { 0.0 } else { 1.0 / 12.0 });
     let full = rr_ui::panel::rack_frame(ui);
     let shadows = rr_ui::fx::begin_shadows(ui);
     let o = full.min.to_vec2();
@@ -1420,7 +1434,8 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
             ui,
             &format!("{} INDEX", if o == 0 { "OSC A" } else { "OSC B" }),
             &c.readout(&k("index")),
-            Some((format!("{:.1}", f.index01(o) * 127.0), T.accent)),
+            // Index is moved by Mod A (source glyph A); hidden while nothing moves it.
+            ((f.index01(o) - c.get01(&k("index"))).abs() > 0.004).then(|| (format!("{:.1}", f.index01(o) * 127.0), SRC_A)),
             "The wavetable of the shown oscillator. Drag sideways to scrub Index, double-click to reset it.",
         );
     }
@@ -1500,10 +1515,13 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
         });
     }
     group_at(ui, at(868.0, 348.0, 88.0, 222.0), "Sub", |ui| tg(ui, c, "sub_on", ""), |ui| {
-        fade(ui, is_off(c, "sub_on"));
         ui.spacing_mut().item_spacing.y = 6.0;
-        kn(ui, c, "sub_level", "Level", km(64.0));
-        kn(ui, c, "sub_oct", "Oct", km(64.0).bipolar());
+        // Xover is the whole-output mid/side crossover: it stays live with Sub off.
+        ui.scope(|ui| {
+            fade(ui, is_off(c, "sub_on"));
+            kn(ui, c, "sub_level", "Level", km(64.0));
+            kn(ui, c, "sub_oct", "Oct", km(64.0).bipolar());
+        });
         kn(ui, c, "mono_xover", "Xover", km(64.0));
     });
 
@@ -1514,7 +1532,7 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dy
             tg(ui, c, &kk("env"), "Env");
             cb::<FilterType>(ui, c, &kk("type"), "");
         }, |ui| {
-            fade(ui, p == "filtb" && enum_idx::<Routing>(c, "routing") == Routing::variants().len() - 1);
+            fade(ui, bypass(c));
             knob_row(ui, |ui| {
                 kn(ui, c, &kk("freq"), "Freq", kl(56.0));
                 kn(ui, c, &kk("res"), "Res", km(48.0));
@@ -1849,6 +1867,9 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
         |ctx, st| {
             rr_ui::theme::apply(ctx);
             st.next_refresh = 0.0; // egui time restarts at 0 on every open
+            st.live.reset_clock();
+            st.view.preset_open = false;
+            st.view.patch_open = false;
             st.live.hero.reset_gl(); // a reopened window is a new GL context
         },
         // nih_plug_egui requests a repaint before every update, so this runs and paints on every

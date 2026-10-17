@@ -151,3 +151,28 @@ fn live_state_histories() {
     live.set_stereo(&[0.5; 64], &[0.25; 64]);
     assert!(live.dim_l.iter().all(|v| (*v - 1.0).abs() < 1e-6) && live.dim_r.iter().all(|v| (*v - 1.0 / 3.0).abs() < 1e-5));
 }
+
+/// At a 32-sample buffer each published peak still spans a 1/60 s window: a held bass note reads
+/// steady instead of the last block's sub-millisecond sample.
+#[test]
+fn small_blocks_hold_peaks_for_a_frame() {
+    let params = GtsParams::default();
+    let mut patch = Patch::from_params(&params);
+    patch.fx.rev.on = true;
+    patch.fx.rev.mix = 0.5;
+    let mut e = Engine::new();
+    e.initialize(SR);
+    e.set_patch(&patch);
+    e.note_on(29, 0.9);
+    let (mut lo, mut hi) = (f32::MAX, 0.0f32);
+    for block in 0..3000 {
+        for _ in 0..32 {
+            e.next_frame();
+        }
+        let t = e.fx_telemetry();
+        if block >= 1000 {
+            (lo, hi) = (lo.min(t.rev_in), hi.max(t.rev_in));
+        }
+    }
+    assert!(hi > 0.0 && lo > 0.5 * hi, "reverb input peak flickers: {lo} .. {hi}");
+}

@@ -149,7 +149,8 @@ fn gain_reduction_meter() {
     let mut m = new(0.0, SR);
     let quiet = vec![0.1; 4800];
     run(&mut m, &quiet, &quiet);
-    assert_eq!(m.take_gr_db(), 0.0);
+    // +0.0, not -0.0: the plugin's fetch_max compares bits, and -0.0 would beat real reduction.
+    assert_eq!(m.take_gr_db().to_bits(), 0);
     let hot = vec![2.0 * CEILING; 9600];
     run(&mut m, &hot, &hot);
     let gr = m.take_gr_db();

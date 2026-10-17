@@ -1,7 +1,7 @@
 # Riddim Rack design contract
 
 The look shared by GTS and VSS: an anodised rack panel, flat arc knobs, glass displays and one
-accent colour. This file is the contract; `crates/rr-ui` is its implementation and
+accent colour. Sections 6.1 / 6.1a and the no-animation principles are superseded by `MOTION.md` (v2 panel: 1000 x 832, motion, hover-revealed values, popover PATCH). This file is the contract; `crates/rr-ui` is its implementation and
 `docs/design/preview-rr-ui.png` / `preview-rr-ui-vss.png` are what that implementation renders.
 The approved direction is **Variant B, Mint** from `mockup-v1.html` (slate panel, mint accent).
 Amber is not shipped.

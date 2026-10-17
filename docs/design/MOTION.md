@@ -1,6 +1,6 @@
 # GTS visual and motion spec (v2 panel)
 
-Status: proposal for owner approval. Companion to `DESIGN.md` (the static contract) and
+Status: built and approved; chip drag-and-drop patching, OS-default Reduced motion and 15 Hz data snapshots were deferred. Companion to `DESIGN.md` (the static contract) and
 `motion-feasibility.md` (what the stack can carry). The running reference is
 `prototype-v2.html`; the stills are `prototype-v2-1.png` to `prototype-v2-5.png`.
 

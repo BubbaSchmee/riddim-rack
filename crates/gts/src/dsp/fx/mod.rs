@@ -179,10 +179,10 @@ pub struct FxChain {
     sr: f32,
     /// Peaks gathered by `process` (see [`FxTelemetry`]).
     tel: FxTelemetry,
-    /// 1 / mix of the delay and the reverb while they run (0 = not measurable): turns
-    /// `out - in = mix * (wet - in)` back into the wet signal.
-    dly_k: f32,
-    rev_k: f32,
+    /// Samples gathered into `tel` and the previous full window's peaks: the GUI reads only the
+    /// newest record (~60 Hz), so a published peak covers at least one 1/60 s window, not one block.
+    tel_n: u32,
+    tel_prev: FxTelemetry,
     dist: Distortion,
     mb: Multiband,
     eq: Eq,
@@ -220,8 +220,8 @@ impl FxChain {
         Self {
             sr: 44100.0,
             tel: FxTelemetry::default(),
-            dly_k: 0.0,
-            rev_k: 0.0,
+            tel_n: 0,
+            tel_prev: FxTelemetry::default(),
             dist: Distortion::new(),
             mb: Multiband::new(),
             eq: Eq::new(),
@@ -256,6 +256,7 @@ impl FxChain {
         self.dly.reset();
         self.rev.reset();
         self.lim.reset();
+        (self.tel, self.tel_prev, self.tel_n) = (FxTelemetry::default(), FxTelemetry::default(), 0);
     }
 
     /// Constant delay in samples: distortion oversampler + limiter lookahead.
@@ -268,17 +269,30 @@ impl FxChain {
         self.lim.take_gr_db()
     }
 
-    /// The displays' record: peaks since the last call (which resets them) and the live values.
+    /// The displays' record: peaks over the current and the previous 1/60 s window (so a 60 Hz
+    /// reader sees every peak whatever the block size) and the live values.
     pub fn telemetry(&mut self) -> FxTelemetry {
+        let d = self.dist.take_input_peak();
+        if d.abs() > self.tel.dist_in.abs() {
+            self.tel.dist_in = d;
+        }
+        let (c, p) = (self.tel, self.tel_prev);
         let t = FxTelemetry {
-            dist_in: self.dist.take_input_peak(),
+            dist_in: if p.dist_in.abs() > c.dist_in.abs() { p.dist_in } else { c.dist_in },
             mb_gain_db: self.mb.band_gain_db(),
             mb_level_db: self.mb.band_level_db(),
             cho_phase: self.cho.lfo_phase() as f32,
+            dly_in: c.dly_in.max(p.dly_in),
+            dly_wet: c.dly_wet.max(p.dly_wet),
             dly_time_s: (self.dly.delay_samples() / self.sr as f64) as f32,
-            ..self.tel
+            rev_in: c.rev_in.max(p.rev_in),
+            rev_wet: c.rev_wet.max(p.rev_wet),
         };
-        self.tel = FxTelemetry::default();
+        if self.tel_n as f32 >= self.sr / 60.0 {
+            self.tel_prev = c;
+            self.tel = FxTelemetry::default();
+            self.tel_n = 0;
+        }
         t
     }
 
@@ -299,9 +313,6 @@ impl FxChain {
         self.dly.set(&DelayParams { tempo: tempo as f32, ..p.dly });
         self.rev.set(&p.rev);
         self.lim.set(&LimiterParams { on: true, gain_db: p.lim_gain });
-        let k = |mix: f32, bypassed: bool| if bypassed || mix < 1e-3 { 0.0 } else { 1.0 / mix };
-        self.dly_k = k(p.dly.mix, self.dly.is_bypassed());
-        self.rev_k = k(p.rev.mix, self.rev.is_bypassed());
         self.active = !self.mb.is_bypassed()
             || !self.eq.is_bypassed()
             || !self.cho.is_bypassed()
@@ -321,6 +332,7 @@ impl FxChain {
         }
         // Off, the distortion is its 23-sample compensation delay.
         self.dist.process(l, r);
+        self.tel_n = self.tel_n.saturating_add(1);
         if self.active {
             self.mb.process(l, r);
             self.eq.process(l, r);
@@ -330,14 +342,19 @@ impl FxChain {
             self.dly.process(l, r);
             let t = &mut self.tel;
             t.dly_in = t.dly_in.max(il.abs()).max(ir.abs());
-            if self.dly_k > 0.0 {
-                t.dly_wet = t.dly_wet.max(((*l - il) * self.dly_k + il).abs()).max(((*r - ir) * self.dly_k + ir).abs());
+            // out - in = mix * (wet - in), with the mix the module actually used this sample.
+            let m = self.dly.wet_mix();
+            if m >= 1e-3 {
+                let k = 1.0 / m;
+                t.dly_wet = t.dly_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
             }
             let (il, ir) = (*l, *r);
             self.rev.process(l, r);
             t.rev_in = t.rev_in.max(il.abs()).max(ir.abs());
-            if self.rev_k > 0.0 {
-                t.rev_wet = t.rev_wet.max(((*l - il) * self.rev_k + il).abs()).max(((*r - ir) * self.rev_k + ir).abs());
+            let m = self.rev.wet_mix();
+            if m >= 1e-3 {
+                let k = 1.0 / m;
+                t.rev_wet = t.rev_wet.max(((*l - il) * k + il).abs()).max(((*r - ir) * k + ir).abs());
             }
         }
         (*l, *r) = (*l * volume, *r * volume);

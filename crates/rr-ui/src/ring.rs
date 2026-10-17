@@ -9,7 +9,7 @@
 //! A reader that was lapped mid-copy detects it (the write counter moved more than the spare
 //! capacity) and retries, so a returned window is always a contiguous, untorn run of samples.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{fence, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 struct Inner {
@@ -17,12 +17,15 @@ struct Inner {
     mask: u64,
     /// Total samples ever written (monotonic). Release-stored after the samples themselves.
     written: AtomicU64,
+    /// End of the push in progress, stored (then a Release fence) before its slots: a reader that
+    /// copied an overwritten slot sees it after its Acquire fence (the seqlock pattern, as in snap).
+    claimed: AtomicU64,
 }
 
 /// Creates a ring of `capacity` samples (rounded up to a power of two, at least 2).
 pub fn ring(capacity: usize) -> (RingWriter, RingReader) {
     let cap = capacity.max(2).next_power_of_two();
-    let inner = Arc::new(Inner { slots: (0..cap).map(|_| AtomicU32::new(0)).collect(), mask: cap as u64 - 1, written: AtomicU64::new(0) });
+    let inner = Arc::new(Inner { slots: (0..cap).map(|_| AtomicU32::new(0)).collect(), mask: cap as u64 - 1, written: AtomicU64::new(0), claimed: AtomicU64::new(0) });
     (RingWriter { inner: inner.clone(), pos: 0 }, RingReader { inner })
 }
 
@@ -34,6 +37,8 @@ pub struct RingWriter {
 impl RingWriter {
     /// Audio thread: wait-free, allocation-free.
     pub fn push(&mut self, samples: &[f32]) {
+        self.inner.claimed.store(self.pos + samples.len() as u64, Ordering::Relaxed);
+        fence(Ordering::Release);
         for &s in samples {
             self.inner.slots[(self.pos & self.inner.mask) as usize].store(s.to_bits(), Ordering::Relaxed);
             self.pos += 1;
@@ -86,8 +91,10 @@ impl RingReader {
             for (i, o) in out.iter_mut().enumerate() {
                 *o = f32::from_bits(self.inner.slots[((start + i as u64) & self.inner.mask) as usize].load(Ordering::Relaxed));
             }
-            // Slots older than `end2 - cap` may have been overwritten while we copied.
-            let end2 = self.inner.written.load(Ordering::Acquire);
+            // Slots older than `end2 - cap` may have been overwritten while we copied (including
+            // by a push still in progress).
+            fence(Ordering::Acquire);
+            let end2 = self.inner.claimed.load(Ordering::Relaxed);
             if end2 - start <= self.inner.mask + 1 {
                 return true;
             }

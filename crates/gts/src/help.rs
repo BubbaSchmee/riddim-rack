@@ -54,7 +54,7 @@ pub const HELP: &[(&str, &str)] = &[
     ("sub_oct", "How many octaves below Osc A the sub plays, -1 or -2."),
     ("mono_xover", "Makes the output mono below this frequency, 20 to 300 Hz. The bottom setting is Off."),
     ("volume", "Master volume before the limiter, -24 to +6 dB."),
-    ("spread", "Stereo offset between the oscillators: Osc A left, Osc B right. 0 is mono, 1 is full."),
+    ("spread", "Stereo offset between the oscillators in Parallel routing: Osc A left, Osc B right. 0 is mono, 1 is full."),
     // Mod A
     ("moda_curve", "Wave shape of Mod A: sine, triangle, saws, square, random, one-cycle decay or attack."),
     ("moda_rate", "Mod A speed when Sync is off, 0.03 to 30 Hz."),

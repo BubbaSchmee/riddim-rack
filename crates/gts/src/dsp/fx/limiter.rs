@@ -122,7 +122,7 @@ impl Limiter {
     /// Deepest gain reduction (dB, >= 0) applied since the last call, which resets it. For the
     /// GUI meter: one `log10` per call, no allocation.
     pub fn take_gr_db(&mut self) -> f32 {
-        -20.0 * std::mem::replace(&mut self.g_min, 1.0).clamp(1e-6, 1.0).log10()
+        -20.0 * std::mem::replace(&mut self.g_min, 1.0).clamp(1e-6, 1.0).log10() + 0.0 // + 0.0: -0.0 bits would win lib.rs's fetch_max
     }
 
     /// Lookahead in samples (constant per sample rate).

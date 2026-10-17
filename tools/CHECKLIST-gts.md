@@ -83,10 +83,10 @@ the plugin. Delete the plugin log first for a clean session.
     Gain Reduction meter (FX page, 0 to -12 dB) moves with the playing and falls back when you
     stop, and Output Peak reads about -0.3 dBFS. Back to
     Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
-24. Candidate presets with FX: open the header Preset combo (under Quality) and load each of the
+24. Candidate presets with FX: open the header preset list (right of the nameplate; the arrows step) and load each of the
     six (Sub Weight, Growl Hound, Reese Drift, Wobble Shot, Talk Box, Screech Lead): the knobs
-    and the FX page jump to the preset, the combo shows its name, and after any edit it reads
-    `<name> *`. Init sets every sound parameter back to its default; the PATCH routing, the
+    and the FX page jump to the preset, the bar shows its name, and after any edit a dot appears beside it. Close and reopen the
+    editor: the spectrum and meters must still move. Init sets every sound parameter back to its default; the PATCH routing, the
     instance label and Quality do not change on any load. A/B each against its render from
     `cargo run -p gts --release --example render_preset` (`docs/audits/renders/presets-fx/*.wav`,
     level-matched) in Live next to the clip: each sounds like its description including the FX
