@@ -186,3 +186,56 @@ slot at +0.5; same-source drop keeps the amount and re-enables; ring drag change
 MATRIX page rows equal the matrix. (9) Frame gates of MOTION.md still hold on all three pages.
 (10) The six candidate presets gain four labelled macros and matrix routes that make each macro
 musically obvious, and still pass the preset QA band.
+
+---
+
+## Track 6 — Preset browser (added 2026-10-17)
+
+Source checklist: `docs/standards/presets-and-ux.md` section 1 (UX-1..37). Replaces the header
+preset list of the motion pass; the header bar (name, modified dot, ◀ ▶) stays as the entry point.
+
+**Storage (UX-1,2,3,6,7,8).** `Documents\Riddim Rack\GTS\Presets\Factory\<Category>\*.json`
+(written read-only from the embedded factory bank on first run and whenever the embedded bank is
+newer; never overwritten if the user edited a copy elsewhere) and `...\Presets\User\<Category>\`
+(created on first run). Format = the existing JSON (format_version 1, product GTS, name, author,
+description, category, tags, macros, matrix, params). `favorites.json` and `settings.json`
+(default preset, browser state) live in `...\GTS\`. A **Reveal folder** command opens Explorer on
+the User folder; **Rescan** re-reads both trees. All file I/O happens on the GUI or a background
+thread, never the audio thread; a corrupt file is listed with a warning badge and never crashes.
+
+**Taxonomy (UX-9,10,11).** Categories: Bass, Lead, Pluck, Pad, FX, Seq, Init (fixed list; Bass
+is the default filter). Free-form tags, searchable, shown as chips; factory tags come from the
+riddim/dubstep taxonomy in `docs/standards/riddim-dubstep-fundamentals.md` (e.g. riddim, tearout,
+growl, wobble, reese, neuro, sub, screech, formant, wub). Names are descriptive; author in the
+author field; names unique per folder; illegal path characters rejected.
+
+**Browser panel (UX-13..21).** Opens over the SYNTH/FX/MATRIX body from the header (click the name
+or a browse button; Esc or the button closes). Left column: source (All, Factory, User,
+Favorites) and categories with counts. Top: a text search over name, author, description and tags
+(all words, any order; quotes for an exact phrase), and the tag chips of the current results
+(click to filter, click again to clear). Main list: name, category, author, a one-line
+description, heart (favourite), with the loaded preset highlighted; keyboard ↑/↓ moves the
+selection, Enter loads, double-click loads and closes, single click loads when "Load on select"
+is on (default on, per the common audition workflow). A detail strip shows the full description,
+the four macro labels and tags of the selected preset. Header ◀ ▶ step through the current
+filtered list (wrapping). Right-click a user preset: Rename, Delete (confirm), Reveal; right-click
+any preset: Set as default (new instances load it).
+
+**Save (UX-17,24,31).** Save (overwrite the loaded user preset, confirm), Save As dialog: name,
+category, tags, author (remembered), description, macro labels; overwrite confirmation; saving a
+factory preset always goes to Save As into User. Init resets every sound parameter and the matrix
+(existing behaviour). The modified dot appears after any edit and clears on load/save.
+
+**Keyboard in the host.** Search and Save As need real text input inside Ableton Live. Enable
+egui-baseview's Windows keyboard focus workaround (feature unification through a direct dependency
+at the same revision if nih_plug_egui does not expose it) and verify typing in the plugin_loop
+window path; document any remaining host limitation.
+
+**Acceptance.** (1) First run creates both trees and writes the factory bank; a second run does not
+rewrite unchanged files. (2) Search, category, source, favourites and tag filters combine
+correctly (headless egui tests over a fixture tree of 60+ presets incl. a corrupt file). (3) Save,
+Save As with overwrite confirm, Rename and Delete round-trip on disk and in the list; illegal names
+are rejected. (4) ◀ ▶ follow the filtered list. (5) Load on select loads without clicks (existing
+preset glide) and never blocks the audio thread; browsing 200 presets keeps the frame gates of
+MOTION.md (UI+tess ≤ 4 ms mean, ≥ 60 fps). (6) Typing works in the plugin_loop window path.
+(7) No file I/O or allocation on the audio thread (pluginval debug loop).
