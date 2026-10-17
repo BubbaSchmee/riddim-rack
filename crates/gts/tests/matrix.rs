@@ -433,6 +433,7 @@ fn cpu_render(slots: &[Slot], secs: f64) -> f64 {
 /// SPEC v2 Track 5 acceptance 6: 8 voices with 32 voice-scope slots cost at most 5 % of a core
 /// over the matrix-empty engine at 48 kHz (best of three each; asserted in release builds).
 #[test]
+#[ignore = "CPU budget: wall-clock timing is unreliable under parallel load; run alone with --ignored --test-threads=1 (tools/CHECKLIST-gts.md)"]
 fn cpu_full_matrix_costs_under_five_percent_of_a_core() {
     let secs = 4.0;
     let slots = heavy_slots();

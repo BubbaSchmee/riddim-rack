@@ -397,6 +397,7 @@ fn cpu(p: &Patch, notes: &[u8], secs: f64) -> f64 {
 }
 
 #[test]
+#[ignore = "CPU budget: wall-clock timing is unreliable under parallel load; run alone with --ignored --test-threads=1 (tools/CHECKLIST-gts.md)"]
 fn warp_cpu_per_voice_and_at_8_voices() {
     // Report: one voice, Osc A warped (unison 1 and 7), % of one core at 48 kHz.
     let secs = 2.0;

@@ -160,3 +160,13 @@ two wave-2 Editor timeouts (23:16-23:19) came minutes before that dock dropped e
 (System log: Kernel-PnP 1010 "surprise removed" for the T7, Focusrite and HP display, then Ntfs 50
 "Delayed Write Failed" on D: at 23:20). The same binary then passed 15/15 runs plus 2 debug runs.
 Check `Get-WinEvent` Kernel-PnP / Ntfs for the hang window before blaming the plugin.
+
+## CPU budgets (run on a quiet machine)
+
+The CPU-budget tests are `#[ignore]`d because wall-clock timing fails under parallel load. Run them alone:
+
+```
+cargo test -p gts --release --test matrix --test modulation --test track7_sound --test track7_cpu -- --ignored --test-threads=1 cpu
+```
+
+Budgets: full 32-slot matrix ≤ +5 % of a core; extra modulators and warp ≤ +8 % of a core (SPEC Tracks 5 and 7).

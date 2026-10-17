@@ -330,6 +330,7 @@ fn core_share(mut f: impl FnMut(), secs: f64) -> f64 {
 /// fade) and the mod envelope per voice. Reported with the whole engine at 8 voices with all four
 /// LFOs Custom and matrix-routed, against the init patch.
 #[test]
+#[ignore = "CPU budget: wall-clock timing is unreliable under parallel load; run alone with --ignored --test-threads=1 (tools/CHECKLIST-gts.md)"]
 fn cpu_of_the_extra_modulators_at_8_voices() {
     if cfg!(debug_assertions) {
         return; // timing only means something optimised
