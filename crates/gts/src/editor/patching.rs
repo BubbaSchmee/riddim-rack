@@ -919,7 +919,7 @@ pub fn section_of(id: &str) -> usize {
         "porta" | "bend_range" => 10,
         _ if pre("osca_") => 1,
         _ if pre("oscb_") => 2,
-        _ if pre("sub_") => 3,
+        _ if pre("sub_") || pre("noise_") => 3, // Track 7: noise shares the Sub section
         _ if pre("moda_") => 4,
         _ if pre("modb_") => 5,
         _ if pre("filta_") => 6,

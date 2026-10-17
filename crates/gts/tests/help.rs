@@ -13,7 +13,7 @@ fn ids() -> BTreeSet<String> {
 #[test]
 fn every_param_has_a_help_line_and_every_line_a_param() {
     let all = ids();
-    assert_eq!(all.len(), 220); // 186 + 34 Track 7 modulation
+    assert_eq!(all.len(), 230); // 186 + 34 Track 7 modulation + 10 Track 7 sound
     for id in &all {
         let line = help(id).unwrap_or_else(|| panic!("no help for {id}"));
         assert!(line.trim().len() >= 20, "help for {id} is too thin: {line:?}");
@@ -24,7 +24,7 @@ fn every_param_has_a_help_line_and_every_line_a_param() {
     for k in &listed {
         assert!(all.contains(*k), "help for unknown param {k}");
     }
-    assert_eq!(listed.len(), 220);
+    assert_eq!(listed.len(), 230);
 }
 
 #[test]

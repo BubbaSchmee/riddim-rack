@@ -20,16 +20,27 @@
 //!
 //! Retriggering a sounding voice (poly steal, mono non-legato) resets the oscillator phases; the
 //! step that leaves at each oscillator and the sub is faded out over `DECLICK` seconds (SQ-31).
+//!
+//! Track 7 (sound): a warped oscillator renders its unison sum on a 2x grid (FM, Bend, PWM) or a
+//! 4x grid (Sync) and decimates it through an elliptic low-pass (`Dec`, about 2 / 2.4 samples of
+//! group delay at low frequencies, so it stays aligned with an unwarped osc). FM's modulator is a
+//! shadow copy of the other osc's centre grain voice (copied from it at note-on and whenever FM
+//! starts, so it stays in phase) generated on the same grid: an image of the modulator is phase
+//! modulation too, multiplied by the carrier's harmonic number, and a base-rate modulator brought
+//! up to the grid (linearly, or through the shaper's 23-tap up stage) measured -25 .. -52 dB.
+//! The sub gains Triangle (polyBLAMP corners), octave 0, a start phase and a soft drive; the
+//! noise layer joins Osc A's path on Amp Env A, stereo-decorrelated.
 
 use super::env::Adsr;
 use super::filter::MultiFilter;
-use super::grain::GrainOsc;
+use super::grain::{GrainOsc, PhaseMap};
+use super::noise::{Noise, NoiseCfg, NOISE_OFF_DB};
 use super::lfo::Lfo;
 use super::shaper::Shaper;
-use super::tables::{Tables, GRAINS};
+use super::tables::{Tables, GRAINS, N, TOP};
 use super::{OscPatch, Patch, Transport};
 use super::shape::Shape;
-use crate::params::{Routing, Target, Trigger};
+use crate::params::{Routing, SubShape, Target, Trigger, WarpMode};
 use std::f64::consts::TAU;
 
 /// Most unison voices per oscillator.
@@ -144,6 +155,171 @@ struct Osc {
     dc: [f32; 2],
     /// The grains have been started at least once (a free-running osc starts at phase 0).
     started: bool,
+    // ---- Track 7 (G4) ----
+    /// Warp decimators (left, right); FM: the modulator shadow, its last value, the rate-deviation
+    /// envelope and the value the mip follows, the shadow is in step.
+    dec: [Dec; 2],
+    fm_mod: GrainOsc,
+    fm_last: f32,
+    fm_dev: f64,
+    fm_hold: f64,
+    fm_live: bool,
+    /// Grid factor rendered last sample (0 = unwarped); a change restarts the decimators.
+    os: u8,
+}
+
+/// What a warped osc needs of the other one: f0 (Sync) and the FM modulator's settings, plus its
+/// centre grain voice when the FM shadow has to be (re)started from it.
+struct Other {
+    hz: f32,
+    table: usize,
+    ratio: f64,
+    gp: f32,
+    grain: Option<GrainOsc>,
+}
+
+/// Grid factor per warp mode: Sync 4x (its restart step needs the room), FM, Bend and PWM 2x (a
+/// smooth map or a band-limited modulator needs only the room for its spread; half the cost).
+fn warp_os(mode: WarpMode) -> usize {
+    if mode == WarpMode::Sync { 4 } else { 2 }
+}
+
+/// Bend / PWM: highest instantaneous read rate (cycles per base sample) the 2x grid carries
+/// without folding into the base band (`2 - 0.5`), less a margin for the map's spectral tails.
+const MAP_HEADROOM: f64 = 1.3;
+/// FM: table cycles of phase offset per unit of modulator at amount 1, and the per-sample decay of
+/// the measured rate-deviation peak (~0.4 s at 48 kHz). The mip follows a held copy that only
+/// moves when the peak rises above it or falls 30 % under it: a mip that toggled inside every
+/// modulator period (blocks are not period-synchronous) would modulate the tone.
+const FM_DEPTH: f64 = 2.0;
+const FM_DEV_DECAY: f64 = 0.99995;
+const FM_HOLD_DROP: f64 = 0.7;
+/// FM's carrier headroom on its 2x grid (cycles per base sample; 1.3 measured -53 dB at C5, 1.0
+/// -79 dB): the mip keeps the carrier's peak instantaneous frequency under it.
+const FM_HEADROOM: f64 = 1.0;
+/// Sync: the slave reads up to 2^SYNC_OCT table cycles per master period at amount 1.
+const SYNC_OCT: f64 = 3.0;
+/// Phase-map radius at amount 1: Bend (max slope 12) and PWM (max slope 19, ~5 % pulse).
+const BEND_R: f64 = 0.85;
+const PWM_R: f64 = 0.9;
+
+/// Elliptic decimation low-passes, transposed direct form II sections `[b0, b1, b2, a1, a2]`,
+/// 0.1 dB ripple to 0.417 x the base rate and -90 dB from 0.5 x (scipy `ellip(n, 0.1, 90, 20 kHz)`
+/// at 96 / 192 kHz for a 48 kHz base; the edges scale with the sample rate). 2x: order 10.
+#[allow(clippy::excessive_precision)]
+const DEC2: [[f64; 5]; 5] = [
+    [2.47497769852760745e-03, 4.53536748331540875e-03, 2.47497769852760788e-03, -1.14000400443441441e+00, 3.68539798235029470e-01],
+    [1.0, 1.00016312224687787e+00, 1.0, -9.36816707540395588e-01, 5.28478004811736679e-01],
+    [1.0, 3.58765141799458898e-01, 9.99999999999999889e-01, -7.04060073466292735e-01, 7.17536134276178017e-01],
+    [1.0, 3.86701200794793698e-02, 1.0, -5.48668675816770812e-01, 8.59648437872647553e-01],
+    [1.0, -8.69607230776464624e-02, 1.00000000000000022e+00, -4.83771943644881686e-01, 9.57833633587214184e-01],
+];
+/// 4x: order 11.
+#[allow(clippy::excessive_precision)]
+const DEC4: [[f64; 5]; 6] = [
+    [1.93071631038950324e-04, 2.08695316013203195e-05, 1.93071631038950324e-04, -7.98730254601680789e-01, 0.0],
+    [1.0, 1.0, 0.0, -1.58955157270586267e+00, 6.81999670256675516e-01],
+    [1.0, -9.61499510015715875e-01, 9.99999999999999778e-01, -1.57292339079112953e+00, 7.78522565943983724e-01],
+    [1.0, -1.29499170069459391e+00, 1.0, -1.55942598130098586e+00, 8.70964301342513236e-01],
+    [1.0, -1.41561012511920570e+00, 1.0, -1.55567970384414256e+00, 9.36688784438000965e-01],
+    [1.0, -1.45782546493645992e+00, 1.0, -1.56537860221310199e+00, 9.81228066608045402e-01],
+];
+
+#[derive(Debug, Clone, Copy, Default)]
+struct Dec {
+    z: [[f64; 2]; 6],
+}
+
+impl Dec {
+    #[inline]
+    fn process(&mut self, x: f64, sections: &[[f64; 5]]) -> f64 {
+        let mut y = x;
+        for (z, c) in self.z.iter_mut().zip(sections) {
+            let o = c[0] * y + z[0];
+            z[0] = c[1] * y - c[3] * o + z[1];
+            z[1] = c[2] * y - c[4] * o;
+            y = o;
+        }
+        y
+    }
+}
+
+impl Osc {
+    /// One base-rate sample of a warped osc (Track 7 G4): its unison sum (left, right) on its
+    /// grid through the decimators, before DC blocking and gain.
+    #[allow(clippy::too_many_arguments)]
+    fn warped(&mut self, tables: &Tables, table: usize, op: &OscPatch, ratio: f64, gp: f32, sr: f32, other: Other) -> (f32, f32) {
+        let os = warp_os(op.warp);
+        if self.os as usize != os {
+            self.dec = [Dec::default(); 2];
+            self.os = os as u8;
+        }
+        let sections: &[[f64; 5]] = if os == 4 { &DEC4 } else { &DEC2 };
+        let u = self.uni;
+        let two = u.n > 1;
+        let amt = op.warp_amt.clamp(0.0, 1.0) as f64;
+        let osf = os as f64;
+        let own_hz = self.freq;
+        let dphase = own_hz as f64 / sr as f64;
+        let ds = dphase / osf;
+        let (mut l, mut r) = (0.0, 0.0);
+        // One grid sample: every unison voice through `f`, summed and decimated.
+        let mut grid = |o: &mut Self, f: &mut dyn FnMut(&mut GrainOsc, f64) -> f32| {
+            let (mut a, mut b) = (0.0, 0.0);
+            for k in 0..u.n {
+                let v = f(&mut o.grain[k], u.ratio[k]);
+                if two {
+                    a += v * u.gl[k];
+                    b += v * u.gr[k];
+                } else {
+                    a = v;
+                }
+            }
+            l = o.dec[0].process(a as f64, sections) as f32;
+            r = if two { o.dec[1].process(b as f64, sections) as f32 } else { l };
+        };
+        match op.warp {
+            WarpMode::Sync => {
+                let master = other.hz as f64 / sr as f64 / osf;
+                let rho = ratio * (own_hz / other.hz) as f64 * 2f64.powf(SYNC_OCT * amt);
+                for _ in 0..os {
+                    grid(self, &mut |g, k| g.next_sync(tables, table, master * k, rho, gp, osf));
+                }
+            }
+            WarpMode::Fm => {
+                let rate = ratio * dphase;
+                // Deviation peak in table cycles per base sample (from the last sample's grid steps).
+                if self.fm_dev > self.fm_hold || self.fm_dev < FM_HOLD_DROP * self.fm_hold {
+                    self.fm_hold = self.fm_dev;
+                }
+                let fmul = (TOP * (rate + self.fm_hold) / (FM_HEADROOM * rate)).max(1.0);
+                if let Some(g) = other.grain {
+                    (self.fm_mod, self.fm_live) = (g, true);
+                }
+                let md = other.hz as f64 / sr as f64 / osf;
+                for _ in 0..os {
+                    let mv = self.fm_mod.next_with(tables, other.table, md, other.ratio, other.gp, osf, 1.0, |p| p);
+                    let dev = (mv - self.fm_last).abs() as f64 * amt * FM_DEPTH * osf;
+                    self.fm_dev = dev.max(self.fm_dev * FM_DEV_DECAY);
+                    self.fm_last = mv;
+                    let off = amt * FM_DEPTH * mv as f64 * N as f64;
+                    grid(self, &mut |g, k| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, |p| p + off));
+                }
+            }
+            _ => {
+                let map = match op.warp {
+                    WarpMode::BendPlus => PhaseMap::new(BEND_R * amt, 0.0),
+                    WarpMode::BendMinus => PhaseMap::new(-BEND_R * amt, 0.0),
+                    _ => PhaseMap::new(0.0, PWM_R * amt),
+                };
+                let fmul = (TOP * map.slope() / MAP_HEADROOM).max(1.0);
+                for _ in 0..os {
+                    grid(self, &mut |g, k| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, |p| map.apply(p)));
+                }
+            }
+        }
+        (l, r)
+    }
 }
 
 /// 2-pole Butterworth high-pass (TPT state-variable form).
@@ -238,6 +414,11 @@ pub struct Voice {
     tail_n: u32,
     tail_blk: u32,
     tail_peak: f32,
+    // ---- Track 7 sound (G8) ----
+    /// Noise layer generators (left, right), settings, on (latched at `update`).
+    noise: [Noise; 2],
+    noise_cfg: NoiseCfg,
+    noise_on: bool,
 }
 
 /// Ping-pong period of the scan (0 -> 31 -> 0) and a common multiple with the 32-grain wrap.
@@ -284,15 +465,43 @@ fn rand01(r: &mut u32) -> f64 {
     (*r >> 8) as f64 / (1u32 << 24) as f64
 }
 
-/// Any enabled oscillator with unison width needs the right channel.
+/// Any enabled oscillator with unison width needs the right channel (and the stereo noise layer).
 fn needs_stereo(patch: &Patch) -> bool {
-    patch.osc.iter().any(|o| o.on && o.unison > 1 && o.width > 0.0)
+    patch.osc.iter().any(|o| o.on && o.unison > 1 && o.width > 0.0) || patch.noise_level_db > NOISE_OFF_DB
+}
+
+/// Band-limited triangle, 0 at phase 0 and +1 at 0.25: naive plus a 2-point polyBLAMP
+/// `(1 - |t|)^3 / 6` per corner (slope change -8 / +8 per cycle at 0.25 / 0.75).
+#[inline]
+fn triangle(ph: f64, dt: f64) -> f32 {
+    let mut y = if ph < 0.25 {
+        4.0 * ph
+    } else if ph < 0.75 {
+        2.0 - 4.0 * ph
+    } else {
+        4.0 * ph - 4.0
+    };
+    for (c, ds) in [(0.25, -8.0), (0.75, 8.0)] {
+        let t = ((ph - c) / dt).abs();
+        if t < 1.0 {
+            let x = 1.0 - t;
+            y += ds * dt * x * x * x / 6.0;
+        }
+    }
+    y as f32
+}
+
+/// Sub drive: `tanh(g w) / tanh(g)`, g = 1 + 4 drive (peak kept at 1).
+#[inline]
+fn sub_drive(w: f32, drive: f32) -> f32 {
+    let g = 1.0 + 4.0 * drive.min(1.0);
+    (g * w).tanh() / g.tanh()
 }
 
 impl Voice {
     /// An amp envelope that makes sound is running (oscillators, or the sub on Osc A's envelope).
     pub fn sounding(&self) -> bool {
-        ((self.on[0] || self.sub_on) && self.osc[0].env.is_active()) || (self.on[1] && self.osc[1].env.is_active())
+        ((self.on[0] || self.sub_on || self.noise_on) && self.osc[0].env.is_active()) || (self.on[1] && self.osc[1].env.is_active())
     }
 
     /// Sounding, or its filters still ringing out.
@@ -402,7 +611,13 @@ impl Voice {
         self.on = [patch.osc[0].on, patch.osc[1].on];
         self.sub_on = patch.sub_on;
         self.sub_amp = if patch.sub_on { SUB_REF * 10f32.powf(patch.sub_level_db / 20.0) } else { 0.0 };
-        self.sub_mul = if patch.sub_oct <= -2 { 0.25 } else { 0.5 };
+        self.sub_mul = match patch.sub_oct {
+            o if o <= -2 => 0.25,
+            -1 => 0.5,
+            _ => 1.0,
+        };
+        self.noise_cfg = NoiseCfg::new(patch.noise_type, patch.noise_level_db, patch.noise_tone, sr);
+        self.noise_on = self.noise_cfg.on();
         if needs_stereo(patch) && !self.stereo {
             if self.is_active() {
                 let ([fl, fr], [ol, or]) = (&mut self.filt, &mut self.old);
@@ -477,6 +692,11 @@ impl Voice {
             self.routing = Some(patch.routing);
             self.xfade = 0.0;
             self.shaper_mix = if patch.shaper_on { 1.0 } else { 0.0 };
+        }
+        if !active {
+            // Track 7: decorrelate the noise of voices started together.
+            let k = (age as u32).wrapping_mul(0x9E37_79B9);
+            self.noise = [Noise::new(k ^ 0xA5A5_1234), Noise::new(k ^ 0x5A5A_4321)];
         }
         self.fresh = true;
         // Silent oscillators restart from zero; a sounding one leaves a step to fade out.
@@ -624,8 +844,9 @@ impl Voice {
             if !was_sounding {
                 o.dc = [0.0; 2];
             }
+            o.fm_live = false;
         }
-        self.sub_phase = 0.0;
+        self.sub_phase = (patch.sub_phase as f64 / 360.0).rem_euclid(1.0);
     }
 
     /// One sample, (left, right) after routing, Spread and the sub.
@@ -645,19 +866,16 @@ impl Voice {
             self.start_grains(patch, ctl, declick);
         }
 
-        // 3. oscillators, [osc][channel]
+        // 3. oscillators, [osc][channel]: both f0s first (Sync reads the other osc's), then render.
         let mut out = [[0.0f32; 2]; 2];
-        let mut env_a = 0.0;
+        let (mut envs, mut gps) = ([0.0f32; 2], [0.0f32; 2]);
         for i in 0..2 {
-            let env = self.osc[i].env.next();
-            if i == 0 {
-                env_a = env;
-            }
+            envs[i] = self.osc[i].env.next();
             let op = &patch.osc[i];
             let motion = (op.motion + m.motion[i]).abs() as f64;
             let shift = self.shift_target(i, patch, ctl);
             let scan = self.osc[i].scan;
-            let gp = self.grain_pos(i, patch, ctl, scan);
+            gps[i] = self.grain_pos(i, patch, ctl, scan);
             let o = &mut self.osc[i];
             // Motion: 1.0 = whole table (32 grains) per 0.25 s.
             o.scan += motion * 128.0 / ctl.sr as f64;
@@ -669,13 +887,50 @@ impl Voice {
             let pitch = self.pitch + 12.0 * op.oct as f32 + op.semi as f32 + op.cent / 100.0 + ctl.bend + m.pitch[i]
                 + ([patch.osca_pitch, patch.oscb_pitch][i] + patch.pitch_all);
             o.freq = (440.0 * 2f32.powf((pitch - 69.0) / 12.0)).clamp(1.0, 0.45 * ctl.sr);
+        }
+        let env_a = envs[0];
+        for i in 0..2 {
+            let (env, gp) = (envs[i], gps[i]);
+            let op = &patch.osc[i];
             if !op.on || env <= 0.0 {
                 continue;
             }
+            // Track 7: the other osc as Sync master / FM modulator.
+            let other = (op.warp != WarpMode::Off).then(|| {
+                let (j, oo) = (1 - i, &self.osc[1 - i]);
+                let fresh = op.warp == WarpMode::Fm && !self.osc[i].fm_live;
+                Other {
+                    hz: oo.freq,
+                    table: patch.osc[j].table as usize,
+                    ratio: if op.warp == WarpMode::Fm { 2f64.powf(oo.shift as f64 / 12.0) } else { 1.0 },
+                    gp: gps[j],
+                    grain: fresh.then_some(oo.grain[0]),
+                }
+            });
+            let o = &mut self.osc[i];
             let ratio = 2f64.powf(o.shift as f64 / 12.0);
             let dphase = o.freq as f64 / ctl.sr as f64;
             let table = op.table as usize;
             let gain = (1.0 + m.vol[i]).max(0.0);
+            if let Some(other) = other {
+                // Track 7 (G4).
+                if op.warp != WarpMode::Fm {
+                    o.fm_live = false;
+                }
+                let (l, r) = o.warped(tables, table, op, ratio, gp, ctl.sr, other);
+                o.dc[0] += ctl.dc * (l - o.dc[0]);
+                let l = l - o.dc[0];
+                let r = if o.uni.n == 1 {
+                    l
+                } else {
+                    o.dc[1] += ctl.dc * (r - o.dc[1]);
+                    r - o.dc[1]
+                };
+                let g = env * op.vol * o.vel_gain * gain;
+                out[i] = [l * g, r * g];
+                continue;
+            }
+            (o.os, o.fm_live) = (0, false);
             if o.uni.n == 1 {
                 let s = o.grain[0].next(tables, table, dphase, ratio, gp);
                 // DC blocker: negative Shift makes the grains a unipolar pulse train.
@@ -698,15 +953,21 @@ impl Voice {
             }
         }
 
-        // Sub: sine on Osc A's pitch (so it follows Pitch All, and Osc A Pitch) and envelope,
-        // phase 0 at note-on, 25 Hz low-cut.
+        // Sub: sine / triangle on Osc A's pitch (so it follows Pitch All and Osc A Pitch) and
+        // envelope, start phase at note-on, optional soft drive, 25 Hz low-cut; mono.
         let mut sub = 0.0;
         if self.sub_on && env_a > 0.0 {
-            self.sub_phase += (self.osc[0].freq * self.sub_mul) as f64 / ctl.sr as f64;
+            let dp = (self.osc[0].freq * self.sub_mul) as f64 / ctl.sr as f64;
+            self.sub_phase += dp;
             if self.sub_phase >= 1.0 {
                 self.sub_phase -= 1.0;
             }
-            sub = (TAU * self.sub_phase).sin() as f32 * self.sub_amp * env_a * self.osc[0].vel_gain;
+            let w = match patch.sub_shape {
+                SubShape::Sine => (TAU * self.sub_phase).sin() as f32,
+                SubShape::Triangle => triangle(self.sub_phase, dp),
+            };
+            let w = if patch.sub_drive > 0.0 { sub_drive(w, patch.sub_drive) } else { w };
+            sub = w * self.sub_amp * env_a * self.osc[0].vel_gain;
         }
         let mut sub = self.sub_hp.process(sub, ctl.sub_g);
 
@@ -729,6 +990,14 @@ impl Voice {
         }
         self.last = now;
 
+        // Track 7 (G8): noise on Osc A's path and Amp Env A.
+        if self.noise_on && env_a > 0.0 {
+            let g = env_a * self.osc[0].vel_gain;
+            let nl = self.noise[0].next(&self.noise_cfg) * g;
+            let nr = if self.stereo { self.noise[1].next(&self.noise_cfg) * g } else { nl };
+            out[0][0] += nl;
+            out[0][1] += nr;
+        }
 
         // 4. filter env, shaper, filters, routing
         let fenv = self.fenv.next();

@@ -56,7 +56,7 @@ impl Ctl for Recorder {
 fn editor_binds_every_param_exactly() {
     let params = Arc::new(GtsParams::default());
     let all: BTreeSet<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
-    assert_eq!(all.len(), 220); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX + 4 macros + 34 Track 7 modulation
+    assert_eq!(all.len(), 230); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX + 4 macros + 34 Track 7 modulation + 10 Track 7 sound
     // SPEC v2 Track 7 modulation params the editor does not draw yet: UI wave binds it.
     let pending = |id: &str| {
         ["modc_", "modd_", "menv_"].iter().any(|p| id.starts_with(p))
@@ -93,6 +93,10 @@ fn editor_binds_every_param_exactly() {
         assert_eq!(overflow, egui::Vec2::ZERO, "page {page:?} overflows the {WINDOW:?} window by {overflow:?}");
     }
     // (an unknown id would already have panicked inside ParamTable)
+    // Track 7 sound params the editor does not show yet. UI wave binds it.
+    let pending = ["osca_warp_mode", "osca_warp_amt", "oscb_warp_mode", "oscb_warp_amt", "sub_shape", "sub_phase", "sub_drive",
+        "noise_type", "noise_level", "noise_tone"];
+    let all: BTreeSet<String> = all.into_iter().filter(|id| !pending.contains(&id.as_str())).collect();
     assert_eq!(*ctl.seen.borrow(), all, "editor ids differ from the param map");
 }
 

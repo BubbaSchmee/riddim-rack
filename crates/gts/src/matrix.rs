@@ -369,6 +369,8 @@ fn flags_of(id: &str) -> u8 {
     let tail = id.strip_prefix("osca_").or_else(|| id.strip_prefix("oscb_"));
     if tail.is_some_and(|t| osc_update.contains(&t))
         || matches!(id, "fenv_att" | "fenv_dec" | "fenv_sus" | "fenv_rel" | "fenv_curve" | "shaper_amt" | "sub_level" | "sub_oct" | "vel_att")
+        // Track 7: the noise layer's gain and tone coefficient are set in `Voice::update`.
+        || matches!(id, "noise_level" | "noise_tone")
     {
         return flag::UPDATE;
     }
