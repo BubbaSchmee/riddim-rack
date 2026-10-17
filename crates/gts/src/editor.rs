@@ -30,12 +30,15 @@ use crate::fxview::{self, FxLive};
 use crate::dsp::shaper::Shaper;
 use crate::dsp::tables::{Fft, Tables, GRAINS, N};
 use crate::params::*;
-use crate::preset::{self, Preset};
+use crate::preset::Preset;
 use crate::matrix::{MatrixShared, Source};
 use crate::viz::{gf, vf, Viz, VizFrame, MOD_IDS};
 use egui::{pos2, vec2, Align2, Color32, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 
+pub mod browser;
 pub mod patching;
+
+pub use browser::{Browser, Pick};
 
 /// Window size in logical px (fits 1080p at 125 % OS scaling: 864 px minus the host title bar).
 pub const WINDOW: (u32, u32) = (1000, 832);
@@ -79,6 +82,11 @@ pub trait Ctl {
     /// The plugin's modulation matrix (slots and macro labels), when the host has one: drag-to-patch,
     /// the knob menu and the MATRIX page edit it through `MatrixEditor`. `None` shows none of them.
     fn matrix(&self) -> Option<&MatrixShared> {
+        None
+    }
+    /// The sound as it is now (patch, matrix, macro labels; metadata empty), for the browser's Save
+    /// and Save As. `None`: this host cannot save presets.
+    fn current_preset(&self) -> Option<Preset> {
         None
     }
 }
@@ -131,6 +139,20 @@ impl ParamTable {
     pub fn snapshot(&self) -> Vec<f32> {
         let mut v: Vec<f32> = self.sound_ids.iter().map(|id| self.get01(id)).collect();
         let m = self.matrix().get();
+        v.extend_from_slice(&m.encode());
+        v.extend(m.macros.iter().map(|l| (l.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) % 1_000_003) as f32));
+        v
+    }
+    /// The sound as it is now as a preset with empty metadata: every sound param, the matrix slots
+    /// and the macro labels.
+    pub fn current_preset(&self) -> Preset {
+        let m = self.matrix().get();
+        Preset { patch: crate::dsp::Patch::from_params(&self._keep), matrix: m.slots.clone(), macros: m.macros.to_vec(), ..Preset::default() }
+    }
+    /// [`ParamTable::snapshot`] of a fresh instance: every param at its default, an empty matrix.
+    pub fn default_snapshot(&self) -> Vec<f32> {
+        let mut v: Vec<f32> = self.sound_ids.iter().map(|id| self.default01(id)).collect();
+        let m = crate::matrix::Matrix::default();
         v.extend_from_slice(&m.encode());
         v.extend(m.macros.iter().map(|l| (l.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) % 1_000_003) as f32));
         v
@@ -234,6 +256,9 @@ impl Ctl for PlugCtl<'_> {
     }
     fn matrix(&self) -> Option<&MatrixShared> {
         Some(self.table.matrix())
+    }
+    fn current_preset(&self) -> Option<Preset> {
+        Some(self.table.current_preset())
     }
 }
 
@@ -440,13 +465,14 @@ pub struct BusView {
     pub page: Page,
     /// The MORE sources popover is open.
     pub more_open: bool,
-    /// Header preset bar: the loaded entry (0 = Init, 1.. = factory order), `None` until one is
-    /// picked this session. Editor-session state, never persisted.
-    pub preset: Option<usize>,
     /// The loaded preset was changed afterwards (the bar then shows a dot).
     pub preset_dirty: bool,
-    /// Set by `draw` when the user picks an entry; the host editor applies it (see [`apply_preset`]).
-    pub preset_pick: Option<usize>,
+    /// Set by `draw` when the browser or the header arrows pick a preset; the host editor applies
+    /// it (see [`apply_preset`]).
+    pub preset_pick: Option<Pick>,
+    /// Set by `draw` after a Save / Save As: the host editor takes the current sound as the
+    /// preset's "as loaded" baseline.
+    pub preset_saved: bool,
     /// Limiter gain reduction (dB >= 0) and output peak (dBFS) for the FX page meter.
     pub gr_db: f32,
     pub peak_db: f32,
@@ -456,8 +482,6 @@ pub struct BusView {
     pub show_values: bool,
     /// "Reduced motion" (persisted by the host editor): instant chrome, no sway, parallax or page motion.
     pub reduced_motion: bool,
-    /// The preset list is open.
-    pub preset_open: bool,
 }
 
 /// The three pages of the header switch.
@@ -547,6 +571,8 @@ pub struct LiveView {
     last_t: Option<f64>,
     /// Reduced motion: no sway / parallax, instant chrome.
     pub reduced_motion: bool,
+    /// The preset browser (editor-session state; kept here so `draw` keeps its signature).
+    pub browser: Browser,
 }
 
 impl LiveView {
@@ -580,6 +606,7 @@ impl LiveView {
             spec_mix: 0.0,
             last_t: None,
             reduced_motion: false,
+            browser: Browser::default(),
         }
     }
 
@@ -841,22 +868,35 @@ pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: 
     let body = at(44.0, 80.0, 912.0, 704.0);
     let mut bui = ui.new_child(UiBuilder::new().max_rect(body).layout(egui::Layout::top_down(egui::Align::Min)));
     let mut over = Vec2::ZERO;
-    match shown {
-        Page::Fx => {
-            fx_body(&mut bui, c, live, bv, &at);
-            over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
+    // The preset browser covers the body. While it is fully open the page under it is not drawn
+    // at all (it is hidden anyway, and the frame gets cheaper); during the 150 ms fade both draw.
+    let bk = live.browser.open_k(&ctx);
+    if bk < 0.999 {
+        match shown {
+            Page::Fx => {
+                fx_body(&mut bui, c, live, bv, &at);
+                over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
+            }
+            Page::Matrix => {
+                patching::matrix_body(&mut bui, c, &at);
+                over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
+            }
+            Page::Synth => synth(&mut bui, c, tables, live, bv, &at),
         }
-        Page::Matrix => {
-            patching::matrix_body(&mut bui, c, &at);
-            over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
-        }
-        Page::Synth => synth(&mut bui, c, tables, live, bv, &at),
     }
     rr_ui::motion::set_page_trans(&ctx, None);
     rr_ui::fx::end_shadows(ui, shadows);
     patching::end_frame(ui, c, bv, &at);
+    if bk > 0.0 {
+        // The face of the rack under the panel, fading in over the page (a crossfade).
+        let (y0, y1) = ((body.top() - full.top()) / full.height(), (body.bottom() - full.top()) / full.height());
+        let face = |t: f32| T.panel_top.lerp_to_gamma(T.panel_bottom, t).gamma_multiply(bk);
+        rr_ui::paint::vgradient(ui.painter(), body, face(y0), face(y1));
+        let mut browser = std::mem::take(&mut live.browser);
+        browser.show(ui, c, bv, body, bk);
+        live.browser = browser;
+    }
     help_bar(ui, at(44.0, 792.0, 912.0, 28.0), bv);
-    preset_list(ui, bv, at(208.0, 16.0, 232.0, 56.0));
     patch_popover(ui, c, bv, at(508.0, 48.0, 72.0, 24.0));
     ui.allocate_rect(full, Sense::hover());
     over.max(take_group_overflow(&ctx))
@@ -872,8 +912,14 @@ fn header(ui: &mut Ui, c: &dyn Ctl, live: &mut LiveView, bv: &mut BusView, at: &
     let p = ui.painter().clone();
     let note = live.frame.held_note().map(note_name);
     rr_ui::panel::nameplate_v2(&p, at(44.0, 16.0, 156.0, 56.0), "GTS", "Grain Table Synth", note.as_deref());
-    preset_bar(ui, at(208.0, 16.0, 232.0, 56.0), bv);
+    let mut browser = std::mem::take(&mut live.browser);
+    preset_bar(ui, at(208.0, 16.0, 232.0, 56.0), bv, &mut browser);
+    live.browser = browser;
+    let page_before = bv.page;
     page_switch(ui, at(448.0, 16.0, 132.0, 26.0), bv);
+    if bv.page != page_before {
+        live.browser.set_open(false); // a page tab is a request for that page
+    }
     place(ui, at(448.0, 48.0, 56.0, 24.0), |ui| {
         let sel = QUALITY.iter().position(|&q| q == bv.oversampling).unwrap_or(1);
         if let Some(i) = combo(ui, "", sel, &["1x", "2x", "4x"]) {
@@ -911,119 +957,53 @@ fn set_hover(ui: &Ui, name: &str, value: &str, live: Option<(String, Color32)>, 
     ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: name.into(), value: value.into(), live, line: Some(line), ..Default::default() }));
 }
 
-/// Preset bar: prev / next arrows (wrap), category over the name (a dot while edited); clicking
-/// the name opens the list. Loading goes through `bv.preset_pick` (the host applies it).
-fn preset_bar(ui: &mut Ui, r: Rect, bv: &mut BusView) {
-    let f = preset::factory();
-    let n = f.len() + 1;
+/// Preset bar: prev / next arrows that step through the browser's current filtered list (wrapping),
+/// category over the name (a dot while edited) and a chevron; clicking the name opens the browser.
+/// Loading goes through `bv.preset_pick` (the host applies it).
+fn preset_bar(ui: &mut Ui, r: Rect, bv: &mut BusView, browser: &mut Browser) {
     let p = ui.painter().clone();
     rr_ui::paint::inset_box(&p, r, false);
     let left = Rect::from_min_size(r.min, vec2(28.0, r.height()));
     let right = Rect::from_min_size(pos2(r.right() - 28.0, r.top()), vec2(28.0, r.height()));
     let mid = Rect::from_min_max(pos2(left.right(), r.top()), pos2(right.left(), r.bottom()));
-    let cur = bv.preset;
-    for (rect, dir, glyph) in [(left, n - 1, "\u{2039}"), (right, 1, "\u{203a}")] {
+    for (rect, dir, glyph) in [(left, -1, "\u{2039}"), (right, 1, "\u{203a}")] {
         let resp = ui.interact(rect, Id::new(("gts-preset-arrow", dir)), Sense::click());
         if resp.hovered() {
             p.rect_filled(rect.shrink(3.0), 3.0, Color32::WHITE.gamma_multiply(0.04));
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            set_hover(ui, "PRESET", if dir < 0 { "Previous" } else { "Next" }, None, crate::help::ui_help(if dir < 0 { "browser:prev" } else { "browser:next" }).unwrap_or(""));
         }
         p.text(rect.center(), Align2::CENTER_CENTER, glyph, font::label(22.0), if resp.hovered() { T.text } else { T.muted });
         if resp.clicked() {
-            bv.preset_pick = Some(cur.map_or(if dir == 1 { 0 } else { n - 1 }, |i| (i + dir) % n));
+            browser.ensure_loading();
+            browser.step(dir, bv);
         }
     }
-    let (cat, name) = match cur {
-        Some(0) => ("Init".to_string(), "Init".to_string()),
-        Some(i) => f.get(i - 1).map_or(("".into(), "".into()), |p| (p.category.replace('/', " / "), p.name.clone())),
-        None => ("Preset".to_string(), "Custom".to_string()),
-    };
+    let (cat, name) = browser.loaded_label().unwrap_or_else(|| ("Preset".to_string(), "Custom".to_string()));
     let resp = ui.interact(mid, Id::new("gts-preset-name"), Sense::click());
+    let open = browser.open;
+    if resp.hovered() || open {
+        p.rect_filled(mid.shrink2(vec2(2.0, 3.0)), 3.0, Color32::WHITE.gamma_multiply(if open { 0.06 } else { 0.03 }));
+    }
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        set_hover(ui, "PRESET", &name, None, "Click for the preset list, or use the arrows to step through it. A dot marks edits.");
+        set_hover(ui, "PRESET", &name, None, crate::help::ui_help("browser:name").unwrap_or(""));
     }
     rr_ui::paint::tracked(&p, pos2(mid.center().x, r.top() + 16.0), Align2::CENTER_CENTER, &cat.to_uppercase(), font::label(11.0), T.muted, 1.0);
-    let nr = p.text(pos2(mid.center().x, r.top() + 36.0), Align2::CENTER_CENTER, &name, font::strong(16.0), T.text);
+    let shown = rr_ui::paint::elide(&p, &font::strong(16.0), &name, mid.width() - 44.0);
+    let nr = p.text(pos2(mid.center().x - 4.0, r.top() + 36.0), Align2::CENTER_CENTER, shown, font::strong(16.0), T.text);
     let dirty = rr_ui::motion::tween(ui.ctx(), Id::new("gts-preset-dirty"), bv.preset_dirty, 0.18);
     if dirty > 0.0 {
         p.circle_filled(pos2(nr.right() + 8.0, nr.center().y), 3.0, T.accent.gamma_multiply(dirty));
     }
+    // Chevron at the right of the name: turns over while the browser is open.
+    let s = 1.0 - 2.0 * rr_ui::motion::tween(ui.ctx(), Id::new("gts-preset-chev"), open, 0.18);
+    let (cx, cy) = (mid.right() - 10.0, r.top() + 36.0);
+    let col = if open || resp.hovered() { T.accent } else { T.muted };
+    p.add(egui::Shape::line(vec![pos2(cx - 3.5, cy - 1.5 * s), pos2(cx, cy + 2.0 * s), pos2(cx + 3.5, cy - 1.5 * s)], rr_ui::paint::st(1.5, col)));
     if resp.clicked() {
-        bv.preset_open = !bv.preset_open;
-    }
-    // Eased arrow-less state change: the dot fades in 180 ms (above), the list in 150 ms (below).
-    let _ = n;
-}
-
-/// The preset list as a layer under the bar (MOTION.md 5.8): "Init" first, then the factory
-/// presets under category headers, the loaded one marked, a hover highlight; fades in over 150 ms
-/// with a 6 px drop and out over 90 ms. Esc, a pick or a click elsewhere closes it.
-fn preset_list(ui: &mut Ui, bv: &mut BusView, bar: Rect) {
-    let ctx = ui.ctx().clone();
-    let k = rr_ui::motion::tween(&ctx, Id::new("gts-preset-list-a"), bv.preset_open, if bv.preset_open { 0.15 } else { 0.09 });
-    if k <= 0.0 {
-        return;
-    }
-    let f = preset::factory();
-    let rows = 1 + f.len();
-    let headers = f.iter().enumerate().filter(|(i, p)| *i == 0 || f[*i - 1].category != p.category).count();
-    let size = vec2(bar.width(), 8.0 + rows as f32 * CONTROL_H + headers as f32 * 22.0);
-    let pos = pos2(bar.left(), bar.bottom() + 6.0 - 6.0 * (1.0 - k));
-    let cur = bv.preset;
-    let open = bv.preset_open;
-    let area = egui::Area::new(Id::new("gts-preset-pop")).order(egui::Order::Foreground).fixed_pos(pos).show(&ctx, |ui| {
-        ui.multiply_opacity(k);
-        let r = Rect::from_min_size(pos, size);
-        ui.painter().rect_filled(r.translate(vec2(0.0, 10.0)).expand(4.0), 10.0, Color32::BLACK.gamma_multiply(0.35));
-        ui.painter().rect_filled(r.translate(vec2(0.0, 2.0)), 6.0, Color32::BLACK.gamma_multiply(0.5));
-        ui.painter().rect_filled(r, 6.0, T.inset);
-        ui.painter().rect_stroke(r, 6.0, rr_ui::paint::hair(ui.painter(), T.lo()), StrokeKind::Inside);
-        let mut y = r.top() + 4.0;
-        let row = |ui: &mut Ui, y: &mut f32, i: usize, name: &str, cat: &str| {
-            let rect = Rect::from_min_size(pos2(r.left() + 4.0, *y), vec2(r.width() - 8.0, CONTROL_H));
-            *y += CONTROL_H;
-            let resp = ui.interact(rect, Id::new(("gts-preset-row", i)), Sense::click());
-            let hot = open && resp.hovered();
-            if hot {
-                ui.painter().rect_filled(rect, 3.0, T.a(0.16));
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
-            let on = Some(i) == cur;
-            if on {
-                ui.painter().circle_filled(pos2(rect.left() + 9.0, rect.center().y), 2.5, T.accent);
-            }
-            ui.painter().text(pos2(rect.left() + 20.0, rect.center().y), Align2::LEFT_CENTER, name, font::label(13.0), if on { T.accent } else { T.text });
-            if !cat.is_empty() {
-                rr_ui::paint::tracked(ui.painter(), pos2(rect.right() - 8.0, rect.center().y), Align2::RIGHT_CENTER, &cat.to_uppercase(), font::label(11.0), T.muted, 0.5);
-            }
-            open && resp.clicked()
-        };
-        let mut pick = None;
-        if row(ui, &mut y, 0, "Init", "Reset") {
-            pick = Some(0);
-        }
-        for (j, p) in f.iter().enumerate() {
-            if j == 0 || f[j - 1].category != p.category {
-                rr_ui::paint::tracked(ui.painter(), pos2(r.left() + 12.0, y + 14.0), Align2::LEFT_CENTER, &p.category.replace('/', " / ").to_uppercase(), font::strong(11.0), T.title, 1.2);
-                y += 22.0;
-            }
-            if row(ui, &mut y, j + 1, &p.name, "") {
-                pick = Some(j + 1);
-            }
-        }
-        pick
-    });
-    if let Some(i) = area.inner {
-        bv.preset_pick = Some(i);
-        bv.preset_open = false;
-    }
-    if bv.preset_open {
-        let (esc, click) = ctx.input(|i| (i.key_pressed(egui::Key::Escape), i.pointer.primary_pressed().then(|| i.pointer.interact_pos()).flatten()));
-        let outside = click.is_some_and(|p| !area.response.rect.contains(p) && !bar.contains(p));
-        if esc || outside {
-            bv.preset_open = false;
-        }
+        browser.ensure_loading();
+        browser.set_open(!browser.open);
     }
 }
 
@@ -1873,6 +1853,10 @@ pub struct EditorState {
     snap: Vec<f32>,
     /// Take `snap` on the next frame (the host applies a load's gestures between frames).
     resnap: bool,
+    /// The `preset_key` last seen or written (a host state load changes it behind our back).
+    key_seen: String,
+    /// The default preset was considered for this instance (once per editor session).
+    default_checked: bool,
     /// The hero's GL status was written to the plugin log for this window.
     gl_logged: bool,
 }
@@ -1933,12 +1917,13 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
     let Feeds { meters, viz, scope } = feeds;
     let inner = create_egui_editor(
         EguiState::from_size(WINDOW.0, WINDOW.1),
-        EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, live: LiveView::new(viz, Some(scope)), next_refresh: 0.0, snap: vec![], resnap: false, gl_logged: false },
+        EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, live: LiveView::new(viz, Some(scope)), next_refresh: 0.0, snap: vec![], resnap: false, key_seen: String::new(), default_checked: false, gl_logged: false },
         |ctx, st| {
             rr_ui::theme::apply(ctx);
             st.next_refresh = 0.0; // egui time restarts at 0 on every open
             st.live.reset_clock();
-            st.view.preset_open = false;
+            st.live.browser.set_open(false);
+            st.live.browser.ensure_loading(); // factory write-out and the scan run off the GUI frame
             st.view.patch_open = false;
             st.view.more_open = false;
             st.live.hero.reset_gl(); // a reopened window is a new GL context
@@ -1969,10 +1954,33 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
             st.live.peaks = std::array::from_fn(|i| f32::from_bits(meters.peak[i].swap(0, Ordering::Relaxed)));
             let peak = 20.0 * st.live.peaks[0].max(st.live.peaks[1]).max(1e-6).log10();
             st.view.peak_db = peak.max(st.view.peak_db - 0.5);
+            // Project state: the loaded preset's key (and its edited flag) travel with the project.
+            let stored = rd(&params.preset_key);
+            if stored != st.key_seen {
+                st.key_seen = stored.clone();
+                st.live.browser.restore(&stored);
+                if params.preset_dirty.load(Ordering::Relaxed) {
+                    st.snap.clear(); // edited when saved: marked until the next load or save
+                } else {
+                    st.resnap = true;
+                }
+            }
+            st.live.browser.poll();
+            // A new instance (every parameter at its default, nothing loaded) starts from the
+            // default preset, if one is set.
+            if !st.default_checked && st.live.browser.ready() {
+                st.default_checked = true;
+                if stored.is_empty() && table.snapshot() == table.default_snapshot() {
+                    st.live.browser.load_default(&mut st.view);
+                }
+            }
+            if std::mem::take(&mut st.view.preset_saved) {
+                st.resnap = true;
+            }
             if std::mem::take(&mut st.resnap) {
                 st.snap = table.snapshot();
             }
-            st.view.preset_dirty = st.view.preset.is_some() && table.snapshot() != st.snap;
+            st.view.preset_dirty = st.live.browser.loaded().is_some() && table.snapshot() != st.snap;
             let before = st.view.clone();
 
             let ctl = PlugCtl { table: &table, setter, open: &open };
@@ -1992,12 +2000,23 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
                     nih_log!("GTS hero: {} ({})", if ok { "GPU" } else { "CPU fallback" }, st.live.hero.gl_info());
                 }
             }
-            if let Some(i) = st.view.preset_pick.take() {
-                apply_preset(&table, &ctl, i.checked_sub(1).and_then(|k| preset::factory().get(k)));
+            if let Some(pick) = st.view.preset_pick.take() {
+                apply_preset(&table, &ctl, match &pick {
+                    Pick::Init => None,
+                    Pick::Preset(p) => Some(p.as_ref()),
+                });
                 ctx.data_mut(|d| d.insert_temp(glide_id(), now));
-                st.view.preset = Some(i);
                 st.view.preset_dirty = false;
                 st.resnap = true;
+            }
+            // Write the identity back to the project (the browser changed it by a load or a save).
+            let loaded = st.live.browser.loaded().unwrap_or("");
+            if loaded != st.key_seen {
+                st.key_seen = loaded.to_string();
+                wr(&params.preset_key, st.key_seen.clone());
+            }
+            if params.preset_dirty.load(Ordering::Relaxed) != st.view.preset_dirty {
+                params.preset_dirty.store(st.view.preset_dirty, Ordering::Relaxed);
             }
             if st.view.oversampling != before.oversampling {
                 params.oversampling.store(st.view.oversampling, Ordering::Relaxed);

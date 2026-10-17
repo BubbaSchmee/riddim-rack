@@ -6,6 +6,7 @@
 
 #![allow(clippy::too_many_arguments)]
 
+pub mod controls;
 pub mod fonts;
 pub mod fx;
 pub mod hero;

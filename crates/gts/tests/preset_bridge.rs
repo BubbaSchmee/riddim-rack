@@ -99,7 +99,8 @@ fn assert_same(a: &Patch, b: &Patch, what: &str) {
 #[test]
 fn factory_presets_load_through_the_gesture_api() {
     let names: Vec<&str> = factory().iter().map(|p| p.name.as_str()).collect();
-    assert_eq!(names, ["Sub Weight", "Growl Hound", "Reese Drift", "Wobble Shot", "Talk Box", "Screech Lead"]);
+    // Bank order: category folder, then name.
+    assert_eq!(names, ["Growl Hound", "Reese Drift", "Sub Weight", "Talk Box", "Wobble Shot", "Screech Lead"]);
     let fake = Fake::new();
     for p in factory() {
         apply_preset(&fake.table, &fake, Some(p));

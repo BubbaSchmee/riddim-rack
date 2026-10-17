@@ -152,6 +152,7 @@ pub fn apply(ctx: &Context) {
     v.override_text_color = Some(T.text);
     v.selection.bg_fill = T.a(0.25);
     v.selection.stroke = Stroke::new(1.0_f32, T.accent);
+    v.text_cursor.stroke = Stroke::new(1.5_f32, T.accent);
     v.menu_corner_radius = CornerRadius::same(4);
     ctx.set_visuals(v);
     ctx.style_mut(|s| {

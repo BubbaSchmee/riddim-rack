@@ -993,6 +993,13 @@ pub struct GtsParams {
     /// instant chrome transitions. Host state, not a param; off by default (no OS query).
     #[persist = "reduced_motion"]
     pub reduced_motion: AtomicBool,
+    /// Which preset this instance has loaded, by library key (`"Factory/Bass/Growl Hound"`,
+    /// `"Init"`; empty = none yet). Host state (SPEC v2 2.6), written by the editor, never a param.
+    #[persist = "preset_key"]
+    pub preset_key: RwLock<String>,
+    /// The loaded preset was edited afterwards (the header dot). Host state like `preset_key`.
+    #[persist = "preset_dirty"]
+    pub preset_dirty: AtomicBool,
     /// Modulation matrix slots and macro labels (SPEC v2 Track 5): project state, edited by the
     /// GUI, read lock-free by the audio thread (see `crate::matrix`).
     #[persist = "matrix"]
@@ -1119,6 +1126,8 @@ impl Default for GtsParams {
             oversampling: AtomicUsize::new(2),
             show_values: AtomicBool::new(false),
             reduced_motion: AtomicBool::new(false),
+            preset_key: RwLock::new(String::new()),
+            preset_dirty: AtomicBool::new(false),
             matrix: Default::default(),
         }
 

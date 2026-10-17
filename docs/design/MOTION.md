@@ -332,11 +332,25 @@ Pill above the knob: `#0b0f11` fill, 1 px `accent@0.35` stroke, 5 px radius, 12 
 7 px notch. Appears on the first pointer movement (same frame), tracks the value while dragging,
 hides 400 ms after release. Wheel and key changes show it for 500 ms.
 
-### 5.8 Menus (combo, preset)
+### 5.8 Menus (combo) and the preset browser
 
-DESIGN 3.5 popup with 24 px rows. The preset list shows name left, category right in 11 px caps
-`muted`, selected row in `accent`, hover `accent@0.16`; prev / next arrows wrap. Loading glides
-(section 4).
+DESIGN 3.5 popup with 24 px rows (combos, the browser's right-click menu: `accent@0.16` hover, a
+dot for a checked item, a divider above a group, 90 ms fade). Loading glides (section 4).
+
+The **preset browser** replaces the old preset list (`docs/SPEC-v2-quality.md` Track 6). It covers
+the page body (44, 80, 912 x 704): the rack face fades in over the page with the panel (150 ms in,
+90 ms out, a 6 px rise; instant under Reduced motion) and the page under it is not drawn once it is
+fully open. Wells use the group look (`well` fill, hairline, 1 px highlight below); captions are the
+engraved 11 px caps; list rows are 40 px (14 px name over a 12 px muted one-line description, category
+over origin, author, a drawn heart), the loaded preset in `accent` with a dot, the selection
+`accent@0.16` with a 2 px accent bar, hover `white@0.04`, all immediate. The list eases to its scroll
+target (rate 26 / s, instant under Reduced motion) and has its own 8 px bar (`rr_ui::controls`).
+Dialogs are modal boxes on a 55 % black veil (120 ms fade, 6 px rise) in the panel gradient with an
+engraved title; the primary button is accent, the destructive one source-rose. The header bar keeps
+the name, the edit dot, the arrows (they step through the browser's current filtered list) and gains
+a chevron that turns over while the browser is open. Layout constants are in
+`crates/gts/src/editor/browser.rs`; shots: `preview-gts-editor-browser.png` (search active) and
+`preview-gts-editor-saveas.png`.
 
 ### 5.9 PATCH popover
 
@@ -423,7 +437,7 @@ editor build closure.
 | Ring band | Drag vertically = that source's depth (Shift = 1/10), double-click = 0 |
 | Modulated knob | Right-click = knob menu (5.13) |
 | Scope | Click flips scope and spectrum |
-| Preset | Arrows wrap; list click loads; edit marks the name with a dot |
+| Preset | Name opens the browser, arrows step through its filtered list and wrap; click loads (Load on select), double-click loads and closes; edit marks the name with a dot |
 | Page | Click or the segmented control (SYNTH, FX, MATRIX); editing state and scroll are not lost |
 | Esc | closes menus and the PATCH popover |
 

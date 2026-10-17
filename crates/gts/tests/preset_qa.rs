@@ -1,4 +1,4 @@
-//! SPEC v2 2.5 subset: every candidate preset in presets/candidates loads cleanly, renders the
+//! SPEC v2 2.5 subset: every factory preset in presets/factory loads cleanly, renders the
 //! examples/render_preset.rs pattern inside the SQ-37 band, the bank sits within ±1 dB K-weighted,
 //! and the listen proxies hold (pitch, movement, sub energy, reese width, no NaN / clipping).
 //! Every candidate also carries four labelled macros that each drive at least one matrix slot, and

@@ -239,3 +239,49 @@ are rejected. (4) ◀ ▶ follow the filtered list. (5) Load on select loads wit
 preset glide) and never blocks the audio thread; browsing 200 presets keeps the frame gates of
 MOTION.md (UI+tess ≤ 4 ms mean, ≥ 60 fps). (6) Typing works in the plugin_loop window path.
 (7) No file I/O or allocation on the audio thread (pluginval debug loop).
+
+**Built (2026-10-17).** Code: `crates/gts/src/library.rs` (pure Rust: trees, favourites, settings,
+search, save / rename / delete, factory write-out), `crates/gts/src/editor/browser.rs` (panel,
+dialogs, menus), `crates/rr-ui/src/controls.rs` (button, text input, chip, heart, scrollbar,
+context menu, modal), `crates/gts/build.rs` (embeds every `presets/factory/<Category>/*.json`: a
+new factory preset is a file drop). The six candidates now live under `presets/factory/Bass` and
+`.../Lead` (file name = preset name). Decisions where the text left room:
+
+* **Identity.** A preset's key is its path below `Presets` without `.json` (`Factory/Bass/Growl
+  Hound`); favourites, the default preset and the project's loaded-preset record use it. The project
+  stores `preset_key` and `preset_dirty` (host state, SPEC 2.6); a project saved with an edited
+  preset reopens marked edited until the next load or save.
+* **Category** is the folder a file sits in (fixed list); a loose file falls back to the first segment
+  of its own `category` field, then Bass. Files may sit in subfolders of a category.
+* **Factory source of truth.** The browser scans both trees on disk and fills in any embedded
+  factory preset whose disk copy is missing (a read-only Documents folder still lists the bank).
+  Write-out: `.bank.json` holds the plugin version and a hash of the bank; same hash and all files
+  present = nothing touched; a folder written by a newer version is left alone; otherwise only
+  differing files are rewritten (read-only cleared and set again) and files the old bank had and
+  the new one lacks are removed. User files are never touched.
+* **Where it runs.** The library opens on a loader thread when the editor opens (never at plugin
+  load, never on the audio thread); save, rename, delete and favourites are GUI-thread writes of a
+  few KB through a temp file and a rename. The thread is joined when the editor state is dropped.
+* **New instances** load the default preset on the first editor open when every parameter is still
+  at its default and nothing was loaded (a host-set value is never overwritten).
+* **Keyboard** (`docs/design/keyboard-in-host.md`): egui-baseview's Windows keyboard workaround is
+  on through a direct dependency at the same revision; the plugin window takes the keyboard when a
+  text field is clicked, never on opening the browser. Measured in a parented window with key
+  messages posted to `GetFocus()`: 8 of 8 steps pass; with the feature off, the click leaves the
+  focus on the host window and typing fails (4 of 8).
+
+**Measured (release, 1000 x 832, riddim demo pattern playing, 200-preset fixture).**
+`frame_bench -- browser`: UI + tessellation mean 0.77 ms, p99 1.77 ms (SYNTH page 2.26 / 4.20; the
+page under the panel is not drawn while it is fully open), 22.6k vertices (gate 98.6k); at ppp 1.25
+1.17 / 2.96 ms, at ppp 1.5 0.80 / 1.72 ms, the list scrolling under the pointer and a search typed
+and cleared every 150 frames. `plugin_loop -- gts notes browser` (the real window path, vsync on):
+61.3 fps mean, p99 interval 31.0 ms, 4.9 % of frames over 20 ms, none over 33 ms (SYNTH page, same
+build: 61.0 fps, 5.2 %). `Library::open` over the 200 files (scan and parse, factory already
+written) takes 45 ms on the loader thread. Tests: 19 library unit tests, 17 headless browser tests
+(`crates/gts/tests/browser.rs`), `tests/help.rs` covers the new help lines. pluginval strictness 5:
+release 3 of 3, debug 2 of 2.
+
+Deferred, documented: audition button (UX-19), playlists (UX-23), user library locations (UX-8), a
+hierarchical subfolder view (UX-7; subfolders are scanned and listed flat), preset rating (UX-22),
+the "first sentence in the help bar after a load" of MOTION.md 5.10 (the browser's detail strip shows
+it instead).

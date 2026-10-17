@@ -18,6 +18,10 @@
 //!   click   left-click at the at=x,y pointer (opens a popup for the shot)
 //!   out=<path>   write the PNG there instead of docs/design
 //!   menu    right-click at the at=x,y pointer (the knob menu of a routed knob; needs routes)
+//!   browser the preset browser open over a fixture library of 64 user presets plus the factory
+//!           bank (writes preview-gts-editor-browser.png); `search=<text>` types into the search box,
+//!           `cat=All|Bass|...` picks the category, `loaded=<Name>` the loaded preset
+//!   saveas  the Save As dialog open over the browser (writes preview-gts-editor-saveas.png)
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
@@ -40,6 +44,9 @@ struct App {
     drag: Option<gts::matrix::Source>,
     menu: bool,
     click: bool,
+    saveas: bool,
+    /// `dialog=delete|rename|save`: that dialog over the loaded user preset.
+    dialog: Option<String>,
 }
 
 impl eframe::App for App {
@@ -63,6 +70,19 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(w, h) / native));
         }
         self.frame += 1;
+        if self.saveas && self.frame == 12 {
+            self.live.browser.open_save_as(&self.ctl);
+        }
+        if let Some(d) = self.dialog.as_deref() {
+            if self.frame == 12 {
+                let key = self.live.browser.cursor().map(str::to_string).unwrap_or_default();
+                match d {
+                    "delete" => self.live.browser.begin_delete(&key),
+                    "rename" => self.live.browser.begin_rename(&key),
+                    _ => self.live.browser.begin_save(&self.ctl),
+                }
+            }
+        }
         // Live mode follows real time; the screenshot run advances a fixed 1/60 s per frame.
         let dt = if self.keep_open { ctx.input(|i| i.stable_dt).clamp(0.0, 0.05) } else { 1.0 / 60.0 };
         self.feed.render((dt * self.feed.sr()) as usize);
@@ -113,7 +133,7 @@ fn main() -> eframe::Result {
         rr_ui::theme::apply(&cc.egui_ctx);
         let mut tables = Tables::new();
         tables.generate();
-        let (pi, preset) = demo::factory("Growl Hound");
+        let (key, preset) = demo::factory("Growl Hound");
         let ctl = demo::MapCtl::with_preset(Some(preset));
         // Demo patching: rows 1 and 2 follow live sources, row 3 a lost one.
         for (k, v) in [("cv1_target", 5.0 / 8.0), ("cv1_amount", 0.78), ("cv2_target", 1.0 / 8.0), ("cv2_amount", 0.35), ("cv3_target", 7.0 / 8.0), ("cv3_amount", 0.5)] {
@@ -143,6 +163,7 @@ fn main() -> eframe::Result {
         let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
         live.hero.force_cpu = has("cpu");
         live.hero.mode3d = !has("2d");
+        live.browser.restore(&key);
         let s = |v: &str| v.to_string();
         let bus = BusView {
             label: s("GTS 1"),
@@ -152,16 +173,32 @@ fn main() -> eframe::Result {
             oversampling: 2,
             page: if has("matrix") { Page::Matrix } else if has("fx") { Page::Fx } else { Page::Synth },
             more_open: has("more"),
-            preset: Some(pi),
             preset_dirty: has("dirty"),
             gr_db: 2.4,
             peak_db: -0.3,
             show_values: has("values"),
             ..Default::default()
         };
-        let name = if let Some((_, _, n)) = tab { n } else if has("matrix") { "preview-gts-editor-matrix.png" } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
+        let arg = |k: &str| std::env::args().find_map(|a| a.strip_prefix(k).map(str::to_string));
+        if has("browser") || has("saveas") || arg("dialog=").is_some() {
+            let mut b = gts::editor::Browser::with_library(demo::fixture_library(64));
+            b.spawn_reveal = false;
+            let mut f = b.filter().clone();
+            f.text = arg("search=").unwrap_or_default();
+            f.category = arg("cat=").and_then(|c| gts::library::category_of(&c));
+            b.set_filter(f);
+            if let Some(n) = arg("loaded=") {
+                let key = b.library().and_then(|l| l.entries().iter().find(|e| e.name == n)).map(|e| e.key.clone());
+                b.restore(&key.unwrap_or(n));
+            } else {
+                b.restore(&key);
+            }
+            b.set_open(true);
+            live.browser = b;
+        }
+        let name = if has("saveas") { "preview-gts-editor-saveas.png" } else if has("browser") { "preview-gts-editor-browser.png" } else if let Some((_, _, n)) = tab { n } else if has("matrix") { "preview-gts-editor-matrix.png" } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
         let pointer = std::env::args().find_map(|a| a.strip_prefix("at=").and_then(|v| v.split_once(',').map(|(x, y)| egui::pos2(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0)))));
         let drag = std::env::args().find_map(|a| a.strip_prefix("drag=").and_then(gts::matrix::Source::from_name));
-        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer, drag, menu: has("menu"), click: has("click") }))
+        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer, drag, menu: has("menu"), click: has("click"), saveas: has("saveas"), dialog: arg("dialog=") }))
     }))
 }

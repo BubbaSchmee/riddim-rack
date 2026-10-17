@@ -11,6 +11,7 @@
 //!   notes    an audio thread plays the riddim demo pattern (Wobble Shot) on the real engine in real
 //!            time and publishes through the plugin's own VizWriter / Meters, so every live display moves;
 //!            also reports the hero's own GPU time (timer query)
+//!   browser  open the preset browser over a 200-preset fixture library (SPEC v2 Track 6 frame gate)
 //!   page=fx  show the FX page (page=matrix: the MATRIX page)
 //!   cpu      force the hero's CPU fallback
 //!   fxtex    also draw generated-texture effects (drop shadows, additive glow sprites, brushed noise) over the panel
@@ -21,6 +22,9 @@
 //!   zoom=1.5 (needs --features zoom-patch and the patched egui-baseview, see docs/design/motion-feasibility.md)
 //!   msaa=4   request a 4x multisampled framebuffer (nih_plug_egui hard-codes samples: None)
 //!   tbp      call timeBeginPeriod(1) first (DAWs usually do; affects the WM_TIMER that drives frames)
+//!   typing   instead of the cadence run: type into the preset browser's search box through the real window
+//!            path inside a host-like parent window (posted Win32 key messages go to whichever window
+//!            owns the keyboard focus); `typing manual` waits 60 s for a human. See support/typing.rs.
 //!   shot     save the first stable frame as docs/design/motion-proto-plugin.png (uses glReadPixels)
 //!
 //! Caveat: a plugin window is a CHILD of the host's window and the host pumps the message loop;
@@ -41,6 +45,8 @@ mod wavegl;
 mod fx_tex;
 #[path = "support/demo.rs"]
 mod demo;
+#[path = "support/typing.rs"]
+mod typing;
 
 #[cfg(windows)]
 #[link(name = "winmm")]
@@ -93,6 +99,9 @@ fn deltas(t: &[Instant]) -> Vec<f64> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let has = |s: &str| args.iter().any(|a| a == s);
+    if has("typing") {
+        std::process::exit(if typing::run(has("manual")) { 0 } else { 1 });
+    }
     let val = |k: &str| args.iter().find_map(|a| a.strip_prefix(&format!("{k}=")).map(String::from));
     let vsync = val("vsync").map(|v| v != "0").unwrap_or(true);
     let frames: usize = val("frames").and_then(|v| v.parse().ok()).unwrap_or(600);
@@ -111,7 +120,7 @@ fn main() {
     let stamps = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let updates = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let update_ms = Arc::new(Mutex::new(Vec::<f64>::new()));
-    let (pi, preset) = demo::factory("Wobble Shot");
+    let (key, preset) = demo::factory("Wobble Shot");
     let ctl = demo::MapCtl::with_preset(Some(preset));
     let mut patch = preset.patch;
     if val("page").as_deref() == Some("fx") {
@@ -141,6 +150,13 @@ fn main() {
     });
     let mut live = LiveView::new(viz, Some(ring));
     live.hero.force_cpu = has("cpu");
+    live.browser.restore(&key);
+    if has("browser") {
+        live.browser = gts::editor::Browser::with_library(demo::fixture_library(190));
+        live.browser.set_filter(gts::library::Filter { category: None, ..Default::default() });
+        live.browser.restore(&key);
+        live.browser.set_open(true);
+    }
     live.hero.measure_gpu = true;
     let hero_gpu = Arc::new(Mutex::new(Vec::<f32>::new()));
     let state = State {
@@ -148,7 +164,7 @@ fn main() {
         gl: has("gl").then(|| wavegl::WaveGl::new(wavegl::demo_waves())),
         ctl,
         tables,
-        bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), peak_db: -6.0, page: match val("page").as_deref() { Some("fx") => gts::editor::Page::Fx, Some("matrix") => gts::editor::Page::Matrix, _ => gts::editor::Page::Synth }, ..Default::default() },
+        bv: BusView { label: "GTS 1".into(), oversampling: 2, peak_db: -6.0, page: match val("page").as_deref() { Some("fx") => gts::editor::Page::Fx, Some("matrix") => gts::editor::Page::Matrix, _ => gts::editor::Page::Synth }, ..Default::default() },
         live,
         meters,
         hero_gpu: hero_gpu.clone(),

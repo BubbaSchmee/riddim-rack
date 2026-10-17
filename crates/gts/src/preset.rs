@@ -259,15 +259,19 @@ pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     out
 }
 
-/// (id, min, max) plain range of every GtsParams id, from the param definitions.
-fn ranges() -> Vec<(String, f32, f32)> {
-    let params = GtsParams::default();
-    params
-        .param_map()
-        .into_iter()
-        // SAFETY: `params` outlives every pointer use in this function.
-        .map(|(id, ptr, _): (String, ParamPtr, String)| unsafe { (id, ptr.preview_plain(0.0), ptr.preview_plain(1.0)) })
-        .collect()
+/// (id, min, max) plain range of every GtsParams id, from the param definitions. Built once: the
+/// browser parses a few hundred files and each parse looks every id up here.
+fn ranges() -> &'static [(String, f32, f32)] {
+    static R: OnceLock<Vec<(String, f32, f32)>> = OnceLock::new();
+    R.get_or_init(|| {
+        let params = GtsParams::default();
+        params
+            .param_map()
+            .into_iter()
+            // SAFETY: `params` outlives every pointer use in this closure.
+            .map(|(id, ptr, _): (String, ParamPtr, String)| unsafe { (id, ptr.preview_plain(0.0), ptr.preview_plain(1.0)) })
+            .collect()
+    })
 }
 
 /// f32 as its shortest round-trip decimal (what the knob shows), not the f64 widening.
@@ -275,20 +279,16 @@ fn num_f32(x: f32) -> Value {
     serde_json::from_str::<Number>(&x.to_string()).map(Value::Number).unwrap_or(Value::Null)
 }
 
-/// The six factory presets, embedded (the editor's Preset combo; the files are also the QA input).
-const FACTORY_JSON: [&str; 6] = [
-    include_str!("../presets/candidates/sub-weight.json"),
-    include_str!("../presets/candidates/growl-hound.json"),
-    include_str!("../presets/candidates/reese-drift.json"),
-    include_str!("../presets/candidates/wobble-shot.json"),
-    include_str!("../presets/candidates/talk-box.json"),
-    include_str!("../presets/candidates/screech-lead.json"),
-];
+/// The embedded factory bank (build.rs): every `presets/factory/<Category>/*.json`.
+pub mod bank {
+    include!(concat!(env!("OUT_DIR"), "/factory_bank.rs"));
+}
 
-/// The embedded factory presets, named from each file's `"name"`. Parsed once.
+/// The embedded factory presets in bank order (category, then name), named from each file's
+/// `"name"`. Parsed once. The browser reads the same files through [`crate::library`].
 pub fn factory() -> &'static [Preset] {
     static F: OnceLock<Vec<Preset>> = OnceLock::new();
-    F.get_or_init(|| FACTORY_JSON.iter().filter_map(|j| Preset::from_json(j).ok().map(|(p, _)| p)).collect())
+    F.get_or_init(|| bank::FACTORY_FILES.iter().filter_map(|(_, j)| Preset::from_json(j).ok().map(|(p, _)| p)).collect())
 }
 
 impl Preset {
@@ -428,7 +428,7 @@ mod tests {
     fn slots_cover_every_sound_param() {
         let mut p = Patch::default();
         let mut got: Vec<String> = slots(&mut p).into_iter().map(|(k, _)| k).collect();
-        let mut want: Vec<String> = ranges().into_iter().map(|r| r.0).filter(|k| !k.starts_with("cv")).collect();
+        let mut want: Vec<String> = ranges().iter().map(|r| r.0.clone()).filter(|k| !k.starts_with("cv")).collect();
         got.sort();
         want.sort();
         assert_eq!(got, want);

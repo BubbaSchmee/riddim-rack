@@ -1,7 +1,7 @@
 //! Instrument widgets. Each takes plain values and reports changes through its return value;
 //! the plugin editor adapts that to its param setter (begin / set / end around a drag).
 
-use crate::paint;
+use crate::paint::{self, elide};
 use crate::theme::{font, metrics::*, T};
 use egui::{
     pos2, vec2, Align, Align2, Color32, CursorIcon, Layout, Rect, Sense, Shape, Stroke, StrokeKind, Ui, UiBuilder, Vec2,
@@ -1321,18 +1321,6 @@ pub(crate) fn patch_row_rects(row: Rect) -> PatchRects {
     };
     let (src, tgt, knob, led) = (take(src_w), take(combos - src_w), take(PATCH_KNOB_D), take(PATCH_LED_W));
     PatchRects { src, tgt, knob, led }
-}
-
-/// `text` cut to `max_w` px with a trailing ellipsis.
-fn elide(p: &egui::Painter, f: &egui::FontId, text: &str, max_w: f32) -> String {
-    if paint::text_width(p, f, text, 0.0) <= max_w {
-        return text.to_string();
-    }
-    let mut s: String = text.to_string();
-    while !s.is_empty() && paint::text_width(p, f, &format!("{s}\u{2026}"), 0.0) > max_w {
-        s.pop();
-    }
-    format!("{}\u{2026}", s.trim_end())
 }
 
 /// Inset dropdown at an exact rect. `cur` is the shown text (`dim` for none / lost), `selected`

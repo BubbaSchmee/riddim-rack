@@ -150,13 +150,14 @@ fn main() -> eframe::Result {
         rr_ui::theme::apply(&cc.egui_ctx);
         let mut tables = Tables::new();
         tables.generate();
-        let (pi, preset) = demo::factory("Wobble Shot");
-        let bv = BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), page: if fx { gts::editor::Page::Fx } else { gts::editor::Page::Synth }, peak_db: -6.0, ..Default::default() };
+        let (key, preset) = demo::factory("Wobble Shot");
+        let bv = BusView { label: "GTS 1".into(), oversampling: 2, page: if fx { gts::editor::Page::Fx } else { gts::editor::Page::Synth }, peak_db: -6.0, ..Default::default() };
         let ctl = demo::MapCtl::with_preset(Some(preset));
         let mut feed = demo::Feed::new(preset.patch);
         feed.attach(ctl.table.params().clone());
         let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
         live.hero.force_cpu = cpu;
+        live.browser.restore(&key);
         Ok(Box::new(App {
             ctl,
             tables,

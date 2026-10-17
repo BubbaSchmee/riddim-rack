@@ -20,16 +20,19 @@ use std::sync::Arc;
 pub struct MapCtl {
     pub table: ParamTable,
     pub vals: RefCell<HashMap<String, f32>>,
+    /// The Patch the sound started from (what Save writes; edits in `vals` are not folded back).
+    pub base: std::cell::Cell<Patch>,
 }
 
 impl MapCtl {
     pub fn new() -> Self {
-        Self { table: ParamTable::new(Arc::new(GtsParams::default())), vals: RefCell::new(HashMap::new()) }
+        Self { table: ParamTable::new(Arc::new(GtsParams::default())), vals: RefCell::new(HashMap::new()), base: Default::default() }
     }
     /// Loads a factory preset the way the editor does (through `Ctl` gestures).
     pub fn with_preset(p: Option<&Preset>) -> Self {
         let c = Self::new();
         apply_preset(&c.table, &c, p);
+        c.base.set(p.map_or_else(Patch::default, |p| p.patch));
         c
     }
 }
@@ -71,6 +74,29 @@ impl Ctl for MapCtl {
     fn matrix(&self) -> Option<&MatrixShared> {
         Some(self.table.matrix())
     }
+    fn current_preset(&self) -> Option<Preset> {
+        let m = self.table.matrix().get();
+        Some(Preset { patch: self.base.get(), matrix: m.slots.clone(), macros: m.macros.to_vec(), ..Preset::default() })
+    }
+}
+
+/// A library over `user` generated user presets (plus the awkward files) and the embedded factory
+/// bank, in a scratch folder under the target dir, rebuilt each run. A few favourites and a
+/// remembered author make the browser shots look lived in.
+pub fn fixture_library(user: usize) -> gts::library::Library {
+    let base = std::env::var_os("CARGO_TARGET_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir).join("tmp").join("gts-fixture");
+    let _ = std::fs::remove_dir_all(base.join("Presets").join("User"));
+    for f in ["favorites.json", "settings.json"] {
+        let _ = std::fs::remove_file(base.join(f));
+    }
+    gts::library::fixture::write_user(&base, user);
+    let mut lib = gts::library::Library::open(&base, preset::bank::FACTORY_FILES);
+    let keys: Vec<String> = lib.entries().iter().map(|e| e.key.clone()).collect();
+    for k in keys.iter().step_by(7).take(6) {
+        let _ = lib.set_favorite(k, true);
+    }
+    let _ = lib.update_settings(|s| s.author = "Mara Voss".into());
+    lib
 }
 
 /// The FX page shots and benchmarks show the chain working: Distortion, Multiband, EQ, Dimension,
@@ -111,11 +137,11 @@ pub fn demo_routes(ctl: &MapCtl, patch: &mut Patch) {
     }
 }
 
-/// Factory preset by name.
-pub fn factory(name: &str) -> (usize, &'static Preset) {
+/// Factory preset by name, with its library key ("Factory/Bass/Growl Hound").
+pub fn factory(name: &str) -> (String, &'static Preset) {
     let f = preset::factory();
     let i = f.iter().position(|p| p.name == name).unwrap_or(0);
-    (i + 1, &f[i])
+    (format!("Factory/{}", preset::bank::FACTORY_FILES[i].0.trim_end_matches(".json")), &f[i])
 }
 
 /// 150 BPM, 1/8 steps, 16-step riddim pattern (F1, G1, A#1; 0 = rest), gate 70 % of the step.

@@ -5,6 +5,7 @@ pub mod dsp;
 pub mod editor;
 pub mod fxview;
 pub mod help;
+pub mod library;
 pub mod matrix;
 pub mod params;
 pub mod preset;

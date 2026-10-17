@@ -183,3 +183,22 @@ pub fn vgradient_shape(r: Rect, top: Color32, bottom: Color32) -> Shape {
     m.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     Shape::mesh(m)
 }
+
+/// `text` cut to `max_w` px with a trailing ellipsis. One pass over the glyph advances (the
+/// browser elides a dozen descriptions a frame), so it is linear in the text length.
+pub fn elide(p: &Painter, f: &FontId, text: &str, max_w: f32) -> String {
+    let (adv, ell): (Vec<f32>, f32) = p.ctx().fonts(|fo| (text.chars().map(|c| fo.glyph_width(f, c)).collect(), fo.glyph_width(f, '\u{2026}')));
+    if adv.iter().sum::<f32>() <= max_w {
+        return text.to_string();
+    }
+    let (mut w, mut cut) = (0.0, 0);
+    for (i, a) in adv.iter().enumerate() {
+        if w + a + ell > max_w {
+            break;
+        }
+        w += a;
+        cut = i + 1;
+    }
+    let head: String = text.chars().take(cut).collect();
+    format!("{}\u{2026}", head.trim_end())
+}

@@ -83,8 +83,9 @@ the plugin. Delete the plugin log first for a clean session.
     Gain Reduction meter (FX page, 0 to -12 dB) moves with the playing and falls back when you
     stop, and Output Peak reads about -0.3 dBFS. Back to
     Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
-24. Candidate presets with FX: open the header preset list (right of the nameplate; the arrows step) and load each of the
-    six (Sub Weight, Growl Hound, Reese Drift, Wobble Shot, Talk Box, Screech Lead): the knobs
+24. Candidate presets with FX: open the preset browser (click the preset name right of the nameplate; the arrows step
+    through its current list) and load each of the six (Growl Hound, Reese Drift, Sub Weight, Talk Box, Wobble Shot under Bass,
+    Screech Lead under Lead): the knobs
     and the FX page jump to the preset, the bar shows its name, and after any edit a dot appears beside it. Close and reopen the
     editor: the spectrum and meters must still move. Init sets every sound parameter back to its default; the PATCH routing, the
     instance label and Quality do not change on any load. A/B each against its render from
@@ -116,7 +117,11 @@ the plugin. Delete the plugin log first for a clean session.
     - Help bar: hovering any control names it with its value and a help line, cut with an ellipsis
       before the Values and Reduced motion toggles; both toggles stay visible with nothing hovered too.
       Values on prints every knob value; Reduced motion stops sway, parallax and page / popup motion.
-    - Preset list: the bar opens it, arrows step through it, a dot marks edits; PATCH chip opens the RR-BUS popover.
+    - Preset browser: the name opens it over the page (no keyboard focus is taken), the arrows step through its current list,
+      a dot marks edits; PATCH chip opens the RR-BUS popover. In the browser: click the search box and type (letters must
+      appear in the box, Space must not start Live's transport while it has focus), Up/Down move and load, Enter loads,
+      Esc clears the text, then closes; Save As writes a file under `Documents\Riddim Rack\GTS\Presets\User\<Category>`,
+      the project remembers the loaded preset after save + reopen. Report which keys Live took first.
     - Keyboard: click a knob and nudge it with the arrow keys. Live may take some keys first, so this is
       best-effort; drag, wheel and double-click are the reliable ways.
 27. Close the editor in the middle of a knob drag (hold the mouse on a knob, close the plugin window

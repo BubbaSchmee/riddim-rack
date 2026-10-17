@@ -8,6 +8,9 @@
 //!   cargo run -p gts --release --example frame_bench [-- fx] [-- ppp=1.5] [-- hover] [-- idle] [-- cpu] [-- frames=600]
 //!
 //!   matrix the MATRIX page (with eight routings in the slots), or `-- drag` for a patch drag in progress
+//!   browser the preset browser open over a 200-preset fixture library (190 user presets, the awkward
+//!          files and the factory bank), the list scrolling under the pointer all the while and
+//!          a search typed and cleared now and then (SPEC v2 Track 6 gate: UI + tessellation <= 4 ms mean)
 //!   idle   no notes (the silent-state cost cap, MOTION.md 11 #13)
 //!   cpu    force the hero's CPU fallback (egui shapes) instead of the GL paint callback
 //!
@@ -35,13 +38,14 @@ fn main() {
     let has = |s: &str| args.iter().any(|a| a == s);
     let fx = has("fx");
     let matrix_page = has("matrix");
+    let browser = has("browser");
     let drag = has("drag");
     let ppp: f32 = args.iter().find_map(|a| a.strip_prefix("ppp=").and_then(|s| s.parse().ok())).unwrap_or(1.0);
     let n: usize = args.iter().find_map(|a| a.strip_prefix("frames=").and_then(|s| s.parse().ok())).unwrap_or(600);
     let (hover, idle, cpu) = (has("hover"), has("idle"), has("cpu"));
     let mut tables = Tables::new();
     tables.generate();
-    let (pi, preset) = demo::factory("Wobble Shot");
+    let (key, preset) = demo::factory("Wobble Shot");
     let ctl = demo::MapCtl::with_preset(Some(preset));
     let mut patch = preset.patch;
     if fx {
@@ -52,6 +56,17 @@ fn main() {
     feed.attach(ctl.table.params().clone());
     let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
     live.hero.force_cpu = cpu;
+    live.browser.restore(&key);
+    if browser {
+        let lib = demo::fixture_library(190);
+        let t = Instant::now();
+        let again = gts::library::Library::open(lib.root(), gts::preset::bank::FACTORY_FILES);
+        println!("browser fixture: {} presets; Library::open (factory already written, scan + parse of every file) {:.1} ms", again.entries().len(), t.elapsed().as_secs_f64() * 1e3);
+        live.browser = gts::editor::Browser::with_library(lib);
+        live.browser.set_filter(gts::library::Filter { category: None, ..Default::default() });
+        live.browser.restore(&key);
+        live.browser.set_open(true);
+    }
     let mut bv = BusView {
         label: "GTS 1".into(),
         sources: vec!["GTS 1 · Mod A".into(), "VSS 1 · Step Gate".into()],
@@ -59,7 +74,6 @@ fn main() {
         activity: [0.92, 0.35, 0.0],
         oversampling: 2,
         page: if matrix_page { Page::Matrix } else if fx { Page::Fx } else { Page::Synth },
-        preset: Some(pi),
         gr_db: 2.4,
         peak_db: -0.3,
         ..Default::default()
@@ -86,6 +100,18 @@ fn main() {
             // A patch drag in progress with the pointer on a knob (every target ringed, one hot).
             gts::editor::patching::debug_hold_drag(&ctx, gts::matrix::Source::ModB);
             input.events.push(egui::Event::PointerMoved(Pos2::new(112.0, 440.0)));
+        }
+        if browser {
+            // The pointer rests on the list and the wheel runs it up and down; every 150 frames a
+            // search is typed, then cleared (Escape), as a user filtering would.
+            let t = f as f32 / 60.0;
+            input.events.push(egui::Event::PointerMoved(Pos2::new(480.0, 300.0)));
+            input.events.push(egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: vec2(0.0, 26.0 * (t * 0.9).cos()), modifiers: Default::default() });
+            match f % 150 {
+                40 => input.events.push(egui::Event::Text("wub".into())),
+                100 => input.events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() }),
+                _ => {}
+            }
         }
         if hover {
             // Pointer sweeping across the panel so hover/animation paths run.
@@ -125,7 +151,7 @@ fn main() {
         "GTS editor {}x{} pts, ppp {ppp}, page {}, hover {hover}, drag {drag}, notes {}, hero {}, {n} frames (after 30 warm-up)",
         w,
         h,
-        if matrix_page { "MATRIX" } else if fx { "FX" } else { "SYNTH" },
+        if browser { "BROWSER (over SYNTH)" } else if matrix_page { "MATRIX" } else if fx { "FX" } else { "SYNTH" },
         !idle,
         if cpu { "CPU fallback" } else { "GL callback" }
     );

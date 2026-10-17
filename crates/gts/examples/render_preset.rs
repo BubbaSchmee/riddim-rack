@@ -16,7 +16,7 @@
 //! category starts with "Lead" play a phrase around F3 / A#3, bar 4 one held F3. Velocity 100.
 //!
 //! cargo run -p gts --release --example render_preset [-- [--canon] [--macros] <preset.json>...]
-//! No paths = every file in crates/gts/presets/candidates. `--canon` rewrites each file in the
+//! No paths = every file in crates/gts/presets/factory. `--canon` rewrites each file in the
 //! canonical complete form (every parameter, sorted) after loading it.
 //!
 //! The preset's modulation matrix (macros and routes) is part of every render. `--macros` is the
@@ -574,12 +574,14 @@ pub fn slug(s: &str) -> String {
 }
 
 pub fn candidates_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/candidates")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/factory")
 }
 
+/// Every factory preset file, `presets/factory/<Category>/<Name>.json`, sorted.
 pub fn candidates() -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(candidates_dir())
-        .expect("presets/candidates")
+        .expect("presets/factory")
+        .flat_map(|c| std::fs::read_dir(c.unwrap().path()).expect("category folder"))
         .map(|e| e.unwrap().path())
         .filter(|p| p.extension().is_some_and(|e| e == "json"))
         .collect();

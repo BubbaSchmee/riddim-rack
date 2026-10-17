@@ -1636,10 +1636,12 @@ dependencies = [
  "nih_plug",
  "nih_plug_egui",
  "png 0.17.16",
+ "raw-window-handle 0.5.2",
  "rr-bus",
  "rr-ui",
  "serde",
  "serde_json",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
