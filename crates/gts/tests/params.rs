@@ -35,6 +35,8 @@ fn spec_ids() -> Vec<String> {
         v.push(s.into());
     }
     v.extend(fx_ids());
+    // SPEC v2 Track 5: macro knobs
+    v.extend((1..=4).map(|k| format!("macro{k}")));
     for n in 1..=3 {
         v.push(format!("cv{n}_target"));
         v.push(format!("cv{n}_amount"));
@@ -70,7 +72,7 @@ fn ids_match_spec() {
     got.sort();
     want.sort();
     assert_eq!(got, want);
-    assert_eq!((fx_ids().len(), got.len()), (74, 182));
+    assert_eq!((fx_ids().len(), got.len()), (74, 186));
 }
 
 /// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on

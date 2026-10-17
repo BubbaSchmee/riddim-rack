@@ -15,11 +15,20 @@
 //! Basses play 1/8 call-and-response on F1 / G1 / A#1 with rests, bar 4 one held F1; presets whose
 //! category starts with "Lead" play a phrase around F3 / A#3, bar 4 one held F3. Velocity 100.
 //!
-//! cargo run -p gts --release --example render_preset [-- [--canon] <preset.json>...]
+//! cargo run -p gts --release --example render_preset [-- [--canon] [--macros] <preset.json>...]
 //! No paths = every file in crates/gts/presets/candidates. `--canon` rewrites each file in the
 //! canonical complete form (every parameter, sorted) after loading it.
+//!
+//! The preset's modulation matrix (macros and routes) is part of every render. `--macros` is the
+//! macro-sweep mode: it writes the 4-bar pattern and, per macro, a held-note sweep (macro 0 -> 1
+//! over 4 s after 1 s at 0, the other macros at the preset's values) to
+//! `docs/audits/renders/presets-macros/`, and prints per macro the centroid (octaves), 1 s
+//! LUFS, 25..120 Hz level and L/R correlation (25..120 Hz and above 200 Hz) at nine points of the
+//! sweep. A sweep fails (exit 1) when it is inaudible (centroid swing < 0.3 oct and LUFS swing
+//! < 1 LU and high-band correlation swing < 0.1) or leaves the QA band ([`sweep_violations`]).
 use gts::dsp::tables::Fft;
 use gts::dsp::{Engine, Patch, Transport};
+use gts::matrix::Matrix;
 use gts::preset::Preset;
 use nih_plug::prelude::NoteEvent;
 use std::path::{Path, PathBuf};
@@ -80,6 +89,15 @@ pub struct Render {
 }
 
 pub fn render(patch: &Patch, lead: bool) -> Render {
+    render_m(patch, &Matrix::default(), lead)
+}
+
+/// The preset's 4-bar pattern with its modulation matrix.
+pub fn render_preset(p: &Preset) -> Render {
+    render_m(&p.patch, &p.matrix_state(), is_lead(p))
+}
+
+pub fn render_m(patch: &Patch, matrix: &Matrix, lead: bool) -> Render {
     let phrase = if lead { LEAD } else { BASS };
     let mut ev: Vec<(usize, u8, bool)> = vec![];
     for &(start, len, n) in phrase {
@@ -91,6 +109,7 @@ pub fn render(patch: &Patch, lead: bool) -> Render {
     let mut e = Engine::new();
     e.initialize(SR as f32);
     e.transport = Transport { tempo: BPM, playing: true, pos_beats: 0.0 };
+    e.set_matrix(&matrix.encode());
     let len = BARS_LEN + SR as usize / 2;
     let mut frames = Vec::with_capacity(len);
     let mut next = 0;
@@ -338,6 +357,222 @@ pub fn bank_violations(names: &[String], lufs: &[f64]) -> Vec<String> {
         .collect()
 }
 
+// ---- macro sweeps ------------------------------------------------------------------------------
+
+/// The macro rests at 0 for 1 s, ramps to 1 over 4 s, and the render ends 1 s later.
+const SWEEP_HOLD: usize = SR as usize;
+const SWEEP_RAMP: usize = 4 * SR as usize;
+const SWEEP_LEN: usize = SWEEP_HOLD + SWEEP_RAMP + SR as usize;
+pub const SWEEP_WINS: usize = 9;
+const SWEEP_FFT: usize = 16384;
+/// Labels of macros that are explicitly level / space controls: LUFS may move up to 4 LU
+/// (the others stay within 1.5 LU) and the 25..120 Hz level is free.
+pub const LEVEL_MACROS: [&str; 2] = ["Space", "Weight"];
+
+/// One analysis window of a render, centred on macro value `m`.
+#[derive(Debug, Clone, Copy)]
+pub struct Win {
+    pub m: f32,
+    /// K-weighted loudness over 1 s (ungated; long enough to average unison beating).
+    pub lufs: f64,
+    /// log2 of the mid spectral centroid, 20 Hz..20 kHz.
+    pub centroid_oct: f64,
+    /// 25..120 Hz energy of both channels, dB (relative; only differences matter).
+    pub low_db: f64,
+    pub corr_lo: f64,
+    pub corr_hi: f64,
+}
+
+pub struct Sweep {
+    pub frames: Vec<[f32; 2]>,
+    /// The sweep's windows as measured.
+    pub wins: Vec<Win>,
+    /// The macro's own effect: each window minus the same window of a control render with the
+    /// macro held at 0 (removes the held note's own drift: envelope settling, free LFOs, unison
+    /// beating). `lufs`, `centroid_oct`, `low_db` and `corr_hi` are differences; the rest as measured.
+    pub delta: Vec<Win>,
+    pub peak_db: f64,
+    pub finite: bool,
+    /// A lead has no sub: the 25..120 Hz checks do not apply.
+    pub lead: bool,
+}
+
+/// Holds one note (F1, or F3 for a lead) at velocity 100; macro `k` ramps 0 -> 1 when `ramp`.
+fn hold_note(p: &Preset, k: usize, ramp: bool) -> Vec<[f32; 2]> {
+    let note = if is_lead(p) { F3 } else { F1 };
+    let mut e = Engine::new();
+    e.initialize(SR as f32);
+    e.transport = Transport { tempo: BPM, playing: true, pos_beats: 0.0 };
+    e.set_matrix(&p.matrix_state().encode());
+    let mut patch = p.patch;
+    let mut frames = Vec::with_capacity(SWEEP_LEN);
+    for i in 0..SWEEP_LEN {
+        if i % BLOCK == 0 {
+            patch.macros[k] = if ramp { (i.saturating_sub(SWEEP_HOLD) as f32 / SWEEP_RAMP as f32).min(1.0) } else { 0.0 };
+            e.set_patch(&patch);
+        }
+        if i == 0 {
+            e.handle_event(&NoteEvent::NoteOn { timing: 0, voice_id: None, channel: 0, note, velocity: VELOCITY });
+        }
+        let (l, r) = e.next_frame();
+        frames.push([l, r]);
+    }
+    frames
+}
+
+fn windows(frames: &[[f32; 2]]) -> Vec<Win> {
+    let (l, r): (Vec<f64>, Vec<f64>) = frames.iter().map(|f| (f[0] as f64, f[1] as f64)).unzip();
+    let (kl, kr) = (k_weight(&l), k_weight(&r));
+    let fft = Fft::new(SWEEP_FFT);
+    let df = SR as f64 / SWEEP_FFT as f64;
+    let blk = SR as usize;
+    let hann = |i: usize| 0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / SWEEP_FFT as f64).cos();
+    (0..SWEEP_WINS)
+        .map(|j| {
+            let m = j as f32 / (SWEEP_WINS - 1) as f32;
+            let c = SWEEP_HOLD + (m as f64 * SWEEP_RAMP as f64) as usize;
+            let (a, b) = (c - blk / 2, c + blk / 2);
+            let ms = (kl[a..b].iter().map(|v| v * v).sum::<f64>() + kr[a..b].iter().map(|v| v * v).sum::<f64>()) / blk as f64;
+            let s = c - SWEEP_FFT / 2;
+            let win = |x: &[f64]| x[s..s + SWEEP_FFT].iter().enumerate().map(|(i, v)| v * hann(i)).collect::<Vec<f64>>();
+            let (mut lr, mut li, mut rr, mut ri) = (win(&l), vec![0.0; SWEEP_FFT], win(&r), vec![0.0; SWEEP_FFT]);
+            fft.run(&mut lr, &mut li, false);
+            fft.run(&mut rr, &mut ri, false);
+            // (power L, power R, Re(L conj R)) in 25..120 Hz and above 200 Hz, and the mid centroid.
+            let (mut lo, mut hi) = ([0.0f64; 3], [0.0f64; 3]);
+            let (mut num, mut den) = (0.0, 0.0);
+            for q in 1..SWEEP_FFT / 2 {
+                let f = q as f64 * df;
+                let pl = lr[q] * lr[q] + li[q] * li[q];
+                let pr = rr[q] * rr[q] + ri[q] * ri[q];
+                let x = lr[q] * rr[q] + li[q] * ri[q];
+                let band = if (25.0..=120.0).contains(&f) {
+                    Some(&mut lo)
+                } else if f > 200.0 {
+                    Some(&mut hi)
+                } else {
+                    None
+                };
+                if let Some(t) = band {
+                    t[0] += pl;
+                    t[1] += pr;
+                    t[2] += x;
+                }
+                if (20.0..=20000.0).contains(&f) {
+                    let mag = (((lr[q] + rr[q]).powi(2) + (li[q] + ri[q]).powi(2)) / 4.0).sqrt();
+                    num += f * mag;
+                    den += mag;
+                }
+            }
+            let corr = |t: [f64; 3]| t[2] / (t[0] * t[1]).sqrt().max(1e-30);
+            Win {
+                m,
+                lufs: -0.691 + db(ms),
+                centroid_oct: (num / den.max(1e-30)).log2(),
+                low_db: db(lo[0] + lo[1]),
+                corr_lo: corr(lo),
+                corr_hi: corr(hi),
+            }
+        })
+        .collect()
+}
+
+/// All four macro sweeps of a preset. When every macro rests at 0 the control render (macro held
+/// at 0) is the same for all four and is made once.
+pub fn sweeps(p: &Preset) -> Vec<Sweep> {
+    let shared = (p.patch.macros == [0.0; 4]).then(|| windows(&hold_note(p, 0, false)));
+    (0..4).map(|k| sweep(p, k, shared.clone().unwrap_or_else(|| windows(&hold_note(p, k, false))))).collect()
+}
+
+/// Holds one note and ramps macro `k` 0 -> 1 (see the module docs); `ctl` = the control's windows.
+fn sweep(p: &Preset, k: usize, ctl: Vec<Win>) -> Sweep {
+    let frames = hold_note(p, k, true);
+    let wins = windows(&frames);
+    let delta = wins
+        .iter()
+        .zip(&ctl)
+        .map(|(w, c)| Win {
+            lufs: w.lufs - c.lufs,
+            centroid_oct: w.centroid_oct - c.centroid_oct,
+            low_db: w.low_db - c.low_db,
+            corr_hi: w.corr_hi - c.corr_hi,
+            ..*w
+        })
+        .collect();
+    let finite = frames.iter().flatten().all(|v| v.is_finite());
+    let peak = frames.iter().flatten().fold(0f64, |m, v| m.max(v.abs() as f64));
+    Sweep { frames, wins, delta, peak_db: 20.0 * peak.max(1e-15).log10(), finite, lead: is_lead(p) }
+}
+
+fn max_abs(w: &[Win], f: impl Fn(&Win) -> f64) -> f64 {
+    w.iter().map(|w| f(w).abs()).fold(0.0, f64::max)
+}
+
+/// Largest |difference from the control| over the sweep: (centroid oct, LUFS, 25..120 Hz dB,
+/// high-band correlation).
+pub fn effect(s: &Sweep) -> (f64, f64, f64, f64) {
+    let d = &s.delta;
+    (max_abs(d, |w| w.centroid_oct), max_abs(d, |w| w.lufs), max_abs(d, |w| w.low_db), max_abs(d, |w| w.corr_hi))
+}
+
+/// Violations of one macro sweep (empty = pass): audible (centroid, LUFS or high-band correlation
+/// moves by at least 0.3 oct, 1 LU or 0.1), finite, peak <= -3 dBFS, and the QA band: the effect
+/// on LUFS within 1.5 LU and on the 25..120 Hz level within 3 dB (4 LU and a free low band for
+/// [`LEVEL_MACROS`]), the 25..120 Hz L/R correlation >= 0.95 (a lead has no sub: those two are skipped).
+pub fn sweep_violations(label: &str, s: &Sweep) -> Vec<String> {
+    let mut v = vec![];
+    let (c, l, lo, ch) = effect(s);
+    if c < 0.3 && l < 1.0 && ch < 0.1 {
+        v.push(format!("inaudible (centroid {c:.2} oct, LUFS {l:.2} LU, correlation {ch:.3})"));
+    }
+    if !s.finite {
+        v.push("NaN/inf in output".into());
+    }
+    if s.peak_db > -3.0 {
+        v.push(format!("peak {:.2} dBFS > -3", s.peak_db));
+    }
+    let level = LEVEL_MACROS.contains(&label);
+    let lim = if level { 4.0 } else { 1.5 };
+    if l > lim {
+        v.push(format!("LUFS moves {l:.2} LU (limit {lim})"));
+    }
+    if !s.lead {
+        if !level && lo > 3.0 {
+            v.push(format!("25..120 Hz level moves {lo:.2} dB (limit 3)"));
+        }
+        let cl = s.wins.iter().map(|w| w.corr_lo).fold(f64::MAX, f64::min);
+        if cl < 0.95 {
+            v.push(format!("sub not mono: 25..120 Hz L/R correlation {cl:.3} < 0.95"));
+        }
+    }
+    v
+}
+
+pub fn print_sweep(name: &str, k: usize, label: &str, s: &Sweep) {
+    let (a, b) = (&s.wins[0], &s.wins[SWEEP_WINS - 1]);
+    let d = &s.delta[SWEEP_WINS - 1];
+    let (c, l, lo, ch) = effect(s);
+    println!(
+        "  {name} M{} {label}: at 1 vs control: centroid {:+.2} oct, LUFS {:+.2}, 25-120 Hz {:+.2} dB, corr>200 {:+.3} \
+         (max |effect| {c:.2} oct, {l:.2} LU, {lo:.2} dB, {ch:.3}); corr>200 {:.3} -> {:.3}, sub corr min {:.3}, peak {:.2} dBFS",
+        k + 1,
+        d.centroid_oct,
+        d.lufs,
+        d.low_db,
+        d.corr_hi,
+        a.corr_hi,
+        b.corr_hi,
+        s.wins.iter().map(|w| w.corr_lo).fold(f64::MAX, f64::min),
+        s.peak_db
+    );
+    let curve = |f: fn(&Win) -> f64| s.delta.iter().map(|w| format!("{:+.2}", f(w))).collect::<Vec<_>>().join(" ");
+    println!("    LUFS {} | oct {}", curve(|w| w.lufs), curve(|w| w.centroid_oct));
+}
+
+pub fn slug(s: &str) -> String {
+    s.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect()
+}
+
 pub fn candidates_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("presets/candidates")
 }
@@ -366,11 +601,16 @@ pub fn print(name: &str, q: &Qa, held_note: u8) {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let canon = args.iter().any(|a| a == "--canon");
+    let macros = args.iter().any(|a| a == "--macros");
     let mut paths: Vec<PathBuf> = args.iter().filter(|a| !a.starts_with("--")).map(PathBuf::from).collect();
     if paths.is_empty() {
         paths = candidates();
     }
-    let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/audits/renders/presets-fx");
+    let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join(if macros {
+        "../../docs/audits/renders/presets-macros"
+    } else {
+        "../../docs/audits/renders/presets-fx"
+    });
     std::fs::create_dir_all(&out_dir).unwrap();
     let (mut names, mut louds, mut fails) = (vec![], vec![], 0);
     for path in &paths {
@@ -381,7 +621,7 @@ fn main() {
         if canon {
             preset.save(path).unwrap();
         }
-        let r = render(&preset.patch, is_lead(&preset));
+        let r = render_preset(&preset);
         let stem = path.file_stem().unwrap().to_string_lossy().to_string();
         demo::write_wav(&out_dir.join(format!("{stem}.wav")), &r.frames).unwrap();
         let q = measure(&r);
@@ -391,6 +631,17 @@ fn main() {
         fails += v.len();
         names.push(preset.name.clone());
         louds.push(q.lufs);
+        if macros {
+            for ((k, label), sw) in preset.matrix_state().macros.iter().enumerate().zip(sweeps(&preset)) {
+                demo::write_wav(&out_dir.join(format!("{stem}-macro{}-{}.wav", k + 1, slug(label))), &sw.frames).unwrap();
+                print_sweep(&preset.name, k, label, &sw);
+                let v = sweep_violations(label, &sw);
+                if !v.is_empty() {
+                    println!("    FAIL: {}", v.join("; "));
+                }
+                fails += v.len();
+            }
+        }
     }
     if names.len() > 1 {
         let bank = bank_violations(&names, &louds);

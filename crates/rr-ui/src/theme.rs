@@ -64,6 +64,16 @@ pub const SRC_A: Color32 = Color32::from_rgb(0xff, 0xb4, 0x54);
 pub const SRC_B: Color32 = Color32::from_rgb(0x7a, 0xa7, 0xff);
 pub const SRC_E: Color32 = Color32::from_rgb(0xff, 0x7a, 0x90);
 pub const SRC_M: Color32 = Color32::from_rgb(0xc7, 0x92, 0xff);
+/// Matrix sources beyond the four above are coloured by family, the letter on the chip tells the
+/// members apart (MOTION.md 3): the amp envelopes (pale peach, next to the Filter Env's rose), the
+/// per-note sources Velocity / Keytrack / Random / Poly Aftertouch (lime), the controllers Mod
+/// Wheel / Channel Aftertouch (cyan) and the RR-BUS CV-ins (silver, the wire from another device).
+pub const SRC_AMP: Color32 = Color32::from_rgb(0xff, 0xc9, 0xb0);
+pub const SRC_NOTE: Color32 = Color32::from_rgb(0xc6, 0xe2, 0x5f);
+pub const SRC_CTRL: Color32 = Color32::from_rgb(0x4f, 0xd3, 0xe6);
+pub const SRC_BUS: Color32 = Color32::from_rgb(0xcf, 0xd8, 0xde);
+/// Every source colour, one per family.
+pub const SRC_ALL: [Color32; 8] = [SRC_A, SRC_B, SRC_E, SRC_M, SRC_AMP, SRC_NOTE, SRC_CTRL, SRC_BUS];
 
 impl Theme {
     /// Accent at alpha `a` (0..=1).
@@ -199,6 +209,46 @@ mod tests {
         }
         assert!(contrast(T.disp_caption, T.disp_top) >= 4.5);
         assert!(contrast(T.accent, T.disp_top) >= 4.5);
+    }
+
+    /// CIE76 distance between two sRGB colours.
+    fn delta_e(a: Color32, b: Color32) -> f64 {
+        fn lab(c: Color32) -> [f64; 3] {
+            let lin = |v: u8| {
+                let s = v as f64 / 255.0;
+                if s <= 0.04045 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
+            };
+            let (r, g, bl) = (lin(c.r()), lin(c.g()), lin(c.b()));
+            let x = (0.4124 * r + 0.3576 * g + 0.1805 * bl) / 0.95047;
+            let y = 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+            let z = (0.0193 * r + 0.1192 * g + 0.9505 * bl) / 1.08883;
+            let f = |t: f64| if t > 0.008856 { t.cbrt() } else { 7.787 * t + 16.0 / 116.0 };
+            [116.0 * f(y) - 16.0, 500.0 * (f(x) - f(y)), 200.0 * (f(y) - f(z))]
+        }
+        let (a, b) = (lab(a), lab(b));
+        ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+    }
+
+    /// Source colours are graphics on the well and on the displays: 3:1 at least (they measure 7+).
+    #[test]
+    fn source_colours_clear_3_to_1_on_well_and_display() {
+        for (i, c) in SRC_ALL.into_iter().enumerate() {
+            assert!(contrast(c, T.well) >= 3.0, "source family {i} on well is {:.2}:1", contrast(c, T.well));
+            assert!(contrast(c, T.disp_bottom) >= 3.0, "source family {i} on display is {:.2}:1", contrast(c, T.disp_bottom));
+        }
+    }
+
+    /// Two families must never read as the same colour on a ring, and none may pass for the
+    /// accent that marks state (the lowest pair is Mod B / Macro, 31, from the approved v2 look).
+    #[test]
+    fn source_families_are_distinguishable_and_apart_from_the_accent() {
+        for i in 0..SRC_ALL.len() {
+            assert!(delta_e(SRC_ALL[i], T.accent) >= 40.0, "family {i} is {:.1} from the accent", delta_e(SRC_ALL[i], T.accent));
+            for j in 0..i {
+                let d = delta_e(SRC_ALL[i], SRC_ALL[j]);
+                assert!(d >= 25.0, "families {i} and {j} are only {d:.1} apart");
+            }
+        }
     }
 
     #[test]

@@ -6,6 +6,7 @@
 
 use gts::dsp::{Engine, Patch};
 use gts::editor::{apply_preset, Ctl, Meters, ParamTable};
+use gts::matrix::{MatrixShared, ENC_LEN};
 use gts::params::GtsParams;
 use gts::preset::{self, Preset};
 use gts::viz::{Viz, VizWriter};
@@ -67,6 +68,9 @@ impl Ctl for MapCtl {
     fn norm(&self, id: &str, plain: f32) -> f32 {
         self.table.norm(id, plain)
     }
+    fn matrix(&self) -> Option<&MatrixShared> {
+        Some(self.table.matrix())
+    }
 }
 
 /// The FX page shots and benchmarks show the chain working: Distortion, Multiband, EQ, Dimension,
@@ -78,6 +82,32 @@ pub fn fx_on(ctl: &MapCtl, patch: &mut Patch) {
     }
     for id in ["dist_on", "mb_on", "eq_on", "dim_on", "dly_on", "rev_on"] {
         ctl.vals.borrow_mut().insert(id.to_string(), 1.0);
+    }
+}
+
+/// Eight routings on top of whatever the preset has, on varied sources and targets, and two macros
+/// turned up: the editor shots and benchmarks show rings, live dots and the MATRIX rows working.
+pub fn demo_routes(ctl: &MapCtl, patch: &mut Patch) {
+    use gts::matrix::Source::*;
+    ctl.table.matrix().edit(|m| {
+        for (s, t, a) in [
+            (Velocity, "filta_freq", 0.35),
+            (Macro1, "dist_drive", 0.5),
+            (ModB, "osca_shift", 0.25),
+            (Random, "osca_cent", 0.2),
+            (Keytrack, "filta_freq", 0.3),
+            (ModWheel, "rev_mix", 0.4),
+            (AmpEnvA, "shaper_amt", 0.3),
+            (Macro2, "dly_mix", -0.5),
+        ] {
+            if m.find(s, t).is_none() && m.slots.len() < gts::matrix::MAX_SLOTS {
+                m.slots.push(gts::matrix::Slot::new(s, t, a));
+            }
+        }
+    });
+    patch.macros = [0.6, 0.3, 0.0, 0.0];
+    for (id, v) in [("macro1", 0.6), ("macro2", 0.3)] {
+        ctl.vals.borrow_mut().insert(id.to_string(), v);
     }
 }
 
@@ -103,6 +133,10 @@ pub struct Feed {
     sr: f32,
     clock: u64,
     held: Option<u8>,
+    /// The params whose matrix the engine follows (see [`Feed::attach`]), and the version seen.
+    matrix: Option<Arc<GtsParams>>,
+    seen: u32,
+    rec: [f32; ENC_LEN],
 }
 
 impl Feed {
@@ -111,11 +145,22 @@ impl Feed {
         engine.initialize(44100.0);
         engine.set_patch(&patch);
         let (writer, viz, ring) = VizWriter::new();
-        Self { engine, params: GtsParams::default(), patch, writer, meters: Arc::new(Meters::default()), viz, ring, sr: 44100.0, clock: 0, held: None }
+        Self { engine, params: GtsParams::default(), patch, writer, meters: Arc::new(Meters::default()), viz, ring, sr: 44100.0, clock: 0, held: None, matrix: None, seen: u32::MAX, rec: [0.0; ENC_LEN] }
+    }
+
+    /// Plays through the matrix of `params` (the editor's `ParamTable::params`): a preset load or a
+    /// patch made in the editor reaches the engine at the next block, as `Gts::process` does.
+    pub fn attach(&mut self, params: Arc<GtsParams>) {
+        self.matrix = Some(params);
     }
 
     /// Renders `n` samples in blocks of up to 256 (note events on the pattern grid), publishing after each block.
     pub fn render(&mut self, mut n: usize) {
+        if let Some(p) = &self.matrix {
+            if p.matrix.poll(&mut self.seen, &mut self.rec) {
+                self.engine.set_matrix(&self.rec);
+            }
+        }
         let step_len = (STEP_S * self.sr as f64) as u64;
         let gate_len = step_len * 7 / 10;
         while n > 0 {

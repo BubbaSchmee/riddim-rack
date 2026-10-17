@@ -45,6 +45,14 @@ pub fn tween_linear(ctx: &Context, id: Id, target: bool, secs: f32) -> f32 {
     ctx.animate_bool_with_time(id, target, secs)
 }
 
+/// An animated float toward `target` (linear in time), instant under reduced motion.
+pub fn tween_value(ctx: &Context, id: Id, target: f32, secs: f32) -> f32 {
+    if reduced_motion(ctx) {
+        return target;
+    }
+    ctx.animate_value_with_time(id, target, secs)
+}
+
 // ---- page transition --------------------------------------------------------------------------
 
 /// Out phase (60 ms) then in phase (120 ms fade + 160 ms rise, 10 ms stagger per row, 40 ms cap).

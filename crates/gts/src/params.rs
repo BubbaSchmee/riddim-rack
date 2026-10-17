@@ -711,6 +711,32 @@ pub struct ReverbFxParams {
     pub mix: FloatParam,
 }
 
+/// The four macro knobs (SPEC v2 Track 5), matrix sources and host-automatable. Ids `macro1..macro4`.
+#[derive(Params)]
+pub struct MacroParams {
+    #[id = "macro1"]
+    pub m1: FloatParam,
+    #[id = "macro2"]
+    pub m2: FloatParam,
+    #[id = "macro3"]
+    pub m3: FloatParam,
+    #[id = "macro4"]
+    pub m4: FloatParam,
+}
+
+impl MacroParams {
+    pub fn values(&self) -> [f32; 4] {
+        [self.m1.value(), self.m2.value(), self.m3.value(), self.m4.value()]
+    }
+}
+
+impl Default for MacroParams {
+    fn default() -> Self {
+        let m = |k: u32| unit(format!("Macro {k}"), 0.0);
+        Self { m1: m(1), m2: m(2), m3: m(3), m4: m(4) }
+    }
+}
+
 /// FX 4.8: always on, ceiling fixed at -0.3 dBFS. Id `lim_gain`.
 #[derive(Params)]
 pub struct LimiterFxParams {
@@ -931,6 +957,10 @@ pub struct GtsParams {
     #[nested(id_prefix = "lim", group = "Limiter")]
     pub lim: LimiterFxParams,
 
+    /// Macro 1..4 (SPEC v2 Track 5). Ids `macro1..macro4`.
+    #[nested(group = "Macros")]
+    pub macros: MacroParams,
+
     /// RR-BUS CV-in slots: target and bipolar amount. Ids `cv{1,2,3}_{target,amount}`.
     #[id = "cv1_target"]
     pub cv1_target: EnumParam<CvTarget>,
@@ -963,6 +993,10 @@ pub struct GtsParams {
     /// instant chrome transitions. Host state, not a param; off by default (no OS query).
     #[persist = "reduced_motion"]
     pub reduced_motion: AtomicBool,
+    /// Modulation matrix slots and macro labels (SPEC v2 Track 5): project state, edited by the
+    /// GUI, read lock-free by the audio thread (see `crate::matrix`).
+    #[persist = "matrix"]
+    pub matrix: crate::matrix::MatrixShared,
 }
 
 impl GtsParams {
@@ -1072,6 +1106,7 @@ impl Default for GtsParams {
             dly: DelayFxParams::default(),
             rev: ReverbFxParams::default(),
             lim: LimiterFxParams::default(),
+            macros: MacroParams::default(),
 
             cv1_target: EnumParam::new("CV 1 Target", CvTarget::Off),
             cv1_amount: bipolar("CV 1 Amount".into(), 0.0),
@@ -1084,6 +1119,7 @@ impl Default for GtsParams {
             oversampling: AtomicUsize::new(2),
             show_values: AtomicBool::new(false),
             reduced_motion: AtomicBool::new(false),
+            matrix: Default::default(),
         }
 
     }

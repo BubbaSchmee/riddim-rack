@@ -1628,6 +1628,7 @@ dependencies = [
 name = "gts"
 version = "0.1.0"
 dependencies = [
+ "assert_no_alloc",
  "baseview",
  "eframe",
  "egui-baseview",

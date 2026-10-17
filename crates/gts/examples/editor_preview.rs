@@ -11,10 +11,17 @@
 //!   at=x,y  pointer held at window px x,y (hover state; writes %TEMP%gts-hover.png)
 //!   2d      hero in 2D (writes preview-gts-editor-2d.png)
 //!   table=saw|vowel   Osc A on Saw Stack or Vowel (writes preview-hero-saw-stack.png / preview-hero-vowel.png)
+//!   matrix  the MATRIX page (writes preview-gts-editor-matrix.png)
+//!   routes  eight demo routings on top of the preset (rings, live dots, the MATRIX rows)
+//!   drag=<Source>   a patch drag of that source in progress ("Mod B", "Macro 1", ...); pair with at=x,y
+//!   more    the MORE popover open
+//!   click   left-click at the at=x,y pointer (opens a popup for the shot)
+//!   out=<path>   write the PNG there instead of docs/design
+//!   menu    right-click at the at=x,y pointer (the knob menu of a routed knob; needs routes)
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, LiveView, WINDOW};
+use gts::editor::{draw, BusView, LiveView, Page, WINDOW};
 
 #[path = "support/demo.rs"]
 mod demo;
@@ -30,6 +37,9 @@ struct App {
     bus: BusView,
     name: &'static str,
     pointer: Option<egui::Pos2>,
+    drag: Option<gts::matrix::Source>,
+    menu: bool,
+    click: bool,
 }
 
 impl eframe::App for App {
@@ -37,6 +47,10 @@ impl eframe::App for App {
     fn raw_input_hook(&mut self, _ctx: &Context, raw: &mut egui::RawInput) {
         if let Some(p) = self.pointer {
             raw.events.push(egui::Event::PointerMoved(p));
+            if (self.menu || self.click) && (self.frame == 12 || self.frame == 13) {
+                let button = if self.menu { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
+                raw.events.push(egui::Event::PointerButton { pos: p, button, pressed: self.frame == 12, modifiers: Default::default() });
+            }
         }
     }
 
@@ -53,6 +67,9 @@ impl eframe::App for App {
         let dt = if self.keep_open { ctx.input(|i| i.stable_dt).clamp(0.0, 0.05) } else { 1.0 / 60.0 };
         self.feed.render((dt * self.feed.sr()) as usize);
         self.live.peaks = self.feed.take_peaks();
+        if let Some(src) = self.drag {
+            gts::editor::patching::debug_hold_drag(ctx, src);
+        }
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
             draw(ui, &self.ctl, &self.tables, &mut self.live, &mut self.bus);
         });
@@ -73,7 +90,8 @@ impl eframe::App for App {
             })
         });
         if let Some(img) = shot {
-            let path = if self.pointer.is_some() { std::env::temp_dir().join("gts-hover.png") } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design").join(self.name) };
+            let out = std::env::args().find_map(|a| a.strip_prefix("out=").map(std::path::PathBuf::from));
+            let path = if let Some(o) = out { o } else if self.pointer.is_some() { std::env::temp_dir().join("gts-hover.png") } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/design").join(self.name) };
             let file = std::io::BufWriter::new(std::fs::File::create(&path).expect("create png"));
             let mut enc = png::Encoder::new(file, img.size[0] as u32, img.size[1] as u32);
             enc.set_color(png::ColorType::Rgba);
@@ -102,6 +120,9 @@ fn main() -> eframe::Result {
             ctl.vals.borrow_mut().insert(k.to_string(), v);
         }
         let mut patch = preset.patch;
+        if has("routes") || has("matrix") {
+            demo::demo_routes(&ctl, &mut patch);
+        }
         // table=saw|vowel: Osc A on that table, in the engine's patch and on the knob.
         let tab = std::env::args().find_map(|a| a.strip_prefix("table=").map(str::to_string)).and_then(|t| match t.as_str() {
             "saw" => Some((gts::params::Table::SawStack, 1, "preview-hero-saw-stack.png")),
@@ -116,6 +137,7 @@ fn main() -> eframe::Result {
             demo::fx_on(&ctl, &mut patch); // the FX shot shows the modules working
         }
         let mut feed = demo::Feed::new(patch);
+        feed.attach(ctl.table.params().clone());
         // Pre-roll into the pattern: a note was just struck when the shot is taken.
         feed.render((0.92 * feed.sr()) as usize);
         let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
@@ -128,7 +150,8 @@ fn main() -> eframe::Result {
             bound: [s("VSS 1 · Step Gate"), s("GTS 2 · Mod B"), s("GTS 3 · Mod A")],
             activity: [0.92, 0.35, 0.0],
             oversampling: 2,
-            fx_page: has("fx"),
+            page: if has("matrix") { Page::Matrix } else if has("fx") { Page::Fx } else { Page::Synth },
+            more_open: has("more"),
             preset: Some(pi),
             preset_dirty: has("dirty"),
             gr_db: 2.4,
@@ -136,8 +159,9 @@ fn main() -> eframe::Result {
             show_values: has("values"),
             ..Default::default()
         };
-        let name = if let Some((_, _, n)) = tab { n } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
+        let name = if let Some((_, _, n)) = tab { n } else if has("matrix") { "preview-gts-editor-matrix.png" } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
         let pointer = std::env::args().find_map(|a| a.strip_prefix("at=").and_then(|v| v.split_once(',').map(|(x, y)| egui::pos2(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0)))));
-        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer }))
+        let drag = std::env::args().find_map(|a| a.strip_prefix("drag=").and_then(gts::matrix::Source::from_name));
+        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer, drag, menu: has("menu"), click: has("click") }))
     }))
 }

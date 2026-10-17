@@ -3,15 +3,169 @@
   "product": "GTS",
   "name": "Growl Hound",
   "author": "Riddim Rack",
-  "description": "Riddim growl: Square Morph one octave above a clean sine sub, 3-voice narrow unison, a one-shot Mod A (1/8, Decay) snapping the Index from narrow pulse back to square on every note, Saturate (2x oversampled at the default quality) into a note-tied Comb- that rings on every third harmonic, then an LP12 the filter envelope opens on the attack. Mod B slowly drifts Motion so repeated notes are never identical. Play: 1/8 and 1/16 call-and-response around F1-C2, mono legato; short notes bark, held notes settle into the metal comb tone. Tweak: Mod A Index amount for bite, Filter A Freq for the metal colour (it follows the note), Shaper Amt for dirt, Filter B Freq for darkness. FX: Tube drive +9 dB with a Post low-pass at 7 kHz for a hot, rounded bark, multiband squash at 60 % depth and fast time so every Comb ring speaks, an EQ low cut at 25 Hz and a -3 dB dip at 400 Hz, Dimension (size 0.4, wet low cut 150 Hz) to widen the growl above a mono sub, and an 8 % short plate.",
+  "description": "Riddim growl: Square Morph one octave above a clean sine sub, 3-voice narrow unison, a one-shot Mod A (1/8, Decay) snapping the Index from narrow pulse back to square on every note, Saturate (2x oversampled at the default quality) into a note-tied Comb- that rings on every third harmonic, then an LP12 the filter envelope opens on the attack. Mod B slowly drifts Motion so repeated notes are never identical. Play: 1/8 and 1/16 call-and-response around F1-C2, mono legato; short notes bark, held notes settle into the metal comb tone. Tweak: Mod A Index amount for bite, Filter A Freq for the metal colour (it follows the note), Shaper Amt for dirt, Filter B Freq for darkness. FX: Tube drive +9 dB with a Post low-pass at 7 kHz for a hot, rounded bark, multiband squash at 60 % depth and fast time so every Comb ring speaks, an EQ low cut at 25 Hz and a -3 dB dip at 400 Hz, Dimension (size 0.4, wet low cut 150 Hz) to widen the growl above a mono sub, and an 8 % short plate. Harder hits open Filter B and every hit lands on a slightly different Index and comb. Macros: Growl sweeps the comb and the bark, Dirt pushes the saturation, Width opens the top above a mono sub and Space adds plate.",
   "category": "Bass/growl",
   "tags": [
     "growl",
     "riddim",
     "metallic"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Growl"
+    },
+    {
+      "label": "Dirt"
+    },
+    {
+      "label": "Width"
+    },
+    {
+      "label": "Space"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.08900000154972076,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filta_res"
+    },
+    {
+      "amount": 0.27559998631477356,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.07159999758005142,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "shaper_amt"
+    },
+    {
+      "amount": 0.33329999446868896,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.09220000356435776,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_filter_freq"
+    },
+    {
+      "amount": 0.05559999868273735,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_out"
+    },
+    {
+      "amount": 0.10000000149011612,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "eq_low_gain"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dim_mix"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dim_size"
+    },
+    {
+      "amount": 0.23999999463558197,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "osca_detune"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "spread"
+    },
+    {
+      "amount": -0.0333000011742115,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "volume"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "rev_mix"
+    },
+    {
+      "amount": 0.17409999668598175,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "rev_decay"
+    },
+    {
+      "amount": 0.0333000011742115,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "volume"
+    },
+    {
+      "amount": 0.09629999846220016,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.047200001776218414,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.010499999858438969,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "filta_freq"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 7,
@@ -73,12 +227,16 @@
     "filta_res": 0.6,
     "filta_type": "Comb-",
     "filtb_env": true,
-    "filtb_freq": 600,
+    "filtb_freq": 264.1838,
     "filtb_kbd": 0.5,
     "filtb_res": 0.2,
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.6,
     "mb_down_hi": -12,
     "mb_down_lo": -12,

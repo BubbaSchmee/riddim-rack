@@ -3,15 +3,141 @@
   "product": "GTS",
   "name": "Wobble Shot",
   "author": "Riddim Rack",
-  "description": "The lineage wobble: Square Morph with a one-shot Mod A (1/8, Decay) kicking the Index on every hit, light Saturate, then a resonant Filter A LP12 whose cutoff Mod B wobbles with a sine synced to 1/8T (locked to the host grid), over a clean sine sub at the played pitch. Play: 1/8 riddim patterns around F1-A#1 with the transport running; the triplet wobble runs against the straight notes, so every hit lands on a different part of the wobble. Tweak: Mod B Division for the wobble rate, Mod B Cutoff for depth, Filter A Freq and Res for the squelch, Mod A Index amount for the hit. FX: Overdrive +8 dB with a Post low-pass at 8 kHz so the wobble's top edge bites, multiband squash at 80 % with fast time, an EQ low cut at 25 Hz and -3 dB at 500 Hz, Dimension (size 0.5, wet low cut 150 Hz) and a 6 % short plate.",
+  "description": "The lineage wobble: Square Morph with a one-shot Mod A (1/8, Decay) kicking the Index on every hit, light Saturate, then a resonant Filter A LP12 whose cutoff Mod B wobbles with a sine synced to 1/8T (locked to the host grid), over a clean sine sub at the played pitch. Play: 1/8 riddim patterns around F1-A#1 with the transport running; the triplet wobble runs against the straight notes, so every hit lands on a different part of the wobble. Tweak: Mod B Division for the wobble rate, Mod B Cutoff for depth, Filter A Freq and Res for the squelch, Mod A Index amount for the hit. FX: Overdrive +8 dB with a Post low-pass at 8 kHz so the wobble's top edge bites, multiband squash at 80 % with fast time, an EQ low cut at 25 Hz and -3 dB at 500 Hz, Dimension (size 0.5, wet low cut 150 Hz) and a 6 % short plate. Harder hits and higher notes open the filter, and every hit varies slightly. Macros: Depth sets how far the wobble opens, Squelch pushes the resonance, Bite adds edge and drive and Width widens the top.",
   "category": "Bass/wobble",
   "tags": [
     "wobble",
     "riddim",
     "lfo"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Depth"
+    },
+    {
+      "label": "Squelch"
+    },
+    {
+      "label": "Bite"
+    },
+    {
+      "label": "Width"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.016699999570846558,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "volume"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_res"
+    },
+    {
+      "amount": -0.04280000180006027,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.17499999701976776,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "moda_index"
+    },
+    {
+      "amount": 0.4724000096321106,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.1875,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "shaper_amt"
+    },
+    {
+      "amount": 0.05609999969601631,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_filter_freq"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dim_mix"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dim_size"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "spread"
+    },
+    {
+      "amount": 0.016699999570846558,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "volume"
+    },
+    {
+      "amount": 0.07329999655485153,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.06909999996423721,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Keytrack",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.039400000125169754,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "osca_index"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 7,
@@ -68,7 +194,7 @@
     "fenv_rel": 0.1,
     "fenv_sus": 0.2,
     "filta_env": false,
-    "filta_freq": 700,
+    "filta_freq": 383.1932,
     "filta_kbd": 0.5,
     "filta_res": 0.45,
     "filta_type": "LP12",
@@ -79,6 +205,10 @@
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.8,
     "mb_down_hi": -12,
     "mb_down_lo": -12,

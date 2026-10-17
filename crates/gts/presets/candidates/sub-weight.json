@@ -3,15 +3,127 @@
   "product": "GTS",
   "name": "Sub Weight",
   "author": "Riddim Rack",
-  "description": "Clean mono sine sub at the played pitch under a soft two-harmonic mid one octave up (Harmonic Rise through an LP12 with a short envelope pluck). Phase reset on every note, mono below 120 Hz. Play: mono legato lines around F0-C2, on its own for halftime/dub or as the low layer under a growl. Tweak: Sub Level for weight, Osc A Index and Vol for how much mid reads on small speakers, Filter Env Amt for the attack. FX: a touch of Tube (+3 dB, 40 % mix) with a Post low-pass at 400 Hz for warmth that still reads on small speakers, gentle multiband glue (30 % depth, slow time), and an EQ low cut at 25 Hz against infrasonic rumble. No width or reverb: the sub stays mono and dry.",
+  "description": "Clean mono sine sub at the played pitch under a soft two-harmonic mid one octave up (Harmonic Rise through an LP12 with a short envelope pluck). Phase reset on every note, mono below 120 Hz. Play: mono legato lines around F0-C2, on its own for halftime/dub or as the low layer under a growl. Tweak: Sub Level for weight, Osc A Index and Vol for how much mid reads on small speakers, Filter Env Amt for the attack. FX: a touch of Tube (+3 dB, 40 % mix) with a Post low-pass at 400 Hz for warmth that still reads on small speakers, gentle multiband glue (30 % depth, slow time), and an EQ low cut at 25 Hz against infrasonic rumble. No width or reverb: the sub stays mono and dry. Harder hits open the mids a little. Macros: Weight swells the low end, Warmth adds Tube harmonics, Bite brings the mids out for small speakers and Wub rocks the mids on a quarter-note wobble.",
   "category": "Bass/sub",
   "tags": [
     "sub",
     "clean",
     "mono"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Weight"
+    },
+    {
+      "label": "Warmth"
+    },
+    {
+      "label": "Bite"
+    },
+    {
+      "label": "Wub"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.16670000553131104,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "eq_low_gain"
+    },
+    {
+      "amount": -0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_vol"
+    },
+    {
+      "amount": 0.41670000553131104,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.6000000238418579,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_mix"
+    },
+    {
+      "amount": 0.24480000138282776,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "dist_filter_freq"
+    },
+    {
+      "amount": 0.3937000036239624,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "osca_vol"
+    },
+    {
+      "amount": 0.17419999837875366,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_freq"
+    },
+    {
+      "amount": -0.0333000011742115,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "sub_level"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "osca_vol"
+    },
+    {
+      "amount": 0.35429999232292175,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.30000001192092896,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "filta_res"
+    },
+    {
+      "amount": 0.08919999748468399,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filta_freq"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 7,
@@ -68,7 +180,7 @@
     "fenv_rel": 0.1,
     "fenv_sus": 0,
     "filta_env": true,
-    "filta_freq": 500,
+    "filta_freq": 230.35056,
     "filta_kbd": 0.5,
     "filta_res": 0.1,
     "filta_type": "LP12",
@@ -79,6 +191,10 @@
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.3,
     "mb_down_hi": -12,
     "mb_down_lo": -12,
@@ -107,13 +223,13 @@
     "moda_target": "Both",
     "modb_curve": "Sine",
     "modb_cutoff": 0,
-    "modb_div": "1/8",
+    "modb_div": "1/4",
     "modb_moda": 0,
     "modb_motion": 0,
     "modb_oneshot": false,
     "modb_rate": 4,
-    "modb_sync": false,
-    "modb_target": "Both",
+    "modb_sync": true,
+    "modb_target": "A",
     "modb_vol": 0,
     "mono_xover": 120,
     "osca_att": 0.002,

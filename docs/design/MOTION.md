@@ -1,6 +1,6 @@
 # GTS visual and motion spec (v2 panel)
 
-Status: built and approved; chip drag-and-drop patching, the Macro 1 chip, OS-default Reduced motion and 15 Hz data snapshots were deferred; the hero stack also carries a translucent per-frame surface fill (0.20 at the front to 0.10 at the back, a stronger lit-frame wash), measured at 0.29 ms GPU. Companion to `DESIGN.md` (the static contract) and
+Status: built and approved; chip drag-and-drop patching and the Macro chips came with the modulation matrix (SPEC v2 Track 5, sections 2.1, 2.3, 5.2, 5.6, 5.11 to 5.14 below); OS-default Reduced motion and 15 Hz data snapshots are still deferred; the hero stack also carries a translucent per-frame surface fill (0.20 at the front to 0.10 at the back, a stronger lit-frame wash), measured at 0.29 ms GPU. Companion to `DESIGN.md` (the static contract) and
 `motion-feasibility.md` (what the stack can carry). The running reference is
 `prototype-v2.html`; the stills are `prototype-v2-1.png` to `prototype-v2-5.png`.
 
@@ -63,14 +63,15 @@ Filter Env, Shaper, Voice, Wheel, Velocity, header Volume and Spread, FX EQ), **
 |---|---|---|---|
 | Nameplate | 44, 16 | 156 x 56 | GTS wordmark, descriptor, note LED + note name (lit while the gate is open) |
 | Preset bar | 208, 16 | 232 x 56 | prev arrow, category + name (name gets a dot while edited), next arrow; click name opens the list |
-| Page switch | 448, 16 | 132 x 26 | SYNTH / FX segmented, sliding lit segment |
+| Page switch | 448, 16 | 132 x 26 | SYNTH / FX / MATRIX segmented, sliding lit segment |
 | Quality | 448, 48 | 54 x 24 | 1x / 2x / 4x combo |
 | PATCH chip | 508, 48 | 72 x 24 | three activity LEDs; opens the PATCH popover |
 | Scope / spectrum | 588, 16 | 184 x 56 | click to flip; tabs SCOPE / SPEC |
 | Meter | 780, 16 | 14 x 56 | stereo, peak hold |
 | Output | 802, 16 | 154 x 56 | Volume, Spread (S knobs) |
-| **Hero** | 44, 80 | **568 x 232** | wavetable, A / B tabs, table name, index readout, 2D / 3D |
-| Sources strip | 44, 320 | 568 x 20 | chips Mod A, Mod B, Env with a live activity bar (Macro 1 is hidden until macros exist; display-only, hover lights targets) |
+| **Hero** | 44, 80 | **568 x 208** | wavetable, A / B tabs, table name, index readout, 2D / 3D. 208 is the 25 % of the window height the acceptance table asks for: the strip below took the 24 px the hero gave up (it was 232) |
+| Sources strip, row 1 | 44, 296 | 568 x 20 | SOURCES: chips Mod A, Mod B, Filt Env, Amp A, Amp B with a live activity bar; draggable (5.6) |
+| Sources strip, row 2 | 44, 320 | 568 x 20 | MACROS: four macro pills (handle, editable label, knob) and the MORE chip (nine more sources, 5.12) |
 | Mod A | 620, 80 | 336 x 126 | Curve combo; Sync, Div, 1-shot, Target; shape display; Rate, Pitch, Index, Shift |
 | Mod B | 620, 214 | 336 x 126 | same strip; shape display; Rate, Motion, Vol, Cutoff, Mod A |
 | Osc A | 44, 348 | 404 x 222 | Table combo + On; Oct Semi Cent Index(L) Motion Shift Vol; Att Dec Sus Rel Curve + amp display; Unison Detune D.Crv Blend Width Rand + Reset |
@@ -85,8 +86,8 @@ Filter Env, Shaper, Voice, Wheel, Velocity, header Volume and Spread, FX EQ), **
 | Velocity | 696, 688 | 260 x 90 | Vol A, Vol B, F.Env, Att, Shift, Mod |
 | Help bar | 44, 792 | 912 x 28 | hovered control: name, value, live value, one-line description; right side: tempo, pattern, note |
 
-Groups end at y 778. The hero's 568 px is 56.8 % of the window width, its 232 px is 27.9 % of
-the height.
+Groups end at y 778. The hero's 568 px is 56.8 % of the window width, its 208 px is 25.0 % of
+the height (the layout test asserts both minimums).
 
 Where things moved: **PATCH** left the header band and became a popover (312 x 146) anchored
 under the PATCH chip (section 5.9); its three rows (source, target, amount, activity LED) are
@@ -106,6 +107,20 @@ band's height and more.
 A module that is off dims its body to 45 % but stays editable (as in DESIGN 6.1a). Both pages
 share the header, so the scope and meter keep moving while you tweak FX.
 
+### 2.3 MATRIX page (third tab, body y 80 to 784)
+
+The page switch is SYNTH | FX | MATRIX (segment widths follow their captions, 132 px in all).
+
+| Group | x, y | w x h | Contents |
+|---|---|---|---|
+| Built-in routes | 44, 80 | 912 x 226 | the 21 fixed-route params as rows in three columns of seven: source glyph + name, target text (the CV rows show the slot's current target), an amount bar bound to the route param (same gesture as its knob). A row whose gate is closed dims to 45 % but stays editable |
+| Routings | 44, 314 | 912 x 462 | the 32 slots in two columns of 16: number (click = bypass, the lit swatch is the source colour), source combo, polarity (BI / UNI), amount bar (-100 to +100 %), target picker, remove. The first empty row has a plus and adds a routing once it has a source and a target (+50 %); the rest are faint |
+
+The target picker is a 360 px list grouped by section (Output, Osc A, Osc B, Sub, Mod A, Mod B,
+Filter A, Filter B, Filter Env, Shaper, Voice, Wheel, Velocity, Distortion, Multiband, EQ, Chorus,
+Dimension, Delay, Reverb, Limiter), virtualised, with the current target in accent. A change that
+would make two slots the same source and target is refused with a help-bar line.
+
 ## 3. Tokens
 
 Colour (all existing tokens unchanged; new rows marked +).
@@ -121,11 +136,20 @@ Colour (all existing tokens unchanged; new rows marked +).
 | + Source A | `src_a` | #ffb454 | Mod A: its ring, shape display, ruler range, chip |
 | + Source B | `src_b` | #7aa7ff | Mod B |
 | + Source E | `src_e` | #ff7a90 | Filter Env (also its display and the cutoff dot while Env is on) |
-| + Source M | `src_m` | #c792ff | Macro 1 (and later macros) |
+| + Source M | `src_m` | #c792ff | Macros 1 to 4 |
+| + Source Amp | `src_amp` | #ffc9b0 | Amp Env A, Amp Env B |
+| + Source Note | `src_note` | #c6e25f | Velocity, Keytrack, Random, Poly Aftertouch |
+| + Source Ctrl | `src_ctrl` | #4fd3e6 | Mod Wheel, Channel Aftertouch |
+| + Source Bus | `src_bus` | #cfd8de | Bus CV 1 to 3 |
 
 Colour is reserved by meaning: mint is state of the instrument, a source colour is "this value
-is being moved by that source". No other hue exists on the panel. Sources are also coded by a
-glyph (A, B, E, M) on the chip so colour is never the only channel.
+is being moved by that source". No other hue exists on the panel. Sources beyond the first four are
+coloured by **family** and told apart by the glyph on the chip (so colour is never the only channel):
+A, B, E (Filter Env), a / b (amp envelopes), V K R P (velocity, keytrack, random, poly aftertouch),
+W C (wheel, channel aftertouch), 1 to 4 (macros, violet), 1 to 3 (Bus CV, silver). Every family
+colour is at least 10:1 on the well and 11:1 on the display; no two families are closer than
+Delta E 29 (CIE76; the approved blue and violet are 31 apart) and none is closer than 45 to the
+accent. `rr-ui::theme` tests enforce 3:1 and 25 / 40.
 
 Duration tokens (all time-based, never frame counts): `t_micro` 100 ms (hover, press, glow),
 `t_state` 180 ms (toggles, segments, dim, chevron), `t_panel` 260 ms (page, popover). Easing:
@@ -172,12 +196,14 @@ Group B: chrome and interaction, triggered, eased.
 | Menu / combo list | close | 90 ms | ease-in | |
 | Combo chevron | open | 180 ms rotate 180 degrees | ease-out | open state |
 | 2D / 3D | click | smoother tau 75 ms (about 220 ms to settle) | exp smoother | frames collapse into the single live frame and back |
-| Page SYNTH / FX | click | out 60 ms (fade, up 4 px) then in 120 ms fade + 160 ms rise of 8 px, 10 ms stagger per row (rows by y / 130, capped at 40 ms); total at most 260 ms, first new content at 60 ms | ease-in out, ease-out in | content swapped, order of reading preserved |
+| Page SYNTH / FX / MATRIX | click | out 60 ms (fade, up 4 px) then in 120 ms fade + 160 ms rise of 8 px, 10 ms stagger per row (rows by y / 130, capped at 40 ms); total at most 260 ms, first new content at 60 ms | ease-in out, ease-out in | content swapped, order of reading preserved |
 | PATCH popover | chip click | in 150 ms (fade, 6 px drop, scale 0.985 to 1), out 90 ms | ease-out / ease-in | a layer above the panel |
 | Preset load | prev, next, list | continuous parameters glide, tau 70 ms (about 250 ms to settle); switches and enums snap; the edited dot fades in 180 ms | exp smoother | the whole patch moves to the new one, rings re-form |
 | Module dim | On toggled | 180 ms to 45 % | ease-out | module bypassed |
 | Chip hover | pointer on a source chip | 140 ms: its targets get a 3 px ring, every other knob drops to 50 % | ease-out | what this source drives |
-| Patch drag | drag a chip | target rings 1.5 px dashed, offset pulses 3 to 5 px over 1.1 s; hovered target solid + glow + live preview ring | ease-in-out loop | where it can go, and what it will do |
+| Patch drag | drag a chip or macro handle | target rings 1.5 px dashed (16 chords), offset pulses 3 to 5 px over 1.1 s; hovered target solid + glow + preview ring at +50 %; every knob that is not a target drops to 50 % in 140 ms; a ghost of the chip rides 34 px above the pointer | cosine pulse | where it can go, and what it will do |
+| Patch drag onto a tab | the dragged chip rests on SYNTH or FX | the tab fills over 400 ms, then the page switches (the drag goes on) | linear | FX knobs can take a source dragged from the SYNTH strip |
+| Ring band | pointer on a ring, drag | that ring draws 3 px at 95 % while it is under the pointer or dragged | none | this is the depth handle |
 
 Reduced motion: Group B durations become 0 (instant state), sway, parallax, glow pulse, page and
 popover motion are off; Group A keeps running because it is the instrument's data, but display
@@ -186,7 +212,7 @@ refresh drops to 15 Hz snapshots. The setting defaults from the OS (Windows
 
 ## 5. Components
 
-### 5.1 Hero display (568 x 232)
+### 5.1 Hero display (568 x 208)
 
 Glass as DESIGN 3.7 (radius 8 here), fogged 70 px at the top and 38 px at the bottom so overlay
 text stays legible. Overlays: A / B tabs, table name (Barlow SemiBold 17), INDEX caption, live
@@ -235,8 +261,19 @@ the room). Per active source on that knob:
 3. live dot: 2.3 px core in the source colour with a 1 px dark outline, plus a 5 px glow sprite
    (additive, 26 %).
 
-Two sources on one knob (Filter Freq: Env + Mod B) share the ring; the dots are told apart by
-colour. A ring is shown only while `|amount| > 0.004` and its routing applies (Osc B rings
+Sources on one knob stack as **concentric rings**, innermost first, 2.2 px apart, at most four (a
+fifth source is still in the knob menu). Each ring is one source: bipolar slots swing both ways
+around the base, unipolar ones run one way (up for a positive amount); the built-in routes keep the
+unit-aware spans above (octaves, Index steps, semitones), and the wheel, velocity-to-shift and
+Bus CV routes get spans of their own. A bypassed slot draws at 20 %; a zero-depth routing stays as a 3
+degree tick at the base so it can be grabbed again. The live arc and dot ride the innermost ring in
+the colour of the source with the widest span.
+
+**Depth editing.** Pressing on a ring band (the 2.2 px annulus around its arc, the outer one 1.5 px
+wider) and dragging vertically edits that source's amount instead of the knob: 100 px = the full
+-1 to +1 of a slot (200 px = the full range of a built-in route's param, one host gesture per drag),
+Shift = 1/10, double-click = 0. The pointer on a band shows the resize cursor, the thick ring and a
+help-bar line. A press anywhere else on the knob drags the value as before. A ring is shown only while `|amount| > 0.004` and its routing applies (Osc B rings
 vanish when Osc B is off or the target excludes it; Filter B Freq's Env ring needs Filter B Env
 on). Amount knobs themselves (Mod A Index, Filter Env Amt, ...) change the ring range live.
 
@@ -272,13 +309,22 @@ audio-side ring and atomics only.
 ### 5.6 Source chips
 
 20 px high pill, `inset` fill, 1 px stroke of the source colour at 35 % (80 % on hover), glyph
-disc 14 px in the source colour with a dark letter, name in 11 px caps, 22 x 4 px activity bar.
-Hover lights targets (section 4). Drag: a ghost of the chip follows the pointer; every assignable
-knob gets the dashed target ring; the knob under the pointer shows a solid ring, a glow, and a
-live preview ring at 50 % amount; the help bar reads "Patch Mod A to Filter A Res". Release
-commits (a user-added slot, until the matrix engine of SPEC v2 Track 2 exists this is a prototype
-affordance only), leaving a target highlights nothing and cancels. Right-click a knob removes the
-rings you added.
+disc 14 px in the source colour with a dark letter, name in 11 px caps, 22 x 4 px activity bar
+(Mod A, Mod B, Filter Env, Amp A, Amp B; none on the MORE tiles, which show a route count). Hover lights
+the knobs the source moves now (its slots and its built-in routes with a non-zero amount) and
+drops the rest to 50 % (section 4).
+
+**Drag to patch** (SPEC v2 Track 5). The chip, or a macro's disc handle, is a drag source: a ghost
+of the chip follows the pointer; every matrix target (every continuous knob except the macros,
+the RR-BUS amounts and Poly) gets the dashed target ring, the rest dims; the knob under the pointer
+shows a solid ring, a glow and a preview ring at +50 %; the help bar reads "PATCH  Mod B > Filter A
+Res". **Release over a knob creates the routing at +50 %** in the source's natural polarity (nothing
+happens on hover); the same source dropped on a knob that already has it edits that slot (back to
++50 %) or, where the pair is a built-in route (Mod A on Osc Index, Wheel on Filter Freq, Filter Env
+on Filter Freq, Velocity on Osc Vol, Bus CV on its target, ...), sets that route's knob through the host
+as one gesture; a different source adds a slot with its own ring. Esc, or a release anywhere else,
+cancels; a full matrix (32) says so in the help bar. Resting the dragged chip on the FX tab for 400
+ms switches page without ending the drag.
 
 ### 5.7 Value popup
 
@@ -305,6 +351,35 @@ combo, the hero, the scope or a chip shows `NAME` (11 px caps), value (12 px mon
 `> live` value in the source colour when modulated, and a one-line description (12 px Barlow
 `muted`). After a preset load it shows the preset's first sentence for 4 s. This replaces
 floating tooltips: nothing ever covers another control.
+
+### 5.11 Macro pill
+
+20 x 100 px pill in the strip's second row: the 14 px violet disc handle with the macro number (drag it
+to patch), the label (11 px caps, 14 characters at most, cut with an ellipsis; **double-click to
+rename in place**, Enter commits, Esc cancels, empty restores "Macro n"; the label is saved with the
+project and the preset) and an 18 px knob (the `macroN` param: vertical drag, Shift fine, double-click
+= 0, wheel). While the pointer is on the knob the label shows its value. The strip's second row
+begins at the same x as the first row's chips.
+
+### 5.12 MORE popover
+
+The MORE chip (right end of row 2) lists up to three dots in the colours of the hidden families that
+have routings. It opens a 3 x 3 grid of chips (Velocity, Keytrack, Random, Poly AT, Wheel, Chan AT,
+Bus 1 to 3, each with its routing count) in a layer above the strip: 150 ms fade, 6 px rise, Esc or a
+click elsewhere closes, picking a chip up for a drag closes it so the knobs show.
+
+### 5.13 Knob menu (right-click on a modulated knob)
+
+A 280 px layer at the pointer. Per routing: the source (disc, name, amount) and its buttons: **Bipolar /
+Unipolar** (shows the current mode), **Invert** (negates the amount), **Bypass** (lit while bypassed),
+**Remove**; a built-in route offers Invert (where its range goes negative) and Remove (its knob to 0).
+**Remove all modulation** at the bottom takes the slots and zeroes the built-in routes of that knob.
+Toggles keep the menu open; Remove closes it when it was the last routing; Esc or a click outside closes.
+
+### 5.14 Help bar notices
+
+A line such as "The matrix is full" shows for 3 s over whatever is hovered, in the help bar's name /
+value slots under the name MATRIX.
 
 ## 6. Depth, shadow and glow as egui steps
 
@@ -344,10 +419,12 @@ editor build closure.
 | Knob | Vertical drag, 200 px = full range, applied per event so pressing or releasing Shift mid-drag never jumps. Shift = 1/10. Double-click = default. Wheel = 2 % (0.2 % with Shift). Arrow keys = 5 % (0.5 %), Home = default. Hover, drag and focus show the value. Gesture contract is unchanged (`begin_set_parameter` on drag start, set on change, end on release; a reset is begin / set / end in one frame). The popup and arc read the local drag value the same frame, not the host round trip |
 | Toggle, combo | As DESIGN 4; Space / Enter activate; focus ring 1.5 px `accent@0.55` |
 | Hero | Hover = depth parallax; drag horizontally = Index; click 2D / 3D; A / B tabs; double-click = reset Index |
-| Source chip | Hover = highlight targets; drag onto a knob = patch with live preview; release elsewhere = cancel |
+| Source chip, macro handle | Hover = highlight targets; drag onto a knob = patch with live preview, release creates at +50 %; release elsewhere or Esc = cancel |
+| Ring band | Drag vertically = that source's depth (Shift = 1/10), double-click = 0 |
+| Modulated knob | Right-click = knob menu (5.13) |
 | Scope | Click flips scope and spectrum |
 | Preset | Arrows wrap; list click loads; edit marks the name with a dot |
-| Page | Click or the segmented control; editing state and scroll are not lost |
+| Page | Click or the segmented control (SYNTH, FX, MATRIX); editing state and scroll are not lost |
 | Esc | closes menus and the PATCH popover |
 
 ## 8. Plumbing the plugin needs (what feeds the live pixels)
@@ -375,6 +452,8 @@ lock-free, none allocate, reader is the GUI thread:
   range arc at 50 % alpha over the well is about 3.4 and is a secondary cue; the live arc and
   dot carry the meaning at above 7. The old display hint colour (#6c777c, 4.41) was raised to
   #7b868b. New unit tests in `rr-ui::theme` enforce 4.5 for text and 3 for graphics.
+* The four new source families measure on the well 12.3 (amp), 12.4 (note), 10.2 (ctrl), 12.5 (bus);
+  on the display 13.7, 13.9, 11.4, 14.0.
 * Colour is never the only channel: sources have letters, patch targets have a dashed ring,
   lit states have a label change, the playing frame has a plane and a ruler marker.
 * Minimum text 11 px; smallest targets: toggles and combos 24 px high, S knob cells 40 x 48,
@@ -405,6 +484,12 @@ Hard caps: 98.6k vertices (today), 4.0 ms mean and 8.0 ms p99 CPU, 1.0 ms GPU. H
 16.7 ms frame stays above 8 ms at p99. The FX page has fewer knobs (about 60) and similar
 displays; it is estimated lower.
 
+Measured with the matrix UI (release, 1000 x 832, ppp 1, demo pattern, eight routings in the slots,
+medians of three runs, `frame_bench`): SYNTH 1.7 ms mean / 3.0 p99 and 66k vertices; FX 1.4 / 2.4 and 62k;
+MATRIX 1.2 / 1.9 and 45k; SYNTH with a patch drag in progress 2.1 / 3.5 and 77k. `plugin_loop -- gts notes`
+on each page: 61 to 62 fps mean, p99 interval at most 31.2 ms, 2.8 to 4.9 % of frames over 20 ms,
+none over 50 ms; hero GPU 0.24 ms; `frame_gpu`: all egui draws 0.85 ms mean.
+
 ## 11. Acceptance criteria (measurable in the real plugin)
 
 | # | Criterion | How |
@@ -432,10 +517,9 @@ displays; it is estimated lower.
   spans for Filter Freq are in octaves over the log range and need the plugin's own mapping.
 * The prototype ignores keyboard tracking in the filter curve and does not model every comb and
   AM response; the plugin should draw the filter's actual transfer.
-* Source chips beyond Mod A, Mod B and the Filter Env, and user-added slots, depend on the
-  modulation matrix of SPEC v2 Track 2 (Macro 1 is shown because the preset format already
-  carries macro labels). In v1 the fixed routes are Mod A / B amounts, Filter Env Amt and the
-  wheel / velocity amounts.
+* The matrix is real in the plugin (SPEC v2 Track 5): 32 slots, four macros, 18 sources. The
+  prototype's patch drag still only paints rings. In the plugin the built-in routes keep their
+  knobs and ids, and a drop on a pair that has one edits that knob.
 * Canvas strokes in the prototype are fractionally scaled; the line rule (section 6) is the
   real requirement.
 

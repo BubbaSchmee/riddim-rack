@@ -5,6 +5,7 @@ pub mod dsp;
 pub mod editor;
 pub mod fxview;
 pub mod help;
+pub mod matrix;
 pub mod params;
 pub mod preset;
 pub mod viz;
@@ -34,6 +35,9 @@ pub struct Gts {
     sample_rate: f32,
     /// Last oversampling value read from the persisted setting.
     oversampling: usize,
+    /// Matrix snapshot version applied last, and the record buffer it is read into.
+    matrix_seen: u32,
+    matrix_rec: [f32; matrix::ENC_LEN],
 }
 
 /// Writes one engine frame to the plugin's output channels: channel 0 = left, the rest = right.
@@ -58,6 +62,8 @@ impl Default for Gts {
             bus: bus::DeviceBus::default(),
             sample_rate: 44100.0,
             oversampling: 2,
+            matrix_seen: u32::MAX,
+            matrix_rec: [0.0; matrix::ENC_LEN],
         }
     }
 }
@@ -125,6 +131,20 @@ impl Plugin for Gts {
         self.sample_rate = buffer_config.sample_rate;
         // The bus mapping is opened here, never in process.
         self.bus.connect(&self.params, rr_bus::DEFAULT_NAME);
+        // Debug builds only: GTS_DEBUG_FULL_MATRIX=1 fills all 32 slots (every source, voice and
+        // global targets) so a pluginval run exercises the matrix under assert_process_allocs.
+        #[cfg(debug_assertions)]
+        if std::env::var_os("GTS_DEBUG_FULL_MATRIX").is_some() {
+            let slots = matrix::target_ids()
+                .step_by(4)
+                .zip(matrix::Source::ALL.iter().cycle())
+                .take(matrix::MAX_SLOTS)
+                .enumerate()
+                .map(|(k, (t, &s))| matrix::Slot::new(s, t, if k % 2 == 0 { 0.3 } else { -0.2 }))
+                .collect();
+            self.params.matrix.replace(matrix::Matrix { slots, ..Default::default() });
+            nih_log!("initialize: GTS_DEBUG_FULL_MATRIX, {} slots", self.params.matrix.get().slots.len());
+        }
         true
     }
 
@@ -169,6 +189,10 @@ impl Plugin for Gts {
                 context.set_latency_samples(self.engine.latency() as u32);
             }
         }
+        // Matrix edits from the editor, a preset or a state load: lock-free snapshot, read once per block.
+        if self.params.matrix.poll(&mut self.matrix_seen, &mut self.matrix_rec) {
+            self.engine.set_matrix(&self.matrix_rec);
+        }
         let n = buffer.samples();
         self.bus.exchange(self.engine.bus_signals());
         if self.bus.refresh_due(n, self.sample_rate) {
@@ -179,21 +203,29 @@ impl Plugin for Gts {
             context.execute_background(());
         }
         // CV targets are re-applied every CV_CHUNK samples so the 5 ms smoothing reaches the
-        // cutoff/index inside large blocks instead of stepping at block edges.
+        // cutoff/index inside large blocks instead of stepping at block edges. With the matrix
+        // on, the CV-ins also advance per chunk (they are matrix sources too).
         let cv_on = self.params.cv_slots().iter().any(|(t, _)| *t != params::CvTarget::Off);
+        let chunked = cv_on || self.engine.matrix_on();
         let base = dsp::Patch::from_params(&self.params);
         let mut patch = base;
-        let first = if cv_on { n.min(CV_CHUNK) } else { n };
-        bus::apply_cv(&mut patch, &self.params, self.bus.advance(first, self.sample_rate));
+        let first = if chunked { n.min(CV_CHUNK) } else { n };
+        let cv = self.bus.advance(first, self.sample_rate);
+        self.engine.set_bus_cv(cv);
+        bus::apply_cv(&mut patch, &self.params, cv);
         self.engine.set_patch(&patch);
 
         let mut next_event = context.next_event();
         let mut peak = [0.0f32; 2];
         for (i, frame) in buffer.iter_samples().enumerate() {
-            if cv_on && i > 0 && i % CV_CHUNK == 0 {
-                let mut patch = base;
-                bus::apply_cv(&mut patch, &self.params, self.bus.advance((n - i).min(CV_CHUNK), self.sample_rate));
-                self.engine.set_cv_patch(&patch);
+            if chunked && i > 0 && i % CV_CHUNK == 0 {
+                let cv = self.bus.advance((n - i).min(CV_CHUNK), self.sample_rate);
+                self.engine.set_bus_cv(cv);
+                if cv_on {
+                    let mut patch = base;
+                    bus::apply_cv(&mut patch, &self.params, cv);
+                    self.engine.set_cv_patch(&patch);
+                }
             }
             while let Some(event) = next_event {
                 if event.timing() > i as u32 {

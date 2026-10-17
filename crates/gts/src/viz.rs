@@ -6,9 +6,11 @@
 //!   Dimension display;
 //! * one [`Snap`] record per block: globals (sample rate, live grain position and table per osc),
 //!   `VoiceViz` (per voice: note, gate, velocity, age since note-on, amp env A / B level and stage,
-//!   filter env level and stage, Mod A / B phase and output) and `ModLive` (post-modulation
-//!   normalized value of every ring target in [`MOD_IDS`], from the newest sounding voice) and the
-//!   FX display values ([`xf`], from `dsp::fx::FxTelemetry`).
+//!   filter env level and stage, Mod A / B phase and output), `ModLive` (up to [`MOD_MAX`]
+//!   `(param index, post-modulation normalized value)` entries for every currently modulated
+//!   target: the fixed-route targets of [`MOD_IDS`] always, then every matrix slot target; voice
+//!   targets from the newest sounding voice) and the FX display values ([`xf`], from
+//!   `dsp::fx::FxTelemetry`). Param indices are positions in `crate::matrix::params_info()`.
 //!
 //! Everything here is allocation-free on the audio side ([`VizWriter`] owns fixed buffers) and
 //! lock-free on both sides; the GUI copies a record with [`Viz::read`] and keeps the last good one.
@@ -17,6 +19,7 @@ use crate::dsp::env::Stage;
 use crate::dsp::fx::FxTelemetry;
 use crate::dsp::voice::vel_scale;
 use crate::dsp::{Engine, Patch, MAX_VOICES};
+use crate::matrix::{param_index, params_info};
 use crate::params::GtsParams;
 use nih_plug::prelude::Param;
 use rr_ui::ring::{ring, RingReader, RingWriter};
@@ -67,7 +70,7 @@ pub mod vf {
     pub const N: usize = 15;
 }
 
-/// `ModLive`: the param ids whose post-modulation value is published, in record order.
+/// `ModLive`: the fixed-route targets whose post-modulation value is always published, first.
 pub const MOD_IDS: [&str; 14] = [
     "osca_index", "oscb_index", "osca_shift", "oscb_shift", "osca_motion", "oscb_motion", "osca_vol", "oscb_vol",
     "filta_freq", "filtb_freq", "moda_pitch", "moda_index", "moda_shift", "fenv_amt",
@@ -93,9 +96,13 @@ pub mod xf {
     pub const N: usize = 13;
 }
 
+/// Most `ModLive` entries: the 14 fixed-route targets plus 32 slot targets fit.
+pub const MOD_MAX: usize = 48;
+/// `ModLive` block: entry count, then `MOD_MAX` (param index, normalized value) pairs.
+pub const MOD_LEN: usize = 1 + 2 * MOD_MAX;
 pub const VOICE_BASE: usize = gf::N;
 pub const MOD_BASE: usize = VOICE_BASE + MAX_VOICES * vf::N;
-pub const FX_BASE: usize = MOD_BASE + MOD_IDS.len();
+pub const FX_BASE: usize = MOD_BASE + MOD_LEN;
 /// Values per record.
 pub const LEN: usize = FX_BASE + xf::N;
 /// Scope ring capacity (the GUI reads up to half of it).
@@ -171,9 +178,21 @@ impl VizFrame {
     pub fn index01(&self, osc: usize) -> f32 {
         (self.0[gf::INDEX_A + osc] / 127.0).clamp(0.0, 1.0)
     }
-    /// Post-modulation normalized value of `id`, if it is a [`MOD_IDS`] target.
+    /// `ModLive` entries in this record.
+    pub fn live_len(&self) -> usize {
+        (self.0[MOD_BASE] as usize).min(MOD_MAX)
+    }
+    /// `ModLive` entry `k`: (param index, post-modulation normalized value).
+    pub fn live_entry(&self, k: usize) -> (usize, f32) {
+        (self.0[MOD_BASE + 1 + 2 * k] as usize, self.0[MOD_BASE + 2 + 2 * k])
+    }
+    /// Post-modulation normalized value of the param at `index`, if it is modulated now.
+    pub fn live01_at(&self, index: usize) -> Option<f32> {
+        (0..self.live_len()).map(|k| self.live_entry(k)).find(|e| e.0 == index).map(|e| e.1)
+    }
+    /// Post-modulation normalized value of `id`, if it is modulated now.
     pub fn live01(&self, id: &str) -> Option<f32> {
-        MOD_IDS.iter().position(|m| *m == id).map(|k| self.0[MOD_BASE + k])
+        param_index(id).and_then(|i| self.live01_at(i))
     }
     /// The held note of the newest voice with its gate open.
     /// FX display value `k` (see [`xf`]).
@@ -203,6 +222,8 @@ pub struct VizWriter {
     on_at: [u64; MAX_VOICES],
     seen: [u64; MAX_VOICES],
     rec: [f32; LEN],
+    /// Param index of each [`MOD_IDS`] entry.
+    mod_param: [usize; MOD_IDS.len()],
 }
 
 impl VizWriter {
@@ -211,7 +232,8 @@ impl VizWriter {
         let (scope, reader) = ring(SCOPE_RING);
         let (side, side_reader) = ring(SCOPE_RING);
         let viz = Arc::new(Viz { snap: Snap::new(LEN), side: side_reader });
-        let w = Self { viz: viz.clone(), scope, side, chunk: [0.0; CHUNK], side_chunk: [0.0; CHUNK], n: 0, clock: 0, block_start: 0, on_at: [0; MAX_VOICES], seen: [0; MAX_VOICES], rec: VizFrame::default().0 };
+        let mod_param = MOD_IDS.map(|id| param_index(id).expect("MOD_IDS are params"));
+        let w = Self { viz: viz.clone(), scope, side, chunk: [0.0; CHUNK], side_chunk: [0.0; CHUNK], n: 0, clock: 0, block_start: 0, on_at: [0; MAX_VOICES], seen: [0; MAX_VOICES], rec: VizFrame::default().0, mod_param };
         (w, viz, reader)
     }
 
@@ -230,7 +252,8 @@ impl VizWriter {
     }
 
     /// End of a block: flushes the scope and publishes one record. `patch` is the block's patch
-    /// (what the voices read), `sr` the sample rate, `fx` the chain's display record.
+    /// (`engine.patch()`: CV and global matrix targets applied), `sr` the sample rate, `fx` the
+    /// chain's display record.
     pub fn publish(&mut self, engine: &Engine, params: &GtsParams, patch: &Patch, sr: f32, fx: &FxTelemetry) {
         if self.n > 0 {
             self.scope.push(&self.chunk[..self.n]);
@@ -284,7 +307,10 @@ impl VizWriter {
             };
         }
 
-        // ModLive, in MOD_IDS order. Unmodulated values while nothing sounds.
+        // ModLive: the MOD_IDS fixed-route targets, from the patch the newest voice renders with
+        // (its matrix slots included). Unmodulated values while nothing sounds.
+        let gpatch = patch;
+        let patch = newest.map_or(patch, |n| engine.voice_patch(n));
         let (m, vel, fenv, cut, b) = match newest.map(|n| engine.voice(n)) {
             Some(v) => (v.modulation, v.velocity, v.filter_env().level(), v.cutoff_hz, v.lfo_out[1]),
             None => (Default::default(), 1.0, 0.0, [patch.filt[0].freq, patch.filt[1].freq], 0.0),
@@ -309,9 +335,25 @@ impl VizWriter {
             p.moda_amt.shift.preview_normalized(patch.moda_shift * depth),
             p.fenv.amt.preview_normalized(patch.fenv_amt * fenv * vel_scale(patch.vel_fenv, vel)),
         ];
-        for (k, x) in live.into_iter().enumerate() {
-            rec[MOD_BASE + k] = x.clamp(0.0, 1.0);
+        let ml = &mut rec[MOD_BASE..MOD_BASE + MOD_LEN];
+        let mut n = 0;
+        for (&p, x) in self.mod_param.iter().zip(live) {
+            ml[1 + 2 * n] = p as f32;
+            ml[2 + 2 * n] = x.clamp(0.0, 1.0);
+            n += 1;
         }
+        // Then every other matrix target: voice scope from the newest voice's patch, global from
+        // the engine's.
+        let info = params_info();
+        for (p, voice) in engine.matrix().targets() {
+            if n == MOD_MAX || self.mod_param.contains(&p) {
+                continue;
+            }
+            ml[1 + 2 * n] = p as f32;
+            ml[2 + 2 * n] = info[p].value01(if voice { patch } else { gpatch }).clamp(0.0, 1.0);
+            n += 1;
+        }
+        ml[0] = n as f32;
         let f = &mut rec[FX_BASE..];
         f[xf::DIST_IN] = fx.dist_in;
         f[xf::MB_GAIN..xf::MB_GAIN + 3].copy_from_slice(&fx.mb_gain_db);
@@ -333,7 +375,8 @@ mod tests {
 
     #[test]
     fn layout_is_dense_and_ids_are_real() {
-        assert_eq!(LEN, gf::N + MAX_VOICES * vf::N + MOD_IDS.len() + xf::N);
+        assert_eq!(LEN, gf::N + MAX_VOICES * vf::N + MOD_LEN + xf::N);
+        assert!(MOD_IDS.len() + crate::matrix::MAX_SLOTS <= MOD_MAX);
         let params = GtsParams::default();
         let ids: Vec<String> = nih_plug::prelude::Params::param_map(&params).into_iter().map(|(id, _, _)| id).collect();
         for id in MOD_IDS {

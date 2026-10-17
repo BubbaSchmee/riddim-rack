@@ -54,6 +54,10 @@ pub const HELP: &[(&str, &str)] = &[
     ("sub_oct", "How many octaves below Osc A the sub plays, -1 or -2."),
     ("mono_xover", "Makes the output mono below this frequency, 20 to 300 Hz. The bottom setting is Off."),
     ("volume", "Master volume before the limiter, -24 to +6 dB."),
+    ("macro1", "Macro 1, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro2", "Macro 2, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro3", "Macro 3, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro4", "Macro 4, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
     ("spread", "Stereo offset between the oscillators in Parallel routing: Osc A left, Osc B right. 0 is mono, 1 is full."),
     // Mod A
     ("moda_curve", "Wave shape of Mod A: sine, triangle, saws, square, random, one-cycle decay or attack."),
@@ -210,4 +214,51 @@ pub const HELP: &[(&str, &str)] = &[
 /// The help line for a parameter id.
 pub fn help(id: &str) -> Option<&'static str> {
     HELP.iter().find(|(k, _)| *k == id).map(|(_, v)| *v)
+}
+
+/// `(key, help line)` for the controls that are not parameters: the source chips (key
+/// `"src:<Source::name>"`), the macro labels and handles, the ring bands, the patch drag, the knob
+/// menu and the MATRIX page. Same rules as [`HELP`] (`tests/help.rs`).
+pub const UI_HELP: &[(&str, &str)] = &[
+    ("src:Mod A", "Mod A's wave, one value per note. Drag the chip onto any knob to patch it at +50 %."),
+    ("src:Mod B", "Mod B's wave, one value per note. Drag the chip onto any knob to patch it at +50 %."),
+    ("src:Filter Env", "The filter envelope, 0 to 1 per note. Drag the chip onto any knob to patch it at +50 %."),
+    ("src:Amp Env A", "Osc A's amp envelope, 0 to 1 per note. Drag the chip onto any knob to patch it."),
+    ("src:Amp Env B", "Osc B's amp envelope, 0 to 1 per note. Drag the chip onto any knob to patch it."),
+    ("src:Velocity", "How hard each note was played, 0 to 1. Drag the chip onto any knob to patch it."),
+    ("src:Keytrack", "The note's pitch around middle C, -1 to +1 over five octaves each way. Drag it onto a knob."),
+    ("src:Random", "A new random value, -1 to +1, on every note. Drag the chip onto any knob to patch it."),
+    ("src:Poly Aftertouch", "Pressure on each held key, 0 to 1. Drag the chip onto any knob to patch it."),
+    ("src:Mod Wheel", "The mod wheel, 0 to 1. Drag the chip onto any knob to patch it."),
+    ("src:Channel Aftertouch", "Channel pressure, 0 to 1. Drag the chip onto any knob to patch it."),
+    ("src:Macro 1", "Macro 1, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 2", "Macro 2, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 3", "Macro 3, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 4", "Macro 4, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Bus CV 1", "The RR-BUS input in slot 1, -1 to +1. Drag the chip onto any knob to patch it."),
+    ("src:Bus CV 2", "The RR-BUS input in slot 2, -1 to +1. Drag the chip onto any knob to patch it."),
+    ("src:Bus CV 3", "The RR-BUS input in slot 3, -1 to +1. Drag the chip onto any knob to patch it."),
+    ("macro:label", "Double-click the name to rename this macro. The name is saved with the project and the preset."),
+    ("more", "More sources: velocity, keytrack, random, aftertouch, the mod wheel and the three RR-BUS inputs."),
+    ("ring", "Drag the ring to set how far this source moves the knob. Shift is fine, double-click is zero."),
+    ("patch:idle", "Drag onto a lit knob and release. Hover the FX tab to change page. Esc cancels."),
+    ("patch:hot", "Release to patch at +50 %. The same source dropped again resets its amount."),
+    ("menu:pol", "Bipolar swings both ways around the knob; unipolar runs one way from it."),
+    ("menu:invert", "Flips the sign of this source's amount."),
+    ("menu:bypass", "Mutes this routing without deleting it. Click again to bring it back."),
+    ("menu:remove", "Removes this routing from the knob."),
+    ("menu:all", "Removes every routing on this knob, built-in ones included."),
+    ("matrix:num", "Click the number to bypass or enable this routing. A bypassed routing stays in the list."),
+    ("matrix:src", "The source that moves the target. Changing it keeps the target and resets the polarity."),
+    ("matrix:pol", "Bipolar swings both ways around the knob; unipolar runs one way from it."),
+    ("matrix:amt", "How far the source moves the target, -100 to +100 % of its range. Shift is fine, double-click is zero."),
+    ("matrix:target", "The parameter this routing moves, grouped by section. Switches and menus cannot be targets."),
+    ("matrix:remove", "Removes this routing from the matrix."),
+    ("matrix:empty", "Pick a source and a target to add a routing. New routings start at +50 %."),
+    ("matrix:fixed", "A built-in routing: its amount is the knob of the same name on the SYNTH page."),
+];
+
+/// The help line for a non-parameter control (see [`UI_HELP`]).
+pub fn ui_help(key: &str) -> Option<&'static str> {
+    UI_HELP.iter().find(|(k, _)| *k == key).map(|(_, v)| *v)
 }

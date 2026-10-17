@@ -3,9 +3,15 @@
 //!
 //! ```json
 //! { "format_version": 1, "product": "GTS", "name": "...", "author": "...", "description": "...",
-//!   "category": "Bass/growl", "tags": [], "macros": [{"label": "Growl"}], "matrix": [],
-//!   "params": { "osca_table": "Square Morph", "osca_index": 40, ... } }
+//!   "category": "Bass/growl", "tags": [], "macros": [{"label": "Growl"}],
+//!   "matrix": [{"source": "Macro 1", "target": "filta_freq", "amount": 0.5, "bipolar": false, "enabled": true}],
+//!   "params": { "osca_table": "Square Morph", "osca_index": 40, "macro1": 0.0, ... } }
 //! ```
+//!
+//! `matrix` is the modulation matrix (SPEC v2 Track 5, [`crate::matrix`]): slots by source name
+//! and target param id. Macro values are ordinary params (`macro1..macro4`); `macros` carries the
+//! labels. Files without a `matrix` load with an empty one; a slot that does not parse or whose
+//! target is not a modulation target is dropped with a warning.
 //!
 //! Loading applies the params to a [`Patch`] (the engine's plain-value snapshot), starting from the
 //! defaults: missing ids keep their default; unknown ids, wrong types and out-of-range values
@@ -17,6 +23,7 @@
 
 use crate::dsp::fx::FxPatch;
 use crate::dsp::{FilterPatch, ModPatch, OscPatch, Patch};
+use crate::matrix::{Matrix, Slot as ModSlot, MACROS};
 use crate::params::GtsParams;
 use nih_plug::prelude::{Enum, ParamPtr, Params};
 use serde::{Deserialize, Serialize};
@@ -34,8 +41,10 @@ pub struct Preset {
     /// "Bass/growl", "Lead", ... (SPEC v2 2.5 categories, sub-tag after the slash).
     pub category: String,
     pub tags: Vec<String>,
-    /// Macro labels (assignments arrive with the matrix).
+    /// Macro labels, Macro 1 first (missing ones take the default label in [`Preset::matrix_state`]).
     pub macros: Vec<String>,
+    /// Modulation matrix slots.
+    pub matrix: Vec<ModSlot>,
     pub patch: Patch,
 }
 
@@ -48,6 +57,7 @@ impl Default for Preset {
             category: "Init".into(),
             tags: vec![],
             macros: vec![],
+            matrix: vec![],
             patch: Patch::default(),
         }
     }
@@ -81,8 +91,8 @@ struct File {
     params: Map<String, Value>,
 }
 
-/// A writable view of one `Patch` field.
-enum Slot<'a> {
+/// A writable view of one `Patch` field (also the matrix's field table, `crate::matrix`).
+pub(crate) enum Slot<'a> {
     F(&'a mut f32),
     I(&'a mut i32),
     /// An int param stored as `usize` (unison, poly).
@@ -96,7 +106,7 @@ enum Slot<'a> {
 }
 
 /// An enum field, by variant display name.
-trait Choice {
+pub(crate) trait Choice {
     #[cfg_attr(not(test), allow(dead_code))]
     fn names(&self) -> &'static [&'static str];
     fn name(&self) -> &'static str;
@@ -213,15 +223,15 @@ fn fx_slots<'a>(f: &'a mut FxPatch, out: &mut Vec<(String, Slot<'a>)>) {
 }
 
 /// Every preset parameter of `p` under its param id (all GtsParams ids except the CV slots).
-fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
+pub(crate) fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
     use Slot::*;
-    let mut out = Vec::with_capacity(176);
+    let mut out = Vec::with_capacity(180);
     let Patch {
         osc: [osca, oscb], moda, modb, moda_pitch, moda_index, moda_shift, modb_motion, modb_vol, modb_cutoff,
         modb_moda, shaper_on, shaper_mode, shaper_amt, filt: [filta, filtb], fenv_att, fenv_dec, fenv_sus, fenv_rel,
         fenv_amt, fenv_inv, fenv_curve, sub_on, sub_level_db, sub_oct, mono_xover, routing, poly, legato, porta,
         bend_range, wheel_index, wheel_shift, wheel_cutoff, wheel_mod, vel_vol_a, vel_vol_b, vel_fenv, vel_att,
-        vel_shift, vel_mod, volume_db, spread, fx,
+        vel_shift, vel_mod, volume_db, spread, fx, macros: [m1, m2, m3, m4],
     } = p;
     osc_slots("osca", osca, &mut out);
     osc_slots("oscb", oscb, &mut out);
@@ -243,6 +253,7 @@ fn slots(p: &mut Patch) -> Vec<(String, Slot<'_>)> {
         ("wheel_shift", F(wheel_shift)), ("wheel_cutoff", F(wheel_cutoff)), ("wheel_mod", F(wheel_mod)),
         ("vel_vol_a", F(vel_vol_a)), ("vel_vol_b", F(vel_vol_b)), ("vel_fenv", F(vel_fenv)), ("vel_att", F(vel_att)),
         ("vel_shift", F(vel_shift)), ("vel_mod", F(vel_mod)), ("volume", F(volume_db)), ("spread", F(spread)),
+        ("macro1", F(m1)), ("macro2", F(m2)), ("macro3", F(m3)), ("macro4", F(m4)),
     ];
     out.extend(rest.into_iter().map(|(k, s)| (k.to_string(), s)));
     out
@@ -308,7 +319,7 @@ impl Preset {
             category: self.category.clone(),
             tags: self.tags.clone(),
             macros: self.macros.iter().map(|l| Macro { label: l.clone() }).collect(),
-            matrix: vec![],
+            matrix: self.matrix.iter().map(|s| serde_json::to_value(s).expect("a slot always serialises")).collect(),
             params,
         };
         serde_json::to_string_pretty(&file).expect("a preset always serialises") + "\n"
@@ -316,7 +327,8 @@ impl Preset {
 
     /// Parses a preset. Hard errors: not JSON, wrong product, newer format. Everything else loads
     /// with a warning: unknown ids, wrong value types, out-of-range values (clamped), unknown enum
-    /// names, a non-empty matrix (not supported yet).
+    /// names, matrix slots that do not parse or target a non-target (dropped), out-of-range
+    /// amounts (clamped), more than 32 slots (the rest dropped).
     pub fn from_json(json: &str) -> Result<(Preset, Vec<String>), String> {
         let file: File = serde_json::from_str(json).map_err(|e| format!("not a GTS preset: {e}"))?;
         if file.product != PRODUCT {
@@ -326,9 +338,14 @@ impl Preset {
             return Err(format!("preset format {} is newer than this GTS ({FORMAT_VERSION})", file.format_version));
         }
         let mut warnings = vec![];
-        if !file.matrix.is_empty() {
-            warnings.push(format!("matrix: {} slots ignored (no matrix in this version)", file.matrix.len()));
+        let mut matrix = Matrix::default();
+        for v in &file.matrix {
+            match serde_json::from_value::<ModSlot>(v.clone()) {
+                Ok(s) => matrix.slots.push(s),
+                Err(e) => warnings.push(format!("matrix: slot {v} dropped ({e})")),
+            }
         }
+        warnings.extend(matrix.sanitize());
         let ranges = ranges();
         let mut patch = Patch::default();
         let mut slots = slots(&mut patch);
@@ -376,9 +393,19 @@ impl Preset {
             category: file.category,
             tags: file.tags,
             macros: file.macros.into_iter().map(|m| m.label).collect(),
+            matrix: matrix.slots,
             patch,
         };
         Ok((preset, warnings))
+    }
+
+    /// The matrix state this preset loads: its slots and its labels (default label where missing).
+    pub fn matrix_state(&self) -> Matrix {
+        let mut m = Matrix { slots: self.matrix.clone(), ..Matrix::default() };
+        for (l, p) in m.macros.iter_mut().zip(self.macros.iter().take(MACROS)) {
+            *l = p.clone();
+        }
+        m
     }
 
     /// Reads and parses a preset file.
@@ -405,7 +432,7 @@ mod tests {
         got.sort();
         want.sort();
         assert_eq!(got, want);
-        assert_eq!(got.len(), 176); // 102 + 74 FX
+        assert_eq!(got.len(), 180); // 102 + 74 FX + 4 macros
     }
 
     #[test]
@@ -485,7 +512,7 @@ mod tests {
         let params = v["params"].as_object_mut().unwrap();
         let fx_prefixes = ["dist_", "mb_", "eq_", "cho_", "dim_", "dly_", "rev_", "lim_"];
         params.retain(|k, _| !fx_prefixes.iter().any(|f| k.starts_with(f)));
-        assert_eq!(params.len(), 102);
+        assert_eq!(params.len(), 106);
         let (q, w) = Preset::from_json(&serde_json::to_string(&v).unwrap()).unwrap();
         assert!(w.is_empty(), "{w:?}");
         assert_eq!(q.patch.fx, Patch::default().fx);

@@ -3,15 +3,141 @@
   "product": "GTS",
   "name": "Screech Lead",
   "author": "Riddim Rack",
-  "description": "Screech lead: FM Morph shifted +9 st (a one-shot Mod A pushes the Shift toward +12 on the attack), 3-voice unison, Saturate into a high-resonance note-tied Comb- and an LP12 at 6 kHz to keep the fizz in check. No sub. Play: F3-C5, an octave or two above the bass line, short phrases and held shrieks; mono legato with 50 ms portamento between overlapping notes. Tweak: Osc A Shift for the vowel of the shriek, Osc A Index for FM brightness, Filter A Res for ring, Filter B Freq for harshness. FX: Hard Clip +6 dB after a Pre high-pass at 300 Hz so only the shriek clips, multiband squash at 50 %, an EQ high shelf -2 dB at 9 kHz, Dimension (size 0.6) for width, a dotted-1/8 Ping-Pong delay (feedback 0.3, 300 Hz..6 kHz, 18 %) that answers each phrase, and a 2 s hall at 18 %.",
+  "description": "Screech lead: FM Morph shifted +9 st (a one-shot Mod A pushes the Shift toward +12 on the attack), 3-voice unison, Saturate into a high-resonance note-tied Comb- and an LP12 at 6 kHz to keep the fizz in check. No sub. Play: F3-C5, an octave or two above the bass line, short phrases and held shrieks; mono legato with 50 ms portamento between overlapping notes. Tweak: Osc A Shift for the vowel of the shriek, Osc A Index for FM brightness, Filter A Res for ring, Filter B Freq for harshness. FX: Hard Clip +6 dB after a Pre high-pass at 300 Hz so only the shriek clips, multiband squash at 50 %, an EQ high shelf -2 dB at 9 kHz, Dimension (size 0.6) for width, a dotted-1/8 Ping-Pong delay (feedback 0.3, 300 Hz..6 kHz, 18 %) that answers each phrase, and a 2 s hall at 18 %. Harder hits push the FM and every note is detuned a little differently. Macros: Screech detunes and thickens the shriek, FM brightens the tone, Edge drives the clipper and Space adds the delay and hall.",
   "category": "Lead",
   "tags": [
     "lead",
     "screech",
     "fm"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Screech"
+    },
+    {
+      "label": "FM"
+    },
+    {
+      "label": "Edge"
+    },
+    {
+      "label": "Space"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.699999988079071,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_detune"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_width"
+    },
+    {
+      "amount": 0.30000001192092896,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filtb_res"
+    },
+    {
+      "amount": 0.666700005531311,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_unison"
+    },
+    {
+      "amount": 0.27559998631477356,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.10559999942779541,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": -0.11670000106096268,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "volume"
+    },
+    {
+      "amount": 0.16670000553131104,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "mb_depth"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "shaper_amt"
+    },
+    {
+      "amount": 0.10000000149011612,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dly_mix"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "rev_mix"
+    },
+    {
+      "amount": 0.15070000290870667,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "rev_decay"
+    },
+    {
+      "amount": 0.10000000149011612,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "volume"
+    },
+    {
+      "amount": 0.11810000240802765,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.05999999865889549,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "osca_cent"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 7,
@@ -79,6 +205,10 @@
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.5,
     "mb_down_hi": -12,
     "mb_down_lo": -12,
@@ -123,7 +253,7 @@
     "osca_dec": 0.4,
     "osca_det_curve": 0,
     "osca_detune": 10,
-    "osca_index": 70,
+    "osca_index": 58.188976,
     "osca_motion": 0,
     "osca_oct": 0,
     "osca_on": true,

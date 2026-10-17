@@ -1,6 +1,7 @@
 //! The editor must bind every parameter, and only real ones.
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, Ctl, LiveView, ParamTable, WINDOW};
+use gts::editor::{draw, BusView, Ctl, LiveView, Page, ParamTable, WINDOW};
+use gts::matrix::MatrixShared;
 use gts::params::GtsParams;
 use nih_plug::prelude::Params;
 use nih_plug_egui::egui;
@@ -46,13 +47,16 @@ impl Ctl for Recorder {
     fn end(&self, id: &str) {
         self.t(id);
     }
+    fn matrix(&self) -> Option<&MatrixShared> {
+        Some(self.table.matrix())
+    }
 }
 
 #[test]
 fn editor_binds_every_param_exactly() {
     let params = Arc::new(GtsParams::default());
     let all: BTreeSet<String> = params.param_map().into_iter().map(|(id, _, _)| id).collect();
-    assert_eq!(all.len(), 182); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX
+    assert_eq!(all.len(), 186); // 81 + six RR-BUS CV-in params + 21 v2 (unison, curves, sub, crossover) + 74 FX + 4 macros
 
     let ctl = Recorder { table: ParamTable::new(params), seen: RefCell::new(BTreeSet::new()) };
     let mut tables = Tables::new();
@@ -65,12 +69,12 @@ fn editor_binds_every_param_exactly() {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(WINDOW.0 as f32, WINDOW.1 as f32))),
         ..Default::default()
     };
-    // Both pages; 30 passes each (the first loads the fonts, the SYNTH / FX transition runs 260 ms). The PATCH popover is open
+    // All three pages; 30 passes each (the first loads the fonts, the page transition runs 260 ms). The PATCH popover is open
     // (its CV-in params live there).
     let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], oversampling: 2, patch_open: true, ..Default::default() };
     let mut live = LiveView::idle();
-    for fx_page in [false, true] {
-        bv.fx_page = fx_page;
+    for page in [Page::Synth, Page::Fx, Page::Matrix] {
+        bv.page = page;
         let mut overflow = egui::Vec2::ZERO;
         for _ in 0..30 {
             let _ = ctx.run(input.clone(), |ctx| {
@@ -78,8 +82,16 @@ fn editor_binds_every_param_exactly() {
             });
         }
         // Layout: every group's content fits its fixed rect, and the FX rows fit the body area.
-        assert_eq!(overflow, egui::Vec2::ZERO, "page fx={fx_page} overflows the {WINDOW:?} window by {overflow:?}");
+        assert_eq!(overflow, egui::Vec2::ZERO, "page {page:?} overflows the {WINDOW:?} window by {overflow:?}");
     }
     // (an unknown id would already have panicked inside ParamTable)
     assert_eq!(*ctl.seen.borrow(), all, "editor ids differ from the param map");
+}
+
+/// MOTION.md 11 #8: the hero stays a large display although the strip took two rows under it.
+#[test]
+fn hero_is_at_least_35_percent_of_the_width_and_25_percent_of_the_height() {
+    let (_, _, w, h) = gts::editor::HERO;
+    assert!(w >= 0.35 * WINDOW.0 as f32, "{w}");
+    assert!(h >= 0.25 * WINDOW.1 as f32, "{h}");
 }

@@ -3,15 +3,148 @@
   "product": "GTS",
   "name": "Talk Box",
   "author": "Riddim Rack",
-  "description": "Talking formant bass: the Vowel table one octave above a clean sine sub, Mod A (triangle, 1/4, grid-locked) scanning the vowels and shifting the formants while Mod B on the same grid moves a BP12 band with them, light Saturate. Held notes keep talking; short notes catch one vowel. Play: held and tied notes around F1-C2, mono legato. Tweak: Mod A/Mod B Division for the talking speed, Mod A Index amount for the vowel range, Mod A Shift amount for formant size, Filter A Res for nasal bite. FX: Overdrive +6 dB with a Post low-pass at 6 kHz, multiband squash at 70 % (time 40 %) so the vowel formants jump out, an EQ low cut at 25 Hz and +2 dB presence at 1.2 kHz, Dimension (size 0.3, wet low cut 200 Hz) and a 7 % short plate.",
+  "description": "Talking formant bass: the Vowel table one octave above a clean sine sub, Mod A (triangle, 1/4, grid-locked) scanning the vowels and shifting the formants while Mod B on the same grid moves a BP12 band with them, light Saturate. Held notes keep talking; short notes catch one vowel. Play: held and tied notes around F1-C2, mono legato. Tweak: Mod A/Mod B Division for the talking speed, Mod A Index amount for the vowel range, Mod A Shift amount for formant size, Filter A Res for nasal bite. FX: Overdrive +6 dB with a Post low-pass at 6 kHz, multiband squash at 70 % (time 40 %) so the vowel formants jump out, an EQ low cut at 25 Hz and +2 dB presence at 1.2 kHz, Dimension (size 0.3, wet low cut 200 Hz) and a 7 % short plate. Each note starts on a slightly different vowel and harder hits brighten the band. Macros: Talk deepens the vowel scan, Vowel moves the formants and the band, Nasal sharpens the band and Dirt adds grit.",
   "category": "Bass/formant",
   "tags": [
     "formant",
     "talking",
     "vowel"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Talk"
+    },
+    {
+      "label": "Vowel"
+    },
+    {
+      "label": "Nasal"
+    },
+    {
+      "label": "Dirt"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.15000000596046448,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_index"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_shift"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.03999999910593033,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "volume"
+    },
+    {
+      "amount": 0.2362000048160553,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.10419999808073044,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_shift"
+    },
+    {
+      "amount": 0.09910000115633011,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.44999998807907104,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_res"
+    },
+    {
+      "amount": 0.07289999723434448,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_freq"
+    },
+    {
+      "amount": -0.05000000074505806,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "volume"
+    },
+    {
+      "amount": 0.699999988079071,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "shaper_amt"
+    },
+    {
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.14030000567436218,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_filter_freq"
+    },
+    {
+      "amount": -0.10000000149011612,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "volume"
+    },
+    {
+      "amount": 0.11810000240802765,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.03500000014901161,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Keytrack",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.041099999099969864,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filta_freq"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 7,
@@ -68,7 +201,7 @@
     "fenv_rel": 0.1,
     "fenv_sus": 0.2,
     "filta_env": false,
-    "filta_freq": 1400,
+    "filta_freq": 1040.8796,
     "filta_kbd": 0.3,
     "filta_res": 0.4,
     "filta_type": "BP12",
@@ -79,6 +212,10 @@
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.7,
     "mb_down_hi": -12,
     "mb_down_lo": -12,

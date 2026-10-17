@@ -3,15 +3,134 @@
   "product": "GTS",
   "name": "Reese Drift",
   "author": "Riddim Rack",
-  "description": "Detuned reese: Saw Stack in 6-voice unison (22 cents, width 0.6) on Osc A plus a 5-voice Saw Stack 7 cents sharp on Osc B, spread A left / B right, both through LP12s that the filter envelope sweeps open over about a second, a clean sine sub at the played pitch underneath and everything mono below 120 Hz. Play: long notes and slides around F1-C2 (halftime, DnB); overlap notes for legato glides. Tweak: Osc A/B Detune for the beating speed, Filter Env Amt and Decay for the sweep, Spread and Width for stereo size, Sub Level for weight. FX: Overdrive +6 dB with a Post low-pass at 5 kHz, multiband squash at 80 % depth (time 50 %) to pull the detuned beating forward, an EQ low cut at 25 Hz and -2 dB at 250 Hz, a slow 4-voice Chorus (wet low cut 200 Hz, 30 %) that keeps the sub mono, and a 10 % small hall.",
+  "description": "Detuned reese: Saw Stack in 6-voice unison (22 cents, width 0.6) on Osc A plus a 5-voice Saw Stack 7 cents sharp on Osc B, spread A left / B right, both through LP12s that the filter envelope sweeps open over about a second, a clean sine sub at the played pitch underneath and everything mono below 120 Hz. Play: long notes and slides around F1-C2 (halftime, DnB); overlap notes for legato glides. Tweak: Osc A/B Detune for the beating speed, Filter Env Amt and Decay for the sweep, Spread and Width for stereo size, Sub Level for weight. FX: Overdrive +6 dB with a Post low-pass at 5 kHz, multiband squash at 80 % depth (time 50 %) to pull the detuned beating forward, an EQ low cut at 25 Hz and -2 dB at 250 Hz, a slow 4-voice Chorus (wet low cut 200 Hz, 30 %) that keeps the sub mono, and a 10 % small hall. A slow Mod B and a random offset per note keep the beating from ever repeating. Macros: Detune widens the beating, Sweep opens both filters, Width spreads the stereo field above a mono sub and Grit pushes the drive and squash.",
   "category": "Bass/reese",
   "tags": [
     "reese",
     "detuned",
     "wide"
   ],
-  "macros": [],
-  "matrix": [],
+  "macros": [
+    {
+      "label": "Detune"
+    },
+    {
+      "label": "Sweep"
+    },
+    {
+      "label": "Width"
+    },
+    {
+      "label": "Grit"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.2800000011920929,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_detune"
+    },
+    {
+      "amount": 0.23999999463558197,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "oscb_detune"
+    },
+    {
+      "amount": 0.10000000149011612,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "oscb_cent"
+    },
+    {
+      "amount": -0.02669999934732914,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "volume"
+    },
+    {
+      "amount": 0.22130000591278076,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.22130000591278076,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": -0.0333000011742115,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "volume"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "spread"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "cho_mix"
+    },
+    {
+      "amount": 0.4000000059604645,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "osca_width"
+    },
+    {
+      "amount": 0.29170000553131104,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.20000000298023224,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "mb_depth"
+    },
+    {
+      "amount": 0.08839999884366989,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_filter_freq"
+    },
+    {
+      "amount": 0.07999999821186066,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod B",
+      "target": "oscb_detune"
+    },
+    {
+      "amount": 0.05000000074505806,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Random",
+      "target": "oscb_cent"
+    }
+  ],
   "params": {
     "bend_range": 12,
     "cho_delay": 9,
@@ -79,6 +198,10 @@
     "filtb_type": "LP12",
     "legato": true,
     "lim_gain": 0,
+    "macro1": 0,
+    "macro2": 0,
+    "macro3": 0,
+    "macro4": 0,
     "mb_depth": 0.8,
     "mb_down_hi": -12,
     "mb_down_lo": -12,
@@ -111,7 +234,7 @@
     "modb_moda": 0,
     "modb_motion": 0,
     "modb_oneshot": false,
-    "modb_rate": 4,
+    "modb_rate": 0.2,
     "modb_sync": false,
     "modb_target": "Both",
     "modb_vol": 0,

@@ -7,6 +7,7 @@
 //!
 //!   cargo run -p gts --release --example frame_bench [-- fx] [-- ppp=1.5] [-- hover] [-- idle] [-- cpu] [-- frames=600]
 //!
+//!   matrix the MATRIX page (with eight routings in the slots), or `-- drag` for a patch drag in progress
 //!   idle   no notes (the silent-state cost cap, MOTION.md 11 #13)
 //!   cpu    force the hero's CPU fallback (egui shapes) instead of the GL paint callback
 //!
@@ -15,7 +16,7 @@
 
 use eframe::egui::{self, vec2, Pos2, RawInput, Rect};
 use gts::dsp::tables::Tables;
-use gts::editor::{draw, BusView, LiveView, WINDOW};
+use gts::editor::{draw, BusView, LiveView, Page, WINDOW};
 use std::time::Instant;
 
 #[path = "support/demo.rs"]
@@ -33,6 +34,8 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let has = |s: &str| args.iter().any(|a| a == s);
     let fx = has("fx");
+    let matrix_page = has("matrix");
+    let drag = has("drag");
     let ppp: f32 = args.iter().find_map(|a| a.strip_prefix("ppp=").and_then(|s| s.parse().ok())).unwrap_or(1.0);
     let n: usize = args.iter().find_map(|a| a.strip_prefix("frames=").and_then(|s| s.parse().ok())).unwrap_or(600);
     let (hover, idle, cpu) = (has("hover"), has("idle"), has("cpu"));
@@ -44,7 +47,9 @@ fn main() {
     if fx {
         demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
     }
+    demo::demo_routes(&ctl, &mut patch); // eight routings, so rings, live dots and the MATRIX rows are measured
     let mut feed = demo::Feed::new(patch);
+    feed.attach(ctl.table.params().clone());
     let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
     live.hero.force_cpu = cpu;
     let mut bv = BusView {
@@ -53,7 +58,7 @@ fn main() {
         bound: ["VSS 1 · Step Gate".into(), "GTS 2 · Mod B".into(), "GTS 3 · Mod A".into()],
         activity: [0.92, 0.35, 0.0],
         oversampling: 2,
-        fx_page: fx,
+        page: if matrix_page { Page::Matrix } else if fx { Page::Fx } else { Page::Synth },
         preset: Some(pi),
         gr_db: 2.4,
         peak_db: -0.3,
@@ -76,6 +81,11 @@ fn main() {
         };
         if let Some(v) = input.viewports.get_mut(&input.viewport_id) {
             v.native_pixels_per_point = Some(ppp);
+        }
+        if drag {
+            // A patch drag in progress with the pointer on a knob (every target ringed, one hot).
+            gts::editor::patching::debug_hold_drag(&ctx, gts::matrix::Source::ModB);
+            input.events.push(egui::Event::PointerMoved(Pos2::new(112.0, 440.0)));
         }
         if hover {
             // Pointer sweeping across the panel so hover/animation paths run.
@@ -112,10 +122,10 @@ fn main() {
         }
     }
     println!(
-        "GTS editor {}x{} pts, ppp {ppp}, page {}, hover {hover}, notes {}, hero {}, {n} frames (after 30 warm-up)",
+        "GTS editor {}x{} pts, ppp {ppp}, page {}, hover {hover}, drag {drag}, notes {}, hero {}, {n} frames (after 30 warm-up)",
         w,
         h,
-        if fx { "FX" } else { "SYNTH" },
+        if matrix_page { "MATRIX" } else if fx { "FX" } else { "SYNTH" },
         !idle,
         if cpu { "CPU fallback" } else { "GL callback" }
     );

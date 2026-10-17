@@ -24,6 +24,8 @@ serde_json = "1.0"
 zoom-patch = []
 
 [dev-dependencies]
+# tests/matrix_alloc.rs: the allocator guard nih-plug installs in debug builds (same source, one crate).
+assert_no_alloc = { git = "https://github.com/robbert-vdh/rust-assert-no-alloc.git", branch = "feature/nested-permit-forbid", features = ["backtrace", "log"] }
 # Same pins as rr-ui's preview example: only the screenshot example needs a window.
 eframe = { version = "=0.31.1" }
 png = "0.17"

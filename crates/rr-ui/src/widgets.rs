@@ -161,6 +161,36 @@ pub struct KnobResponse {
     pub reset: bool,
     /// Pointer over the control (or dragging it).
     pub hovered: bool,
+    /// The pointer is inside the knob's cell, also while another control is being dragged (the
+    /// drop test of a drag-to-patch gesture).
+    pub pointer_over: bool,
+    /// A press, drag or double-click on a modulation ring band (the `k`-th entry of
+    /// [`KnobStyle::ranges`]). The value is not touched while it runs, and `drag_started` /
+    /// `drag_ended` stay false.
+    pub ring: Option<RingEdit>,
+    /// The pointer is over the `k`-th ring band (not dragging).
+    pub ring_hover: Option<usize>,
+    /// Right-click position (the knob's context menu).
+    pub secondary: Option<egui::Pos2>,
+    /// The knob's cell on screen (set by [`knob_fn`]).
+    pub rect: Option<Rect>,
+}
+
+/// What happened to a modulation ring band this frame (see [`KnobResponse::ring`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RingEdit {
+    pub k: usize,
+    pub phase: RingPhase,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RingPhase {
+    Start,
+    /// Pointer moved `dy_up` px upward this frame (negative = down); `fine` = Shift held.
+    Drag { dy_up: f32, fine: bool },
+    End,
+    /// Double-click on the band.
+    Reset,
 }
 
 /// One modulation range on a knob's ring: the span (0..1 of the knob's range) a source sweeps
@@ -170,6 +200,23 @@ pub struct RingRange {
     pub lo: f32,
     pub hi: f32,
     pub color: Color32,
+    /// A bypassed route: drawn faint.
+    pub dim: bool,
+}
+
+/// Most stacked range arcs a knob draws (one ring per source, innermost first).
+pub const RING_MAX: usize = 4;
+/// Radial distance between stacked rings, px.
+pub const RING_PITCH: f32 = 2.2;
+
+/// A knob that can take the source being dragged (MOTION.md 4, "Patch drag"): a dashed ring that
+/// pulses 3 to 5 px outside the dial every 1.1 s, solid with a glow while the pointer is on it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TargetFx {
+    pub color: Color32,
+    pub hot: bool,
+    /// Seconds on egui's clock (the pulse phase).
+    pub t: f32,
 }
 
 /// Knob geometry/behaviour options.
@@ -188,15 +235,20 @@ pub struct KnobStyle {
     pub ring: Option<Color32>,
     /// Live modulation: the post-modulation value 0..1 and the source colour (live arc + dot).
     pub live: Option<(f32, Color32)>,
-    /// Modulation depth ranges, up to two sources (range arcs at 50 % alpha).
-    pub ranges: [Option<RingRange>; 2],
+    /// Modulation depth ranges, one stacked ring per source, innermost first, packed from index 0
+    /// (range arcs at 50 % alpha). Their bands are draggable (see [`KnobResponse::ring`]).
+    pub ranges: [Option<RingRange>; RING_MAX],
+    /// Drag-to-patch: this knob can take the dragged source.
+    pub target: Option<TargetFx>,
+    /// The ring band the pointer is on or dragging (drawn thicker).
+    pub ring_hot: Option<usize>,
     /// `Some(n)` for a stepped parameter with `n` steps: arrow keys and the wheel move one step.
     pub steps: Option<usize>,
 }
 
 impl Default for KnobStyle {
     fn default() -> Self {
-        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false, compact: false, ring: None, live: None, ranges: [None; 2], steps: None }
+        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false, compact: false, ring: None, live: None, ranges: [None; RING_MAX], target: None, ring_hot: None, steps: None }
     }
 }
 
@@ -251,11 +303,49 @@ pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, reado
 pub fn knob_fn(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &dyn Fn(f32) -> String, style: KnobStyle) -> KnobResponse {
     let d = style.diameter;
     let (rect, resp) = ui.allocate_exact_size(vec2(style.cell_w, style.cell_h()), Sense::click_and_drag());
+    let mut style = style;
     let hot = resp.hovered() || resp.dragged();
     if hot {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
     }
-    let mut out = knob_interact(ui, &resp, value01, default01, style.steps);
+    // Ring bands (compact knobs with range arcs): a press that starts on a band edits that
+    // source's depth, not the knob.
+    let nrings = style.ranges.iter().flatten().count();
+    let centre = pos2(rect.center().x, rect.top() + V2_LABEL_H + d / 2.0);
+    let band = |p: egui::Pos2| if style.compact { ring_band(centre, d, nrings, p) } else { None };
+    let drag_key = resp.id.with("ring-drag");
+    if resp.drag_started() {
+        let k = ui.input(|i| i.pointer.press_origin()).and_then(band);
+        ui.data_mut(|dt| dt.insert_temp(drag_key, k));
+    }
+    let drag_ring = ui.data(|dt| dt.get_temp::<Option<usize>>(drag_key)).flatten();
+    let over_ring = if resp.dragged() { None } else { ui.input(|i| i.pointer.hover_pos()).filter(|_| resp.hovered()).and_then(band) };
+    style.ring_hot = drag_ring.or(over_ring);
+    let ring_dbl = if resp.double_clicked() { resp.interact_pointer_pos().and_then(band) } else { None };
+    let mut out = if let Some(k) = ring_dbl {
+        KnobResponse { hovered: true, ring: Some(RingEdit { k, phase: RingPhase::Reset }), ..Default::default() }
+    } else if let Some(k) = drag_ring.filter(|_| resp.drag_started() || resp.dragged() || resp.drag_stopped()) {
+        let phase = if resp.drag_started() {
+            RingPhase::Start
+        } else if resp.drag_stopped() {
+            ui.data_mut(|dt| dt.remove_temp::<Option<usize>>(drag_key));
+            RingPhase::End
+        } else {
+            RingPhase::Drag { dy_up: -resp.drag_delta().y, fine: ui.input(|i| i.modifiers.shift) }
+        };
+        KnobResponse { hovered: true, ring: Some(RingEdit { k, phase }), ..Default::default() }
+    } else {
+        if resp.drag_stopped() {
+            ui.data_mut(|dt| dt.remove_temp::<Option<usize>>(drag_key));
+        }
+        knob_interact(ui, &resp, value01, default01, style.steps)
+    };
+    out.ring_hover = over_ring;
+    out.rect = Some(rect);
+    out.pointer_over = ui.rect_contains_pointer(rect);
+    if resp.secondary_clicked() {
+        out.secondary = resp.interact_pointer_pos().or(ui.input(|i| i.pointer.hover_pos()));
+    }
     let shown = out.changed.unwrap_or(value01);
 
     if ui.is_rect_visible(rect) {
@@ -346,12 +436,36 @@ pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, styl
     if let Some(col) = style.ring {
         p.circle_stroke(c, r + 4.5, paint::st(3.0, col.gamma_multiply(0.8)));
     }
-    let rr = r + 3.9;
-    for rg in style.ranges.iter().flatten() {
-        let (a0, a1) = (ang(rg.lo.min(rg.hi)), ang(rg.lo.max(rg.hi)));
-        if a1 - a0 > 0.5 {
-            paint::arc_stroke(p, c, rr, a0, a1, 2.0, rg.color.gamma_multiply(0.5), false);
+    if let Some(t) = style.target {
+        let pulse = 0.5 - 0.5 * (std::f32::consts::TAU * t.t / 1.1).cos();
+        if t.hot {
+            crate::fx::glow(p, c, d / 2.0 + 9.0, t.color, 0.30);
+            p.circle_stroke(c, d / 2.0 + 4.0, paint::st(2.0, t.color));
+        } else {
+            // 16 dashes, each one chord (a 14 degree chord of a 24 px ring is 0.2 px off the arc): a
+            // dozen vertices each instead of the hundreds a dashed polyline costs, and every
+            // target knob on the page carries one.
+            let r = d / 2.0 + 3.0 + 2.0 * pulse;
+            let st = paint::st(1.5, t.color.gamma_multiply(0.9));
+            for k in 0..16 {
+                let a0 = (k as f32 * 22.5).to_radians();
+                let a1 = a0 + 14f32.to_radians();
+                p.line_segment([c + vec2(a0.cos(), a0.sin()) * r, c + vec2(a1.cos(), a1.sin()) * r], st);
+            }
         }
+    }
+    let rr = r + 3.9;
+    for (k, rg) in style.ranges.iter().flatten().enumerate() {
+        let rk = rr + k as f32 * RING_PITCH;
+        let (mut a0, mut a1) = (ang(rg.lo.min(rg.hi)), ang(rg.lo.max(rg.hi)));
+        if a1 - a0 < 3.0 {
+            // A zero-depth route stays visible (and grabbable) as a tick at the base.
+            let mid = (a0 + a1) / 2.0;
+            (a0, a1) = (mid - 1.5, mid + 1.5);
+        }
+        let hot = style.ring_hot == Some(k);
+        let alpha = if rg.dim { 0.2 } else if hot { 0.95 } else { 0.5 };
+        paint::arc_stroke(p, c, rk, a0, a1, if hot { 3.0 } else { 2.0 }, rg.color.gamma_multiply(alpha), false);
     }
     if let Some((live, col)) = style.live {
         let a_live = ang(live);
@@ -372,28 +486,155 @@ pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, styl
     p.line_segment([c + dir * rc * 0.35, c + dir * rc * 0.9], paint::st(2.0, T.text));
 }
 
-/// Source chip (MOTION.md 5.6): 20 px pill, glyph disc in the source colour, caps name, 22 x 4
-/// activity bar. Display only until the modulation matrix exists; returns the hover response.
-pub fn source_chip(ui: &mut Ui, rect: Rect, glyph: &str, name: &str, color: Color32, activity01: f32) -> egui::Response {
-    let resp = ui.interact(rect, ui.id().with(("rr-chip", name)), Sense::hover());
-    let hot = crate::motion::tween(ui.ctx(), resp.id, resp.hovered(), 0.14);
+/// Which ring band (index into the knob's stacked rings) lies under `p`, for a compact knob of
+/// diameter `d` centred at `centre` with `n` rings. Bands tile outward from just outside the value
+/// track; the outermost one reaches 1.5 px past its arc so it is easy to catch.
+fn ring_band(centre: egui::Pos2, d: f32, n: usize, p: egui::Pos2) -> Option<usize> {
+    if n == 0 {
+        return None;
+    }
+    let dist = (p - centre).length();
+    let first = d / 2.0 - 3.0 + 3.9 - RING_PITCH / 2.0;
+    if dist < first {
+        return None;
+    }
+    let k = ((dist - first) / RING_PITCH) as usize;
+    (k < n || (k == n && dist < first + n as f32 * RING_PITCH + 1.5)).then_some(k.min(n - 1))
+}
+
+/// Width of a [`source_chip`] whose name is `name`: glyph disc, caps name and, with `bar`, the
+/// 22 px activity bar.
+pub fn chip_width(p: &egui::Painter, name: &str, bar: bool) -> f32 {
+    let tw = paint::text_width(p, &font::strong(11.0), &name.to_uppercase(), 0.5);
+    (10.0 + 12.0 + tw + 7.0 + if bar { 8.0 + 22.0 } else { 0.0 }).ceil()
+}
+
+/// Source chip (MOTION.md 5.6): 20 px pill, `inset` fill, 1 px stroke of the source colour at 35 %
+/// (80 % on hover), 14 px glyph disc in the source colour, caps name, 22 x 4 activity bar (none
+/// when `activity01` is `None`). It is a drag handle for patching: the caller starts the gesture
+/// on `drag_started()`. Hover is reported by the returned response.
+pub fn source_chip(ui: &mut Ui, rect: Rect, glyph: &str, name: &str, color: Color32, activity01: Option<f32>) -> egui::Response {
+    let resp = ui.interact(rect, ui.id().with(("rr-chip", name, rect.min.x as i32, rect.min.y as i32)), Sense::drag());
+    if resp.dragged() {
+        ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+    } else if resp.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Grab);
+    }
+    let hot = crate::motion::tween(ui.ctx(), resp.id, resp.hovered() || resp.dragged(), 0.14);
     if ui.is_rect_visible(rect) {
-        let p = ui.painter();
-        let rad = rect.height() / 2.0;
-        p.rect_filled(rect, rad, T.inset);
-        p.rect_stroke(rect, rad, paint::hair(p, color.gamma_multiply(0.35 + 0.45 * hot)), StrokeKind::Inside);
-        let gc = pos2(rect.left() + rad, rect.center().y);
-        p.circle_filled(gc, 7.0, color);
-        p.text(gc, Align2::CENTER_CENTER, glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
-        let tr = paint::tracked(p, pos2(gc.x + 12.0, rect.center().y), Align2::LEFT_CENTER, &name.to_uppercase(), font::strong(11.0), T.text, 0.5);
+        paint_chip(ui.painter(), rect, glyph, name, color, activity01, hot);
+    }
+    resp
+}
+
+/// The chip's look (also the drag ghost), `hot` 0..1 = hover.
+pub fn paint_chip(p: &egui::Painter, rect: Rect, glyph: &str, name: &str, color: Color32, activity01: Option<f32>, hot: f32) {
+    let rad = rect.height() / 2.0;
+    p.rect_filled(rect, rad, T.inset);
+    p.rect_stroke(rect, rad, paint::hair(p, color.gamma_multiply(0.35 + 0.45 * hot)), StrokeKind::Inside);
+    let gc = pos2(rect.left() + rad, rect.center().y);
+    p.circle_filled(gc, 7.0, color);
+    p.text(gc, Align2::CENTER_CENTER, glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
+    let tr = paint::tracked(p, pos2(gc.x + 12.0, rect.center().y), Align2::LEFT_CENTER, &name.to_uppercase(), font::strong(11.0), T.text, 0.5);
+    if let Some(a) = activity01 {
         let bar = Rect::from_min_size(pos2(tr.right() + 8.0, rect.center().y - 2.0), vec2(22.0, 4.0));
         p.rect_filled(bar, 2.0, Color32::BLACK.gamma_multiply(0.5));
-        let w = 22.0 * activity01.clamp(0.0, 1.0);
+        let w = 22.0 * a.clamp(0.0, 1.0);
         if w > 0.5 {
             p.rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, color);
         }
     }
-    resp
+}
+
+/// A knob in a rect: a dial as large as the rect (value arc in `color`, cap, indicator) with the
+/// knob gesture (vertical drag, Shift fine, double-click reset, wheel, arrows). For rows that
+/// have no room for a knob cell.
+pub fn mini_dial(ui: &mut Ui, rect: Rect, key: &str, value01: f32, default01: f32, color: Color32) -> KnobResponse {
+    let resp = ui.interact(rect, ui.id().with(("rr-mini", key)), Sense::click_and_drag());
+    let hot = resp.hovered() || resp.dragged();
+    if hot {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
+    }
+    if resp.drag_started() || resp.clicked() {
+        resp.request_focus();
+    }
+    let mut out = knob_interact(ui, &resp, value01, default01, None);
+    out.pointer_over = ui.rect_contains_pointer(rect);
+    let shown = out.changed.unwrap_or(value01);
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        let c = rect.center();
+        let r = rect.width().min(rect.height()) / 2.0 - 1.0;
+        let ang = |v: f32| ARC_START + ARC_SWEEP * v.clamp(0.0, 1.0);
+        paint::arc_stroke(p, c, r, ARC_START, ARC_START + ARC_SWEEP, 2.0, T.track, true);
+        if shown > 0.005 {
+            paint::arc_stroke(p, c, r, ARC_START, ang(shown), 2.0, color, true);
+        }
+        let rc = r - 3.5;
+        p.circle_filled(c, rc, if hot { T.cap2 } else { T.cap1 });
+        p.circle_stroke(c, rc, paint::hair(p, Color32::BLACK));
+        let a = ang(shown).to_radians();
+        let dir = vec2(a.cos(), a.sin());
+        p.line_segment([c + dir * rc * 0.3, c + dir * rc * 0.9], paint::st(1.5, T.text));
+        if resp.has_focus() {
+            p.circle_stroke(c, r + 2.5, Stroke::new(1.5_f32, T.accent.gamma_multiply(0.55)));
+        }
+    }
+    out
+}
+
+/// Px of horizontal travel for a full sweep of an [`amount_bar`].
+pub const BAR_PX: f32 = 120.0;
+
+/// A horizontal value bar (matrix amounts): inset box, fill from the left or, `bipolar`, from the
+/// centre, in `color`; `text` centred. Drag sideways (`BAR_PX` for a full sweep, Shift = 1/10),
+/// double-click resets, the wheel nudges 2 %. `enabled == false` draws it faint and inert.
+pub fn amount_bar(ui: &mut Ui, rect: Rect, key: &str, value01: f32, default01: f32, bipolar: bool, color: Color32, text: &str, enabled: bool) -> KnobResponse {
+    let resp = ui.interact(rect, ui.id().with(("rr-bar", key)), Sense::click_and_drag());
+    let hot = (resp.hovered() || resp.dragged()) && enabled;
+    if hot {
+        ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
+    }
+    let mut out = KnobResponse { drag_started: resp.drag_started() && enabled, drag_ended: resp.drag_stopped() && enabled, hovered: hot, pointer_over: ui.rect_contains_pointer(rect), ..Default::default() };
+    if enabled {
+        if resp.double_clicked() {
+            out.reset = true;
+            out.changed = Some(default01);
+        } else if resp.dragged() {
+            let k = if ui.input(|i| i.modifiers.shift) { FINE } else { 1.0 };
+            let next = (value01 + resp.drag_delta().x / BAR_PX * k).clamp(0.0, 1.0);
+            if next != value01 {
+                out.changed = Some(next);
+            }
+        } else if resp.hovered() {
+            let (sy, fine) = ui.input(|i| (i.raw_scroll_delta.y + i.raw_scroll_delta.x, i.modifiers.shift));
+            if sy != 0.0 {
+                let next = (value01 + sy.signum() * WHEEL_STEP * if fine { FINE } else { 1.0 }).clamp(0.0, 1.0);
+                if next != value01 {
+                    out.changed = Some(next);
+                }
+            }
+        }
+    }
+    let shown = out.changed.unwrap_or(value01);
+    if ui.is_rect_visible(rect) {
+        let p = ui.painter();
+        paint::inset_box(p, rect, hot);
+        let inner = rect.shrink2(vec2(2.0, 3.0));
+        let x_of = |v: f32| inner.left() + inner.width() * v.clamp(0.0, 1.0);
+        let (x0, x1) = if bipolar { (x_of(0.5).min(x_of(shown)), x_of(0.5).max(x_of(shown))) } else { (inner.left(), x_of(shown)) };
+        let a = if enabled { 1.0 } else { 0.35 };
+        if x1 - x0 > 0.5 {
+            p.rect_filled(Rect::from_min_max(pos2(x0, inner.top()), pos2(x1, inner.bottom())), 2.0, color.gamma_multiply(0.30 * a));
+            let edge = if bipolar && shown < 0.5 { x0 } else { x1 };
+            p.rect_filled(Rect::from_min_max(pos2(edge - 1.0, inner.top()), pos2(edge + 1.0, inner.bottom())), 1.0, color.gamma_multiply(0.9 * a));
+        }
+        if bipolar {
+            p.vline(x_of(0.5), inner.y_range(), paint::hair(p, Color32::WHITE.gamma_multiply(0.18)));
+        }
+        p.text(rect.center(), Align2::CENTER_CENTER, text, font::mono(11.0), if hot { T.accent } else { T.text.gamma_multiply(if enabled { 1.0 } else { 0.5 }) });
+    }
+    out
 }
 
 /// Vertical-drag / double-click-reset gesture shared by every knob, plus the wheel (2 %, Shift
@@ -1669,5 +1910,92 @@ mod tests {
         let r = patch_row_rects(Rect::from_min_size(pos2(10.0, 20.0), vec2(268.0, 24.0)));
         assert!((r.led.right() - 278.0).abs() < 1.0);
         assert!(r.src.right() < r.tgt.left() && r.tgt.right() < r.knob.left() && r.knob.right() < r.led.left());
+    }
+}
+
+#[cfg(test)]
+mod matrix_ui_tests {
+    use super::*;
+
+    fn frame(ctx: &egui::Context, t: f64, events: Vec<egui::Event>, add: &mut dyn FnMut(&mut Ui)) {
+        let raw = egui::RawInput { time: Some(t), events, screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 200.0))), ..Default::default() };
+        let _ = ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| add(ui));
+        });
+    }
+
+    /// Ring bands tile outward from the value track: inside = the dial, then one band per ring.
+    #[test]
+    fn ring_bands_map_radius_to_the_stacked_ring() {
+        let c = pos2(50.0, 50.0);
+        let d = 40.0; // track radius 17, first ring at 20.9
+        let at = |r: f32| c + vec2(0.0, -r);
+        assert_eq!(ring_band(c, d, 0, at(21.0)), None, "no rings, no bands");
+        assert_eq!(ring_band(c, d, 2, at(10.0)), None, "the dial");
+        assert_eq!(ring_band(c, d, 2, at(17.5)), None, "the value track belongs to the dial");
+        assert_eq!(ring_band(c, d, 2, at(20.9)), Some(0));
+        assert_eq!(ring_band(c, d, 2, at(20.9 + RING_PITCH)), Some(1));
+        assert_eq!(ring_band(c, d, 2, at(20.9 + RING_PITCH + 2.0)), Some(1), "the outer band reaches 1.5 px past its arc");
+        assert_eq!(ring_band(c, d, 2, at(30.0)), None, "far outside");
+    }
+
+    #[test]
+    fn amount_bar_drags_sideways_and_double_click_resets() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let rect = Rect::from_min_size(pos2(20.0, 20.0), vec2(100.0, 20.0));
+        let seen = std::cell::RefCell::new(vec![]);
+        let mut run = |t: f64, events: Vec<egui::Event>| {
+            frame(&ctx, t, events, &mut |ui| seen.borrow_mut().push(amount_bar(ui, rect, "k", 0.5, 0.25, true, T.accent, "+0 %", true)));
+        };
+        let btn = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        let c = rect.center();
+        run(0.0, vec![egui::Event::PointerMoved(c)]);
+        run(0.05, vec![btn(c, true)]);
+        run(0.10, vec![egui::Event::PointerMoved(c + vec2(12.0, 0.0))]);
+        run(0.15, vec![egui::Event::PointerMoved(c + vec2(60.0, 0.0))]);
+        run(0.20, vec![btn(c + vec2(60.0, 0.0), false)]);
+        let moved: f32 = seen.borrow().iter().filter_map(|r| r.changed).fold(0.5, f32::max);
+        assert!(moved > 0.5 && moved <= 0.5 + 60.0 / BAR_PX + 1e-4, "dragging right raises the value, got {moved}");
+        assert!(seen.borrow().iter().any(|r| r.drag_started) && seen.borrow().iter().any(|r| r.drag_ended));
+        seen.borrow_mut().clear();
+        // Double-click: default.
+        for (i, e) in [btn(c, true), btn(c, false), btn(c, true), btn(c, false)].into_iter().enumerate() {
+            run(1.0 + i as f64 * 0.05, vec![e]);
+        }
+        assert!(seen.borrow().iter().any(|r| r.reset && r.changed == Some(0.25)));
+    }
+
+    #[test]
+    fn a_disabled_amount_bar_does_not_react() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let rect = Rect::from_min_size(pos2(20.0, 20.0), vec2(100.0, 20.0));
+        let changed = std::cell::Cell::new(false);
+        let mut run = |t: f64, events: Vec<egui::Event>| {
+            frame(&ctx, t, events, &mut |ui| {
+                changed.set(changed.get() | amount_bar(ui, rect, "k", 0.5, 0.0, false, T.accent, "x", false).changed.is_some());
+            });
+        };
+        let btn = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        let c = rect.center();
+        run(0.0, vec![egui::Event::PointerMoved(c)]);
+        run(0.05, vec![btn(c, true)]);
+        run(0.10, vec![egui::Event::PointerMoved(c + vec2(30.0, 0.0))]);
+        run(0.15, vec![btn(c + vec2(30.0, 0.0), false)]);
+        assert!(!changed.get());
+    }
+
+    #[test]
+    fn chip_widths_grow_with_the_name_and_the_bar() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let mut w = (0.0, 0.0, 0.0);
+        frame(&ctx, 0.0, vec![], &mut |ui| {
+            let p = ui.painter().clone();
+            w = (chip_width(&p, "Mod A", true), chip_width(&p, "Mod A", false), chip_width(&p, "Channel", false));
+        });
+        assert!(w.0 > w.1 + 20.0, "{w:?}");
+        assert!(w.2 > w.1, "{w:?}");
     }
 }

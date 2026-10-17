@@ -448,6 +448,13 @@ impl Voice {
         }
     }
 
+    /// Velocity -> level gains from `patch` (matrix: Vel Vol A / B modulated mid-note).
+    pub fn set_vel_gain(&mut self, patch: &Patch) {
+        for (o, amt) in self.osc.iter_mut().zip([patch.vel_vol_a, patch.vel_vol_b]) {
+            o.vel_gain = vel_scale(amt, self.velocity);
+        }
+    }
+
     pub fn release(&mut self) {
         self.gate = false;
         for o in &mut self.osc {

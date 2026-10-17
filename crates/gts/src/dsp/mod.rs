@@ -10,6 +10,7 @@ pub mod shaper;
 pub mod tables;
 pub mod voice;
 
+use crate::matrix::{self, flag, ModRt, Source, ENC_LEN, N_SOURCES, TICK};
 use crate::params::{
     Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
 };
@@ -185,6 +186,8 @@ pub struct Patch {
     pub spread: f32,
     /// FX section (SPEC v2 Track 4).
     pub fx: FxPatch,
+    /// Macro 1..4, 0..1 (matrix sources, SPEC v2 Track 5).
+    pub macros: [f32; 4],
 }
 
 impl Patch {
@@ -233,6 +236,7 @@ impl Patch {
             volume_db: p.volume.value(),
             spread: p.spread.value(),
             fx: FxPatch::from_params(p),
+            macros: p.macros.values(),
         }
     }
 }
@@ -383,6 +387,34 @@ pub struct Engine {
     pending: [bool; 128],
     pub transport: Transport,
     pub log_notes: bool,
+    /// Modulation matrix (SPEC v2 Track 5). `src_patch` is what the host set (`set_patch` /
+    /// `set_cv_patch`); `patch` adds the global targets, `vpatch[i]` voice i's targets on top.
+    mm: ModRt,
+    src_patch: Patch,
+    vpatch: [Patch; MAX_VOICES],
+    vsrc: [VoiceSrc; MAX_VOICES],
+    /// Per-voice portamento coefficient (only while Portamento is a modulated target).
+    vglide: [f32; MAX_VOICES],
+    chan_at: f32,
+    bus_cv: [f32; 3],
+    /// Samples to the next matrix evaluation, and the per-evaluation smoothing coefficient.
+    mm_tick: usize,
+    mm_k: f32,
+}
+
+/// Matrix sources the engine keeps per voice.
+#[derive(Clone, Copy, Debug)]
+struct VoiceSrc {
+    /// Voice age at the last note-on seen (a change = new note).
+    age: u64,
+    random: f32,
+    rng: u32,
+    poly_at: f32,
+}
+
+/// Portamento one-pole coefficient: ~98 % of the way after `porta` seconds.
+fn glide_coef(porta: f32, sr: f32) -> f32 {
+    if porta > 0.0 { (-4.0 / (porta * sr)).exp() } else { 0.0 }
 }
 
 impl Default for Engine {
@@ -415,6 +447,20 @@ impl Engine {
             pending: [false; 128],
             transport: Transport::default(),
             log_notes: false,
+            mm: ModRt::new(),
+            src_patch: Patch::default(),
+            vpatch: [Patch::default(); MAX_VOICES],
+            vsrc: std::array::from_fn(|i| VoiceSrc {
+                age: 0,
+                random: 0.0,
+                rng: 0x9E37_79B9 ^ (i as u32 + 1).wrapping_mul(0x85EB_CA6B),
+                poly_at: 0.0,
+            }),
+            vglide: [0.0; MAX_VOICES],
+            chan_at: 0.0,
+            bus_cv: [0.0; 3],
+            mm_tick: 0,
+            mm_k: 0.0,
         };
         e.set_sample_rate(44100.0);
         e
@@ -461,11 +507,12 @@ impl Engine {
         self.ctl.smooth = (-1.0 / (0.005 * sr)).exp();
         self.ctl.dc = 1.0 - (-std::f32::consts::TAU * 8.0 / sr).exp();
         self.ctl.sub_g = (std::f32::consts::PI * 25.0 / sr).tan();
+        self.mm_k = (-(TICK as f32) / (matrix::SMOOTH_S * sr)).exp();
         for v in &mut self.voices {
             v.set_sample_rate(sr);
         }
         self.fx.set_sample_rate(sr);
-        let p = self.patch;
+        let p = self.src_patch;
         self.set_patch(&p);
         (self.gain, self.norm) = (self.gain_target, self.norm_target);
         self.xover.reset();
@@ -488,6 +535,11 @@ impl Engine {
         (self.gain, self.norm) = (self.gain_target, self.norm_target);
         self.xover.reset();
         self.fx.reset();
+        self.mm.reset();
+        self.chan_at = 0.0;
+        for s in &mut self.vsrc {
+            s.poly_at = 0.0;
+        }
     }
 
     /// Call once per block, before rendering it.
@@ -495,8 +547,16 @@ impl Engine {
     /// volume), which voices read from the patch per sample. Unlike [`Engine::set_patch`] it leaves
     /// envelopes, LFO configuration and voice count alone; `p` must otherwise equal the block's patch.
     pub fn set_cv_patch(&mut self, p: &Patch) {
+        self.src_patch = *p;
         self.patch = *p;
         self.gain_target = 10f32.powf(p.volume_db / 20.0);
+        // Re-apply the current matrix offsets on the new base (no smoothing step).
+        if self.mm.has_global() {
+            self.apply_global();
+        }
+        if self.mm.has_voice() {
+            self.apply_voices(false);
+        }
     }
 
     pub fn set_patch(&mut self, p: &Patch) {
@@ -513,6 +573,7 @@ impl Engine {
                 self.n_held = 1;
             }
         }
+        self.src_patch = *p;
         self.patch = *p;
         let sr = self.ctl.sr;
         self.xover.set(p.mono_xover, sr);
@@ -521,16 +582,175 @@ impl Engine {
             self.xover.settle();
         }
         // Portamento: one-pole in semitones, ~98 % of the way after `porta` seconds.
-        self.ctl.glide = if p.porta > 0.0 { (-4.0 / (p.porta * sr)).exp() } else { 0.0 };
+        self.ctl.glide = glide_coef(p.porta, sr);
         // 1/sqrt(poly), applied before the FX chain, keeps chords out of the limiter and the FX at
         // voice level (mono unchanged).
         self.gain_target = 10f32.powf(p.volume_db / 20.0);
         self.norm_target = 1.0 / (p.poly as f32).sqrt();
         let t = self.transport;
         self.fx.set(&p.fx, t.tempo, t.playing.then_some(t.pos_beats));
-        for v in &mut self.voices {
-            v.update(p, sr);
-            v.configure_mods(p, &self.transport);
+        if self.mm.has_global() {
+            self.apply_global();
+        }
+        if self.mm.has_voice() {
+            // Each voice updates from its own patch only: an update from the base patch first
+            // would flip modulated unison counts back and forth every block.
+            self.apply_voices(true);
+        } else {
+            for v in &mut self.voices {
+                v.update(p, sr);
+                v.configure_mods(p, &self.transport);
+            }
+        }
+    }
+
+    // ---- modulation matrix -------------------------------------------------------------------
+
+    /// Takes a new encoded matrix (`matrix::Matrix::encode`) at a block start and re-applies the
+    /// patch with it. Allocation-free.
+    pub fn set_matrix(&mut self, enc: &[f32; ENC_LEN]) {
+        self.mm.load(enc);
+        let p = self.src_patch;
+        self.set_patch(&p);
+    }
+
+    /// The matrix has an enabled slot (the plugin then re-applies CV / matrix every 32 samples).
+    pub fn matrix_on(&self) -> bool {
+        self.mm.is_on()
+    }
+
+    pub fn matrix(&self) -> &ModRt {
+        &self.mm
+    }
+
+    /// Smoothed RR-BUS CV-in values (matrix sources Bus CV 1..3).
+    pub fn set_bus_cv(&mut self, cv: [f32; 3]) {
+        self.bus_cv = cv;
+    }
+
+    /// The patch voice `i` renders with (its voice-scope targets applied).
+    pub fn voice_patch(&self, i: usize) -> &Patch {
+        if self.mm.has_voice() { &self.vpatch[i] } else { &self.patch }
+    }
+
+    /// Index of the newest sounding voice.
+    pub fn newest(&self) -> Option<usize> {
+        (0..MAX_VOICES).filter(|&i| self.voices[i].sounding()).max_by_key(|&i| self.voices[i].age)
+    }
+
+    /// Matrix source values for voice `v` (per-voice sources 0 when `None`), in `Source` order.
+    pub fn sources(&self, v: Option<usize>) -> [f32; N_SOURCES] {
+        let mut s = [0.0; N_SOURCES];
+        if let Some(i) = v {
+            let (v, x) = (&self.voices[i], &self.vsrc[i]);
+            s[Source::ModA as usize] = v.lfo_out[0];
+            s[Source::ModB as usize] = v.lfo_out[1];
+            s[Source::FilterEnv as usize] = v.filter_env().level();
+            s[Source::AmpEnvA as usize] = v.amp_env(0).level();
+            s[Source::AmpEnvB as usize] = v.amp_env(1).level();
+            s[Source::Velocity as usize] = v.velocity;
+            s[Source::Keytrack as usize] = ((v.pitch() - voice::KBD_REF) / 60.0).clamp(-1.0, 1.0);
+            s[Source::Random as usize] = x.random;
+            s[Source::PolyAftertouch as usize] = x.poly_at;
+        }
+        s[Source::ModWheel as usize] = self.ctl.wheel;
+        s[Source::ChannelAftertouch as usize] = self.chan_at;
+        s[Source::Macro1 as usize..Source::Macro1 as usize + 4].copy_from_slice(&self.src_patch.macros);
+        s[Source::BusCv1 as usize..Source::BusCv1 as usize + 3].copy_from_slice(&self.bus_cv);
+        s
+    }
+
+    /// `patch` = `src_patch` + the global offsets, and the settings that do not read the patch
+    /// per sample.
+    fn apply_global(&mut self) {
+        self.patch = self.src_patch;
+        self.mm.write_global(&mut self.patch);
+        let (f, t) = (self.mm.gflags(), self.transport);
+        let p = &self.patch;
+        if f & flag::FX != 0 {
+            self.fx.set(&p.fx, t.tempo, t.playing.then_some(t.pos_beats));
+        }
+        if f & flag::XOVER != 0 {
+            self.xover.set(p.mono_xover, self.ctl.sr);
+        }
+        if f & flag::VOLUME != 0 {
+            self.gain_target = 10f32.powf(p.volume_db / 20.0);
+        }
+    }
+
+    /// Every voice's patch from `patch` and its current offsets. `full`: also update every voice
+    /// (block start), else only active voices and only the settings the targets need.
+    fn apply_voices(&mut self, full: bool) {
+        self.mm.prepare_voice_base(&self.patch);
+        for i in 0..MAX_VOICES {
+            if full || self.voices[i].is_active() {
+                self.apply_voice(i, full);
+            }
+        }
+    }
+
+    /// Voice `i`'s patch (base cached by `prepare_voice_base`).
+    fn apply_voice(&mut self, i: usize, full: bool) {
+        let mut vp = self.patch;
+        self.mm.write_voice(i, &mut vp);
+        self.vpatch[i] = vp;
+        let (f, sr) = (self.mm.vflags(), self.ctl.sr);
+        let v = &mut self.voices[i];
+        if full || f & flag::UPDATE != 0 {
+            v.update(&vp, sr);
+        }
+        if full || f & flag::LFO != 0 {
+            v.configure_mods(&vp, &self.transport);
+        }
+        if f & flag::VEL_GAIN != 0 {
+            v.set_vel_gain(&vp);
+        }
+        if f & flag::PORTA != 0 {
+            self.vglide[i] = glide_coef(vp.porta, sr);
+        }
+    }
+
+    /// One matrix evaluation (every `TICK` samples): sources -> smoothed offsets -> patches.
+    fn mod_tick(&mut self) {
+        let k = self.mm_k;
+        if self.mm.has_global() {
+            let src = self.sources(self.newest());
+            self.mm.eval_global(&src, k);
+            self.apply_global();
+        }
+        if self.mm.has_voice() {
+            self.mm.prepare_voice_base(&self.patch);
+            for i in 0..MAX_VOICES {
+                if self.voices[i].is_active() {
+                    let src = self.sources(Some(i));
+                    self.mm.eval_voice(i, &src, k);
+                    self.apply_voice(i, false);
+                }
+            }
+        }
+    }
+
+    /// After note events: a voice with a new note-on draws its Random value, clears its
+    /// pressure and (matrix on) jumps to its own modulation before its first sample.
+    fn mod_new_notes(&mut self) {
+        for i in 0..MAX_VOICES {
+            let age = self.voices[i].age;
+            let s = &mut self.vsrc[i];
+            if age == s.age {
+                continue;
+            }
+            s.age = age;
+            s.rng ^= s.rng << 13;
+            s.rng ^= s.rng >> 17;
+            s.rng ^= s.rng << 5;
+            s.random = (s.rng >> 8) as f32 / (1u32 << 23) as f32 - 1.0;
+            s.poly_at = 0.0;
+            if self.mm.has_voice() {
+                self.mm.prepare_voice_base(&self.patch);
+                let src = self.sources(Some(i));
+                self.mm.eval_voice(i, &src, 0.0);
+                self.apply_voice(i, true);
+            }
         }
     }
 
@@ -543,7 +763,18 @@ impl Engine {
             NoteEvent::MidiCC { cc: 1, value, .. } => self.mod_wheel(value),
             NoteEvent::MidiCC { cc: 64, value, .. } => self.sustain_pedal(value >= 0.5),
             NoteEvent::MidiCC { cc: 120 | 123, .. } => self.all_notes_off(),
+            NoteEvent::PolyPressure { note, pressure, .. } => self.poly_pressure(note, pressure),
+            NoteEvent::MidiChannelPressure { pressure, .. } => self.chan_at = pressure.clamp(0.0, 1.0),
             _ => {}
+        }
+    }
+
+    /// Poly aftertouch for the held voices of `note`, 0..1 (matrix source).
+    pub fn poly_pressure(&mut self, note: u8, pressure: f32) {
+        for (v, s) in self.voices.iter().zip(&mut self.vsrc) {
+            if v.gate && v.note == note {
+                s.poly_at = pressure.clamp(0.0, 1.0);
+            }
         }
     }
 
@@ -624,6 +855,11 @@ impl Engine {
     }
 
     pub fn note_on(&mut self, note: u8, velocity: f32) {
+        self.note_on_inner(note, velocity);
+        self.mod_new_notes();
+    }
+
+    fn note_on_inner(&mut self, note: u8, velocity: f32) {
         // A re-pressed key is held again; its deferred note-off no longer applies.
         self.pending[note as usize & 127] = false;
         self.age += 1;
@@ -661,6 +897,12 @@ impl Engine {
     }
 
     pub fn note_off(&mut self, note: u8) {
+        self.note_off_inner(note);
+        // Mono: falling back to a held key retriggers.
+        self.mod_new_notes();
+    }
+
+    fn note_off_inner(&mut self, note: u8) {
         if self.sustain {
             self.pending[note as usize & 127] = true;
             return;
@@ -721,6 +963,13 @@ impl Engine {
         self.ctl.wheel = self.wheel_raw + (self.ctl.wheel - self.wheel_raw) * k;
         self.gain = self.gain_target + (self.gain - self.gain_target) * k;
         self.norm = self.norm_target + (self.norm - self.norm_target) * k;
+        if self.mm.is_on() {
+            if self.mm_tick == 0 {
+                self.mod_tick();
+                self.mm_tick = TICK;
+            }
+            self.mm_tick -= 1;
+        }
 
         if self.transport.playing {
             self.transport.pos_beats += self.transport.tempo / 60.0 / self.ctl.sr as f64;
@@ -729,11 +978,21 @@ impl Engine {
             return (0.0, 0.0);
         };
         let (mut l, mut r) = (0.0, 0.0);
-        for v in &mut self.voices {
+        let vm = self.mm.has_voice();
+        let porta = vm && self.mm.vflags() & flag::PORTA != 0;
+        for (i, v) in self.voices.iter_mut().enumerate() {
             if !v.is_active() {
                 continue;
             }
-            let (a, b) = v.next(tables, &self.patch, &self.ctl);
+            let p = if vm { &self.vpatch[i] } else { &self.patch };
+            let glided;
+            let ctl = if porta {
+                glided = Controls { glide: self.vglide[i], ..self.ctl };
+                &glided
+            } else {
+                &self.ctl
+            };
+            let (a, b) = v.next(tables, p, ctl);
             l += a;
             r += b;
         }

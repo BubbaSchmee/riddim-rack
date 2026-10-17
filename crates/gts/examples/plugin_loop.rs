@@ -11,7 +11,7 @@
 //!   notes    an audio thread plays the riddim demo pattern (Wobble Shot) on the real engine in real
 //!            time and publishes through the plugin's own VizWriter / Meters, so every live display moves;
 //!            also reports the hero's own GPU time (timer query)
-//!   page=fx  show the FX page
+//!   page=fx  show the FX page (page=matrix: the MATRIX page)
 //!   cpu      force the hero's CPU fallback
 //!   fxtex    also draw generated-texture effects (drop shadows, additive glow sprites, brushed noise) over the panel
 //!   gl       also draw the 3D wavetable GL view (wavegl.rs) over the header
@@ -117,7 +117,8 @@ fn main() {
     if val("page").as_deref() == Some("fx") {
         demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
     }
-    let feed = demo::Feed::new(patch);
+    let mut feed = demo::Feed::new(patch);
+    feed.attach(ctl.table.params().clone());
     let (meters, viz, ring) = (feed.meters.clone(), feed.viz.clone(), feed.ring.clone());
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let audio = has("notes").then(|| {
@@ -147,7 +148,7 @@ fn main() {
         gl: has("gl").then(|| wavegl::WaveGl::new(wavegl::demo_waves())),
         ctl,
         tables,
-        bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), peak_db: -6.0, fx_page: val("page").as_deref() == Some("fx"), ..Default::default() },
+        bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), peak_db: -6.0, page: match val("page").as_deref() { Some("fx") => gts::editor::Page::Fx, Some("matrix") => gts::editor::Page::Matrix, _ => gts::editor::Page::Synth }, ..Default::default() },
         live,
         meters,
         hero_gpu: hero_gpu.clone(),

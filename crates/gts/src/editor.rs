@@ -1,8 +1,8 @@
 //! GTS editor in the shared Riddim Rack look (`docs/design/DESIGN.md`, v2 layout and motion from
 //! `docs/design/MOTION.md`). Fixed [`WINDOW`] 1000x832, laid out in absolute window coordinates
 //! (MOTION.md 2.1): header band (nameplate, preset bar, page switch, Quality, PATCH chip, scope,
-//! meter, output), then the SYNTH page (hero wavetable, sources, modulators, oscillators, filters,
-//! ...) or the FX page, and the help bar.
+//! meter, output), then the SYNTH page (hero wavetable, sources and macros, modulators,
+//! oscillators, filters, ...), the FX page or the MATRIX page, and the help bar.
 //!
 //! The UI is a plain function over the [`Ctl`] trait, so the plugin (over `ParamSetter`), the
 //! screenshot / benchmark examples and the id-coverage test all render the same code. Every
@@ -31,14 +31,18 @@ use crate::dsp::shaper::Shaper;
 use crate::dsp::tables::{Fft, Tables, GRAINS, N};
 use crate::params::*;
 use crate::preset::{self, Preset};
+use crate::matrix::{MatrixShared, Source};
 use crate::viz::{gf, vf, Viz, VizFrame, MOD_IDS};
 use egui::{pos2, vec2, Align2, Color32, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+
+pub mod patching;
 
 /// Window size in logical px (fits 1080p at 125 % OS scaling: 864 px minus the host title bar).
 pub const WINDOW: (u32, u32) = (1000, 832);
 
-/// Hero display rect in window px (MOTION.md 2.1).
-pub const HERO: (f32, f32, f32, f32) = (44.0, 80.0, 568.0, 232.0);
+/// Hero display rect in window px (MOTION.md 2.1). 208 px is a quarter of the window height: the
+/// two rows of the sources strip take the 24 px the hero gave up.
+pub const HERO: (f32, f32, f32, f32) = (44.0, 80.0, 568.0, 208.0);
 
 /// Header quality choice: shaper oversampling factors.
 const QUALITY: [usize; 3] = [1, 2, 4];
@@ -71,6 +75,11 @@ pub trait Ctl {
     fn norm(&self, id: &str, plain: f32) -> f32 {
         let _ = id;
         plain
+    }
+    /// The plugin's modulation matrix (slots and macro labels), when the host has one: drag-to-patch,
+    /// the knob menu and the MATRIX page edit it through `MatrixEditor`. `None` shows none of them.
+    fn matrix(&self) -> Option<&MatrixShared> {
+        None
     }
 }
 
@@ -117,16 +126,31 @@ impl ParamTable {
     pub fn steps(&self, id: &str) -> Option<usize> {
         unsafe { self.ptr(id).step_count() }
     }
-    /// Normalized value of every sound param, in id order (to tell whether a loaded preset was edited).
+    /// Normalized value of every sound param, in id order, then the matrix record and a fold of the
+    /// macro labels (to tell whether a loaded preset was edited).
     pub fn snapshot(&self) -> Vec<f32> {
-        self.sound_ids.iter().map(|id| self.get01(id)).collect()
+        let mut v: Vec<f32> = self.sound_ids.iter().map(|id| self.get01(id)).collect();
+        let m = self.matrix().get();
+        v.extend_from_slice(&m.encode());
+        v.extend(m.macros.iter().map(|l| (l.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) % 1_000_003) as f32));
+        v
+    }
+    /// The params this table reads (editors and previews that run an engine share them).
+    pub fn params(&self) -> &Arc<GtsParams> {
+        &self._keep
+    }
+    /// The plugin's modulation matrix.
+    pub fn matrix(&self) -> &MatrixShared {
+        &self._keep.matrix
     }
 }
 
 /// Loads a factory preset (`None` = Init, every sound param at its default) through `c` as host
-/// gestures. GUI thread only. The RR-BUS CV slots, the instance label and the Quality setting are
-/// project routing, not sound: never touched.
+/// gestures, and its modulation matrix and macro labels (Init: empty, default labels). GUI thread
+/// only. The RR-BUS CV slots, the instance label and the Quality setting are project routing, not
+/// sound: never touched.
 pub fn apply_preset(table: &ParamTable, c: &dyn Ctl, preset: Option<&Preset>) {
+    table._keep.matrix.replace(preset.map_or_else(Default::default, Preset::matrix_state));
     let json = preset.and_then(|p| serde_json::from_str::<serde_json::Value>(&p.to_json()).ok());
     let params = json.as_ref().and_then(|j| j.get("params")).and_then(|p| p.as_object());
     for id in &table.sound_ids {
@@ -208,6 +232,9 @@ impl Ctl for PlugCtl<'_> {
     fn norm(&self, id: &str, plain: f32) -> f32 {
         self.table.norm(id, plain)
     }
+    fn matrix(&self) -> Option<&MatrixShared> {
+        Some(self.table.matrix())
+    }
 }
 
 // ---- control helpers ----------------------------------------------------------------------
@@ -243,23 +270,7 @@ fn drive(ui: &Ui, c: &dyn Ctl, id: &str, r: KnobResponse, stepped: bool) {
     }
 }
 
-/// Per-frame knob decorations: live modulation (ModLive), the modulation ranges and the hovered
-/// source chip.
-#[derive(Clone, Default)]
-struct KnobLive {
-    live: [Option<(f32, Color32)>; MOD_IDS.len()],
-    /// Range arcs per [`MOD_IDS`] knob, one per source (MOTION.md 5.2).
-    ranges: [[Option<RingRange>; 2]; MOD_IDS.len()],
-    /// Source chip under the pointer (last frame): 0 Mod A, 1 Mod B, 2 Env.
-    chip: Option<usize>,
-    filt_env: [bool; 2],
-}
-
-fn knob_live_id() -> Id {
-    Id::new("gts-knob-live")
-}
-
-/// The chip hovered this frame (read next frame, so knobs drawn before the chips can dim too).
+/// The chip hovered this frame (read next frame, so knobs drawn before the chips can ring too).
 fn chip_id() -> Id {
     Id::new("gts-chip")
 }
@@ -291,18 +302,6 @@ fn glyph_of(col: Color32) -> &'static str {
     }
 }
 
-/// Which sources move `id` (for the chip hover ring): bit 0 Mod A, 1 Mod B, 2 Env.
-fn sources_of(id: &str, filt_env: [bool; 2]) -> u8 {
-    match id {
-        "osca_index" | "oscb_index" | "osca_shift" | "oscb_shift" => 1,
-        "osca_motion" | "oscb_motion" | "osca_vol" | "oscb_vol" | "moda_pitch" | "moda_index" | "moda_shift" => 2,
-        "filta_freq" => 2 | if filt_env[0] { 4 } else { 0 },
-        "filtb_freq" => 2 | if filt_env[1] { 4 } else { 0 },
-        "fenv_amt" => 4,
-        _ => 0,
-    }
-}
-
 /// When the last preset load happened (egui time); knobs glide for a while after it.
 fn glide_id() -> Id {
     Id::new("gts-preset-glide")
@@ -324,23 +323,17 @@ fn kn(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str, mut style: KnobStyle) {
         let secs = if (0.0..PRESET_GLIDE_WINDOW).contains(&(now - t0)) { PRESET_GLIDE } else { 0.001 };
         ui.ctx().animate_value_with_time(Id::new(("gts-glide", id)), c.get01(id), rr_ui::motion::dur(ui.ctx(), secs).max(0.001))
     };
+    // The matrix: stacked range arcs and the live dot from slots and built-in routes, the look of
+    // a patch drag (valid targets lit, the rest dimmed) or of a hovered source chip.
     let mut dim_by_chip = false;
+    let mut m = None;
     if style.compact {
-        if let Some(kl) = ui.data(|d| d.get_temp::<KnobLive>(knob_live_id())) {
-            if let Some(k) = MOD_IDS.iter().position(|m| *m == id) {
-                style.live = kl.live[k];
-                style.ranges = kl.ranges[k];
-            }
-            if let Some(ch) = kl.chip {
-                if sources_of(id, kl.filt_env) & (1 << ch) != 0 {
-                    style.ring = Some([SRC_A, SRC_B, SRC_E][ch]);
-                } else {
-                    dim_by_chip = true;
-                }
-            }
+        if let Some((mv, km, dim)) = patching::decorate(ui.ctx(), c, id, &mut style) {
+            dim_by_chip = dim;
+            m = Some((mv, km));
         }
     }
-    // Chip hover: every knob that is not a target drops to 50 % in 140 ms.
+    // Chip hover / patch drag: every knob that is not a target drops to 50 % in 140 ms.
     let dk = rr_ui::motion::tween(ui.ctx(), Id::new(("gts-dim", id)), dim_by_chip, 0.14);
     let r = ui
         .scope(|ui| {
@@ -351,9 +344,12 @@ fn kn(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str, mut style: KnobStyle) {
         })
         .inner;
     if r.hovered {
-        let live = style.live.map(|(v, col)| (c.readout_at(id, v), col, glyph_of(col)));
+        let live = style.live.map(|(v, col)| (c.readout_at(id, v), col, m.as_ref().map_or_else(|| glyph_of(col), |(_, km)| km.live_glyph)));
         let value = c.readout_at(id, shown);
         ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: c.name(id).to_uppercase(), id: id.to_string(), value, live, ..Default::default() }));
+    }
+    if let Some((mv, km)) = &m {
+        patching::after_knob(ui, c, id, &r, mv, km);
     }
     drive(ui, c, id, r, stepped);
 }
@@ -440,8 +436,10 @@ pub struct BusView {
     pub activity: [f32; 3],
     /// Header Quality: shaper oversampling 1 / 2 / 4 (persisted host state, not a param).
     pub oversampling: usize,
-    /// Header page switch: false = SYNTH, true = FX. Editor-session state, never persisted.
-    pub fx_page: bool,
+    /// Header page switch. Editor-session state, never persisted.
+    pub page: Page,
+    /// The MORE sources popover is open.
+    pub more_open: bool,
     /// Header preset bar: the loaded entry (0 = Init, 1.. = factory order), `None` until one is
     /// picked this session. Editor-session state, never persisted.
     pub preset: Option<usize>,
@@ -460,6 +458,15 @@ pub struct BusView {
     pub reduced_motion: bool,
     /// The preset list is open.
     pub preset_open: bool,
+}
+
+/// The three pages of the header switch.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Page {
+    #[default]
+    Synth,
+    Fx,
+    Matrix,
 }
 
 const CV: [(&str, &str); 3] = [("cv1_target", "cv1_amount"), ("cv2_target", "cv2_amount"), ("cv3_target", "cv3_amount")];
@@ -689,34 +696,6 @@ impl LiveView {
         let rms = (self.hero_frames.iter().map(|v| v * v).sum::<f32>() / self.hero_frames.len() as f32).sqrt().max(1e-6);
         self.hero_frames.iter_mut().for_each(|v| *v *= 0.7 / rms);
     }
-
-    /// Ring decorations for this frame: every [`MOD_IDS`] knob whose live value moved off its base.
-    fn knob_live(&self, c: &dyn Ctl) -> KnobLive {
-        let mut kl = KnobLive { filt_env: [c.get01("filta_env") > 0.5, c.get01("filtb_env") > 0.5], ..Default::default() };
-        for (k, id) in MOD_IDS.iter().enumerate() {
-            kl.ranges[k] = ring_ranges(c, id);
-        }
-        if self.frame.newest().is_none() {
-            return kl;
-        }
-        let env_on = c.get01("fenv_amt") > 0.004;
-        let oscb_on = c.get01("oscb_on") > 0.5;
-        for (k, id) in MOD_IDS.iter().enumerate() {
-            let Some(v) = self.frame.live01(id) else { continue };
-            if (v - c.get01(id)).abs() <= 0.004 || (id.starts_with("oscb") && !oscb_on) || (id.starts_with("filt") && bypass(c)) {
-                continue;
-            }
-            let col = match *id {
-                "osca_index" | "oscb_index" | "osca_shift" | "oscb_shift" => SRC_A,
-                "filta_freq" if kl.filt_env[0] && env_on => SRC_E,
-                "filtb_freq" if kl.filt_env[1] && env_on => SRC_E,
-                "fenv_amt" => SRC_E,
-                _ => SRC_B,
-            };
-            kl.live[k] = Some((v, col));
-        }
-        kl
-    }
 }
 
 /// Modulation depth ranges for one ring target (MOTION.md 5.2), from the knob's base value and
@@ -729,7 +708,7 @@ pub fn ring_ranges(c: &dyn Ctl, id: &str) -> [Option<RingRange>; 2] {
     let p = |id: &str| c.plain(id, c.get01(id));
     let osc = usize::from(id.starts_with("oscb") || id.starts_with("filtb"));
     let span = |base: f32, delta: f32, uni: bool| if uni { (base.min(base + delta), base.max(base + delta)) } else { (base - delta.abs(), base + delta.abs()) };
-    let rg = |lo: f32, hi: f32, col: Color32| Some(RingRange { lo: c.norm(id, lo.min(hi)).clamp(0.0, 1.0), hi: c.norm(id, lo.max(hi)).clamp(0.0, 1.0), color: col });
+    let rg = |lo: f32, hi: f32, col: Color32| Some(RingRange { lo: c.norm(id, lo.min(hi)).clamp(0.0, 1.0), hi: c.norm(id, lo.max(hi)).clamp(0.0, 1.0), color: col, dim: false });
     let mut out = [None; 2];
     let osc_live = osc == 0 || c.get01("oscb_on") > 0.5;
     match id {
@@ -791,13 +770,13 @@ fn note_name(n: u8) -> String {
 /// phase. Lives in egui memory so every `draw` caller (plugin, previews, tests) gets it.
 #[derive(Clone, Copy)]
 struct PageState {
-    target: bool,
-    shown: bool,
+    target: Page,
+    shown: Page,
     /// Start of the running transition (egui time), negative when idle.
     t0: f64,
 }
 
-fn page_state(ctx: &egui::Context, now: f64, target: bool) -> (bool, Option<rr_ui::motion::PageTrans>) {
+fn page_state(ctx: &egui::Context, now: f64, target: Page) -> (Page, Option<rr_ui::motion::PageTrans>) {
     use rr_ui::motion::{PageTrans, PAGE_IN, PAGE_OUT};
     let id = Id::new("gts-page-state");
     let mut s = ctx.data(|d| d.get_temp::<PageState>(id)).unwrap_or(PageState { target, shown: target, t0: -1.0 });
@@ -848,27 +827,34 @@ pub fn draw(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: 
     let now = ui.input(|i| i.time);
     let osc_pitch = 12.0 * (c.get01("osca_oct") * 8.0 - 4.0).round() + (c.get01("osca_semi") * 12.0).round();
     live.update(now, osc_pitch);
-    let mut kl = live.knob_live(c);
-    ui.data_mut(|d| {
-        kl.chip = d.remove_temp::<Option<usize>>(chip_id()).flatten();
-        d.insert_temp(knob_live_id(), kl);
+    // The chip hovered last frame (the header knobs are drawn before the chips) and the matrix as
+    // this frame sees it.
+    let hover_src = ctx.data_mut(|d| {
         d.remove_temp::<Hover>(hover_id());
+        d.remove_temp::<Option<Source>>(chip_id()).flatten()
     });
+    patching::begin_frame(&ctx, c, &live.frame, hover_src, now);
 
     header(ui, c, live, bv, &at);
-    let (show_fx, trans) = page_state(&ctx, now, bv.fx_page);
+    let (shown, trans) = page_state(&ctx, now, bv.page);
     rr_ui::motion::set_page_trans(&ctx, trans);
     let body = at(44.0, 80.0, 912.0, 704.0);
     let mut bui = ui.new_child(UiBuilder::new().max_rect(body).layout(egui::Layout::top_down(egui::Align::Min)));
     let mut over = Vec2::ZERO;
-    if show_fx {
-        fx_body(&mut bui, c, live, bv, &at);
-        over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
-    } else {
-        synth(&mut bui, c, tables, live, &at);
+    match shown {
+        Page::Fx => {
+            fx_body(&mut bui, c, live, bv, &at);
+            over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
+        }
+        Page::Matrix => {
+            patching::matrix_body(&mut bui, c, &at);
+            over = (bui.min_rect().max - body.max).max(Vec2::ZERO);
+        }
+        Page::Synth => synth(&mut bui, c, tables, live, bv, &at),
     }
     rr_ui::motion::set_page_trans(&ctx, None);
     rr_ui::fx::end_shadows(ui, shadows);
+    patching::end_frame(ui, c, bv, &at);
     help_bar(ui, at(44.0, 792.0, 912.0, 28.0), bv);
     preset_list(ui, bv, at(208.0, 16.0, 232.0, 56.0));
     patch_popover(ui, c, bv, at(508.0, 48.0, 72.0, 24.0));
@@ -1041,25 +1027,58 @@ fn preset_list(ui: &mut Ui, bv: &mut BusView, bar: Rect) {
     }
 }
 
-/// SYNTH / FX segmented control with a sliding lit segment (180 ms).
+/// SYNTH / FX / MATRIX segmented control with a sliding lit segment (180 ms). While a source is
+/// being dragged for patching, resting on SYNTH or FX for 0.4 s switches to it, so a source can be
+/// carried from one page's strip to the other's knobs.
 fn page_switch(ui: &mut Ui, r: Rect, bv: &mut BusView) {
+    const NAMES: [&str; 3] = ["Synth", "FX", "Matrix"];
+    const PAGES: [Page; 3] = [Page::Synth, Page::Fx, Page::Matrix];
     let p = ui.painter().clone();
     rr_ui::paint::inset_box(&p, r, false);
-    let w = (r.width() - 4.0) / 2.0;
-    let x = rr_ui::motion::tween(ui.ctx(), Id::new("gts-page-lit"), bv.fx_page, 0.18);
-    let lit = Rect::from_min_size(pos2(r.left() + 2.0 + x * w, r.top() + 2.0), vec2(w, r.height() - 4.0));
+    // Segment widths follow their captions.
+    let f = font::label(11.0);
+    let tw: Vec<f32> = NAMES.iter().map(|n| rr_ui::paint::text_width(&p, &f, &n.to_uppercase(), 0.5) + 12.0).collect();
+    let k = (r.width() - 4.0) / tw.iter().sum::<f32>();
+    let widths: Vec<f32> = tw.iter().map(|w| w * k).collect();
+    let starts: Vec<f32> = widths.iter().scan(r.left() + 2.0, |x, w| { let s = *x; *x += w; Some(s) }).collect();
+    let cur = PAGES.iter().position(|pg| *pg == bv.page).unwrap_or(0);
+    let t = rr_ui::motion::tween_value(ui.ctx(), Id::new("gts-page-lit"), cur as f32, 0.18);
+    let at_t = |t: f32| {
+        let i = (t.floor() as usize).min(2);
+        let fr = t - i as f32;
+        let (a, b) = (starts[i], widths[i]);
+        let (a2, b2) = starts.get(i + 1).map_or((a, b), |s| (*s, widths[i + 1]));
+        (a + (a2 - a) * fr, b + (b2 - b) * fr)
+    };
+    let (lx, lw) = at_t(t);
+    let lit = Rect::from_min_size(pos2(lx, r.top() + 2.0), vec2(lw, r.height() - 4.0));
     p.rect_filled(lit, 3.0, T.a(0.20));
     p.rect_stroke(lit, 3.0, rr_ui::paint::hair(&p, T.a(0.55)), StrokeKind::Inside);
-    for (i, name) in ["Synth", "FX"].into_iter().enumerate() {
-        let seg = Rect::from_min_size(pos2(r.left() + 2.0 + i as f32 * w, r.top() + 2.0), vec2(w, r.height() - 4.0));
+    let dragging = patching::drag_src(ui.ctx()).is_some();
+    let now = ui.input(|i| i.time);
+    for (i, name) in NAMES.into_iter().enumerate() {
+        let seg = Rect::from_min_size(pos2(starts[i], r.top() + 2.0), vec2(widths[i], r.height() - 4.0));
         let resp = ui.interact(seg, Id::new(("gts-page", i)), Sense::click());
         if resp.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         if resp.clicked() {
-            bv.fx_page = i == 1;
+            bv.page = PAGES[i];
         }
-        let on = (i == 1) == bv.fx_page;
+        // Dwell switch while patching (not onto MATRIX: it has no knobs to drop on).
+        let dwell_id = Id::new(("gts-page-dwell", i));
+        if dragging && i < 2 && PAGES[i] != bv.page && ui.rect_contains_pointer(seg) {
+            let t0 = ui.data_mut(|d| *d.get_temp_mut_or_insert_with(dwell_id, || now));
+            let k = ((now - t0) / 0.4) as f32;
+            p.rect_filled(Rect::from_min_size(seg.min, vec2(seg.width() * k.min(1.0), seg.height())), 3.0, T.a(0.14));
+            if k >= 1.0 {
+                bv.page = PAGES[i];
+                ui.data_mut(|d| d.remove_temp::<f64>(dwell_id));
+            }
+        } else {
+            ui.data_mut(|d| d.remove_temp::<f64>(dwell_id));
+        }
+        let on = PAGES[i] == bv.page;
         let col = if on { T.accent } else if resp.hovered() { T.text } else { T.muted };
         rr_ui::paint::caps(&p, seg.center(), Align2::CENTER_CENTER, name, 11.0, col);
     }
@@ -1147,7 +1166,11 @@ fn elide(p: &egui::Painter, text: &str, font: egui::FontId, max_w: f32) -> Strin
 /// settings ("Always show values", "Reduced motion") that stay on the right in every state; with
 /// nothing hovered, the gesture hint.
 fn help_bar(ui: &mut Ui, r: Rect, bv: &mut BusView) {
-    let hov = ui.data(|d| d.get_temp::<Hover>(hover_id()));
+    let mut hov = ui.data(|d| d.get_temp::<Hover>(hover_id()));
+    // A notice (the matrix is full, ...) shows for 3 s over whatever is hovered.
+    if let Some(msg) = patching::current_notice(ui.ctx()) {
+        hov = Some(Hover { name: "MATRIX".into(), value: msg, ..Default::default() });
+    }
     let p = ui.painter().clone();
     p.rect_filled(r, 4.0, Color32::BLACK.gamma_multiply(0.5));
     let y = r.center().y;
@@ -1383,30 +1406,11 @@ fn filter_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, f: &VizFrame, pre: &str)
     p.vline(tx, (rect.bottom() - 6.0)..=(rect.bottom() - 2.0), Stroke::new(px, T.muted));
 }
 
-fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
+fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: &mut BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
     // Sources strip first: a hovered chip rings its targets on every knob drawn after it.
     let f = live.frame;
-    let src = at(44.0, 320.0, 568.0, 20.0);
+    let chip = patching::sources_strip(ui, c, &f, bv, at);
     let newest = f.newest();
-    let act = |k: usize| newest.map_or(0.0, |v| f.voice(v, k).abs());
-    let chips = [("A", "Mod A", SRC_A, act(vf::OUT_A), 74.0), ("B", "Mod B", SRC_B, act(vf::OUT_B), 74.0), ("E", "Env", SRC_E, act(vf::FENV), 62.0)];
-    let chip = rr_ui::motion::with_page_fx(ui, 320.0, |ui| {
-    rr_ui::paint::tracked(ui.painter(), pos2(src.left() + 8.0, src.center().y), Align2::LEFT_CENTER, "SOURCES", font::label(11.0), T.title, 1.4);
-    let mut x = src.left() + 76.0;
-    let mut chip = None;
-    for (i, (g, name, col, a, w)) in chips.into_iter().enumerate() {
-        let w = w + 30.0;
-        let r = source_chip(ui, Rect::from_min_size(pos2(x, src.top()), vec2(w, 20.0)), g, name, col, a);
-        if r.hovered() {
-            chip = Some(i);
-            // Display only: no dragging yet (the modulation matrix, SPEC v2 Track 2, brings it).
-            let drives = ["Pitch, Index, Shift", "Motion, Vol, Cutoff, Mod A", "Filter A / B cutoff"][i];
-            set_hover(ui, &name.to_uppercase(), drives, None, "Hover to light its targets. Drag-to-patch arrives with the modulation matrix.");
-        }
-        x += w + 8.0;
-    }
-    chip
-    });
     // Read next frame by every knob (the header ones are drawn before the chips).
     ui.data_mut(|d| d.insert_temp(chip_id(), chip));
 
@@ -1936,6 +1940,7 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
             st.live.reset_clock();
             st.view.preset_open = false;
             st.view.patch_open = false;
+            st.view.more_open = false;
             st.live.hero.reset_gl(); // a reopened window is a new GL context
             st.live.hero.reset_gesture(); // and never delivers the release of a drag begun in the old one
             st.gl_logged = false;
