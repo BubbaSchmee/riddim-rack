@@ -285,3 +285,68 @@ Deferred, documented: audition button (UX-19), playlists (UX-23), user library l
 hierarchical subfolder view (UX-7; subfolders are scanned and listed flat), preset rating (UX-22),
 the "first sentence in the help bar after a load" of MOTION.md 5.10 (the browser's detail strip shows
 it instead).
+
+---
+
+## Track 7 — Riddim/dubstep engine fundamentals (added 2026-10-17)
+
+Source: `docs/standards/riddim-dubstep-fundamentals.md` gap table (G-n). Scope G1–G10; G11
+(16-voice unison), G12 (wavetable import), G13 (vocoder) deferred. **Every new parameter defaults
+to neutral: an existing preset or saved set must render bit-identically** (the FNV equivalence test
+in tests/matrix.rs stays green; add one covering every new default).
+
+**Modulation (G1, G2, G6, G7).**
+- Four LFOs: Mod A and Mod B keep their ids and behaviour; add `modc_*` and `modd_*` with the same
+  parameter set. All four are matrix sources (Mod C, Mod D appended to Source).
+- **User shapes (G1):** curve option "Custom" per LFO: up to 32 points (x 0..1, y −1..1, per-segment
+  curve −1..1), plus a **Step** mode (2–32 steps with glide 0..1). Shapes live in persisted state and
+  presets (format_version 1, new "lfo_shapes" field; absent = no custom shapes). Stock shape library
+  (≥ 12 shapes incl. ramp-and-hold, stepped triangle, bounce, riddim gate patterns) loadable into Custom.
+- **Extensions (G6):** dotted divisions (1/2D…1/16D) appended to Division; start phase 0..360°;
+  fade-in 0..4 s; smooth 0..1; rate ceiling 30 → 100 Hz; trigger mode {Retrigger (current),
+  Free, Envelope (= one-shot, current)}; host-locked when synced and playing (current behaviour).
+- **Mod envelope (G7):** a dedicated ADSR with curve (`menv_*`), a matrix source "Mod Env".
+- **Pitch routing (G2):** continuous pitch targets `osca_pitch`, `oscb_pitch` (−48..+48 st, default
+  0) and `pitch_all` (osc A, osc B, sub; −48..+48 st); voice scope; usable by every source, e.g. Mod
+  Env → pitch_all for a punch/dive. Sub follows pitch_all.
+
+**Sound (G3, G4, G5, G8, G10).**
+- **Filters (G3, G5):** filter types appended: HP12, Notch, LP24 (two-stage TPT with drive in the
+  loop, self-oscillation bounded like LP12), Formant (3-peak vowel morph A-E-I-O-U driven by the
+  cutoff position, res = peak sharpness; Peterson-Barney table as VSS).
+- **Osc interaction (G4):** per oscillator a Warp mode {Off, FM from other osc, Sync, Bend+, Bend−,
+  PWM} with amount 0..1 (default Off); FM is linear-through-zero phase modulation from the other
+  osc's output; Sync is hard sync to the other osc's period with a band-limited (minBLEP or
+  oversampled) reset; Bend/PWM warp the grain read phase. Alias floor ≤ −70 dB at C1–C5 at amount
+  0.5 measured like SPEC 1.1 (document the ceiling where it cannot be met).
+- **Noise (G8):** a noise layer per voice: type {White, Pink, Brown}, level dB (default −inf = off),
+  own LP/HP tone 0..1, routed into the filter section with the oscillators (stereo decorrelated),
+  amp follows Amp Env A.
+- **Sub (G10):** shape {Sine, Triangle}, octave {0, −1, −2}, phase 0..360°, drive 0..1 (soft,
+  keeps the sub mono), all neutral by default.
+
+**FX (G9).** Phaser (4–12 stages, rate/sync, depth, feedback, centre, mix) and Flanger (rate/sync,
+depth, delay, feedback ±, mix) modules; the chain becomes **reorderable**: a persisted order of the
+ten modules (default: Distortion, Multiband, EQ, Phaser, Chorus, Flanger, Dimension, Delay, Reverb;
+Limiter fixed last), stored in presets ("fx_order"; absent = default). Reordering is click-free
+(crossfade over 10 ms).
+
+**UI.** One tabbed modulator module replaces the Mod A / Mod B area: tabs LFO A–D and MOD ENV, a
+large shape editor (add/move/delete points, per-segment curve drag, grid with snap, step mode bars,
+library menu), rate/sync/trigger/phase/fade/smooth controls, and the live playhead per sounding
+voice. Osc groups gain Warp mode + amount; the Sub group becomes SUB | NOISE tabs; new filter types
+appear in the existing combos; the FX page gets Phaser and Flanger strips and drag handles to
+reorder. All MOTION.md gates hold on every page.
+
+**Acceptance.** (1) Bit-identity with all new defaults (hash test). (2) Custom shape: a drawn shape
+reproduces its points within 1e-4 at the sampled phases; step mode holds levels and glides as set;
+shapes round-trip through presets and state. (3) Dotted 1/8 at 150 BPM = 0.3 s ± 1 sample; phase
+offset 180° inverts a sine; fade-in reaches 99 % at the set time. (4) Mod Env → pitch_all +24 st
+gives a two-octave dive measured by autocorrelation. (5) HP12/Notch/LP24/Formant responses within
+±1 dB of the design curves at 10 frequencies; Formant peaks within 5 % of the vowel table.
+(6) FM/Sync/Bend/PWM: alias floor as above, no NaN at extremes, CPU per voice reported.
+(7) Noise: spectra slope white 0, pink −3 dB/oct, brown −6 dB/oct ± 1 dB. (8) Sub triangle odd
+harmonics 1/k² within 0.5 dB; sub stays mono. (9) Phaser notch count = stages/2; flanger delay sweep
+matches the set range; reorder is click-free (step ≤ 1.5× steady). (10) Zero allocation in process
+(debug pluginval with a full matrix and all LFOs custom), CPU of 8 voices with 4 LFOs and warp ≤ +8 %
+of a core over today, frame gates hold.
