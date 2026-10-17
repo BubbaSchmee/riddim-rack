@@ -33,6 +33,9 @@ pub mod eq;
 pub mod limiter;
 pub mod multiband;
 pub mod reverb;
+// Track 7 G9 modules (not wired into FxChain yet).
+pub mod flanger;
+pub mod phaser;
 
 use crate::params::{Division, GtsParams};
 use chorus::{Chorus, ChorusParams};
