@@ -168,12 +168,17 @@ impl Lfo {
         ((-5.0 * x).exp() - E5) / (1.0 - E5)
     }
 
+    /// The value the next [`Lfo::next`] returns, without advancing.
+    pub fn peek(&self) -> f32 {
+        if self.one_shot && self.ph >= 1.0 { self.shape(1.0) } else { self.shape(self.ph.rem_euclid(1.0)) }
+    }
+
     pub fn next(&mut self) -> f32 {
+        let out = self.peek();
         if self.one_shot && self.ph >= 1.0 {
-            return self.shape(1.0);
+            return out;
         }
         let before = self.ph.floor();
-        let out = self.shape(self.ph.rem_euclid(1.0));
         let c = self.pending.clamp(-self.slew, self.slew);
         self.pending -= c;
         self.ph += self.inc + c;

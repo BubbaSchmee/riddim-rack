@@ -489,6 +489,27 @@ fn state_round_trips_and_reaches_the_audio_snapshot() {
     assert_eq!(rec, m.encode());
 }
 
+/// A pre-matrix state (or an unparsable matrix) clears the instance's matrix and macros.
+#[test]
+fn old_state_clears_a_loaded_matrix_and_macros() {
+    use nih_plug::prelude::{Plugin, PluginState};
+    use nih_plug::wrapper::state::ParamValue;
+    for field in [None, Some("{\"slots\":[{\"source\":\"Future\"}]}")] {
+        let mut st = PluginState { version: String::new(), params: Default::default(), fields: Default::default() };
+        if let Some(f) = field {
+            st.fields.insert("matrix".into(), f.into());
+        }
+        st.params.insert("macro2".into(), ParamValue::F32(0.7));
+        <gts::Gts as Plugin>::filter_state(&mut st);
+        let b = GtsParams::default();
+        b.matrix.replace(Matrix { slots: sample_matrix(), ..Default::default() });
+        b.deserialize_fields(&st.fields);
+        assert_eq!(b.matrix.get(), Matrix::default());
+        assert!(matches!(st.params["macro1"], ParamValue::F32(v) if v == 0.0));
+        assert!(matches!(st.params["macro2"], ParamValue::F32(v) if v == 0.7), "present params stay");
+    }
+}
+
 #[test]
 fn preset_load_sets_matrix_labels_and_macro_values() {
     let c = FakeCtl::new();
@@ -591,4 +612,65 @@ fn editor_api_adds_edits_and_removes() {
     }
     assert_eq!(shared.get().slots.len(), MAX_SLOTS);
     assert_eq!(ed.add_or_edit(Source::Macro4, "osca_index", 0.1), Err(EditError::Full));
+}
+
+// ---- review fixes ----------------------------------------------------------------------------
+
+/// Removing the last slot on a target glides its offset out over ~5 ms (global and voice scope),
+/// then the target is dropped and the engine is back on the plain patch.
+#[test]
+fn removed_targets_glide_out() {
+    let mut p = Patch::default();
+    p.macros[0] = 1.0;
+    p.filt[0].kbd = 0.0;
+    p.filt[0].env = false;
+    p.filt[0].freq = 1000.0;
+    let mut e = engine_with(&p, &[Slot::new(Source::Macro1, "rev_mix", 0.5), Slot::new(Source::Macro1, "filta_freq", 0.5)]);
+    e.note_on(48, 1.0);
+    run(&mut e, &p, 4096);
+    let i = voice_of(&e, 48);
+    let (rev0, freq0) = (info("rev_mix").norm(p.fx.rev.mix), info("filta_freq").norm(1000.0));
+    let off = |e: &Engine| (info("rev_mix").norm(e.patch().fx.rev.mix) - rev0, info("filta_freq").norm(e.voice_patch(i).filt[0].freq) - freq0);
+    near(off(&e).0, 0.5, 1e-3, "rev on");
+    e.set_matrix(&enc(&[]));
+    assert!(e.matrix_on(), "still gliding out");
+    run(&mut e, &p, 64);
+    let (g, v) = off(&e);
+    assert!(g > 0.3 && v > 0.3, "no jump to 0 on removal: {g} {v}");
+    run(&mut e, &p, 4096);
+    assert!(!e.matrix_on(), "settled targets are dropped");
+    assert_eq!(e.patch().fx.rev.mix, p.fx.rev.mix);
+    assert_eq!(e.voice_patch(i).filt[0].freq, 1000.0);
+}
+
+/// A global target fed by a per-voice source holds the last sounding voice's value while only
+/// tails ring, instead of falling back to 0.
+#[test]
+fn global_target_holds_through_the_tail() {
+    let p = Patch::default();
+    let mut e = engine_with(&p, &[Slot::new(Source::Velocity, "rev_mix", 0.5)]);
+    e.note_on(48, 1.0);
+    run(&mut e, &p, 4800);
+    let on = e.patch().fx.rev.mix;
+    e.handle_event(&NoteEvent::Choke { timing: 0, voice_id: None, channel: 0, note: 48 });
+    run(&mut e, &p, 4800);
+    assert!(e.newest().is_none());
+    assert_eq!(e.patch().fx.rev.mix, on);
+}
+
+/// A new note's matrix snap reads the LFO at its reset phase (one-shot Decay opens at +1).
+#[test]
+fn new_note_snap_reads_the_reset_lfo() {
+    let mut p = Patch::default();
+    p.moda.curve = Curve::Decay;
+    p.moda.oneshot = true;
+    p.moda.sync = false;
+    p.moda.rate = 1.0;
+    p.filt[0].kbd = 0.0;
+    p.filt[0].env = false;
+    p.filt[0].freq = 1000.0;
+    let mut e = engine_with(&p, &[Slot::new(Source::ModA, "filta_freq", 0.5)]);
+    e.note_on(48, 1.0);
+    let i = voice_of(&e, 48);
+    near(e.voice_patch(i).filt[0].freq, moved("filta_freq", 1000.0, 0.5), 1.0, "opens on the peak");
 }

@@ -9,7 +9,7 @@
 //! plugin, the previews and the headless tests run the same code.
 
 use super::*;
-use crate::matrix::{self, fixed_routes, gate_open, params_info, EditError, FixedRoute, Matrix, MatrixEditor, Source, MAX_SLOTS};
+use crate::matrix::{self, fixed_routes, gate_open, live_route, Edit, params_info, EditError, FixedRoute, Matrix, MatrixEditor, Source, MAX_SLOTS};
 use rr_ui::theme::{SRC_AMP, SRC_BUS, SRC_CTRL, SRC_M, SRC_NOTE};
 
 // ---- sources: look -----------------------------------------------------------------------------
@@ -374,7 +374,7 @@ pub(super) fn decorate(ctx: &egui::Context, c: &dyn Ctl, id: &str, style: &mut K
     if let Some(src) = mv.drag {
         if m.target {
             let hot = ctx.data(|d| d.get_temp::<bool>(Id::new(("gts-hot", id)))).unwrap_or(false);
-            style.target = Some(TargetFx { color: src_style(src).color, hot, t: mv.time });
+            style.target = Some(TargetFx { color: src_style(src).color, hot, t: if rr_ui::motion::reduced_motion(ctx) { 0.0 } else { mv.time } });
             if hot {
                 if let Some(pr) = mv.preview(c, id, src) {
                     // The preview replaces this source's ring, or takes the next free one.
@@ -426,7 +426,7 @@ pub(super) fn after_knob(ui: &mut Ui, c: &dyn Ctl, id: &str, r: &KnobResponse, m
                 ArcEdit::Slot(i) => format!("{:+.0} %", mv.matrix.slots.get(i).map_or(0.0, |s| s.amount) * 100.0),
                 ArcEdit::Route(p) => c.readout(p),
             };
-            set_hover(ui, &format!("{} \u{203a} {}", src.name(), c.name(id)).to_uppercase(), &value, None, crate::help::ui_help("ring").unwrap_or(""));
+            set_hover(ui, &format!("{} \u{203a} {}", label_of(&mv.matrix, src), c.name(id)).to_uppercase(), &value, None, crate::help::ui_help("ring").unwrap_or(""));
         }
     }
 }
@@ -458,7 +458,10 @@ fn edit_ring(c: &dyn Ctl, mv: &MView, m: &KnobMod, ev: RingEdit) {
 pub(super) fn end_frame(ui: &mut Ui, c: &dyn Ctl, bv: &mut BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
     let ctx = ui.ctx().clone();
     let Some(mv) = mview(&ctx) else { return };
-    more_popover(ui, &mv, bv, at(0.0, 0.0, 0.0, 0.0).min);
+    if let Some(s) = more_popover(ui, &mv, bv, at(0.0, 0.0, 0.0, 0.0).min) {
+        // Light the knobs a MORE chip moves, like the primary chips (read next frame).
+        ctx.data_mut(|d| d.insert_temp(chip_id(), Some(s)));
+    }
     knob_menu(ui, c, &mv);
     let Some(src) = mv.drag else { return };
     let hot = ctx.data(|d| d.get_temp::<String>(hot_id()));
@@ -584,6 +587,11 @@ fn macro_pill(ui: &mut Ui, c: &dyn Ctl, mv: &MView, k: usize, src: Source, rect:
         let te = ui.put(label, egui::TextEdit::singleline(&mut buf).font(font::strong(11.0)).frame(false).margin(egui::Margin::ZERO).desired_width(label.width()).vertical_align(egui::Align::Center));
         if !te.has_focus() && !te.lost_focus() {
             te.request_focus();
+            // Start with the old name selected so typing replaces it.
+            if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), te.id) {
+                st.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(buf.chars().count()))));
+                st.store(ui.ctx(), te.id);
+            }
         }
         if buf.chars().count() > 14 {
             buf = buf.chars().take(14).collect();
@@ -624,7 +632,7 @@ fn macro_pill(ui: &mut Ui, c: &dyn Ctl, mv: &MView, k: usize, src: Source, rect:
             set_hover(ui, &name.to_uppercase(), "double-click to rename", None, crate::help::ui_help("macro:label").unwrap_or(""));
         } else if dr.hovered {
             let value = c.readout_at(&id, v);
-            ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: c.name(&id).to_uppercase(), id: id.clone(), value, ..Default::default() }));
+            ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: name.to_uppercase(), id: id.clone(), value, ..Default::default() }));
         }
     }
 }
@@ -656,11 +664,11 @@ fn more_chip(ui: &mut Ui, mv: &MView, rect: Rect, bv: &mut BusView) {
 
 /// The nine less common sources as chips in a layer above the strip (150 ms fade, 6 px rise). It
 /// closes on Esc, a click elsewhere, or as soon as one chip is picked up for a drag.
-fn more_popover(ui: &mut Ui, mv: &MView, bv: &mut BusView, origin: Pos2) {
+fn more_popover(ui: &mut Ui, mv: &MView, bv: &mut BusView, origin: Pos2) -> Option<Source> {
     let ctx = ui.ctx().clone();
     let k = rr_ui::motion::tween(&ctx, Id::new("gts-more-a"), bv.more_open, if bv.more_open { 0.15 } else { 0.09 });
     if k <= 0.0 {
-        return;
+        return None;
     }
     let tile = vec2(104.0, 20.0);
     let size = vec2(3.0 * tile.x + 2.0 * 6.0 + 16.0, 3.0 * tile.y + 2.0 * 6.0 + 16.0);
@@ -712,12 +720,13 @@ fn more_popover(ui: &mut Ui, mv: &MView, bv: &mut BusView, origin: Pos2) {
     }
     if bv.more_open {
         let (esc, click) = ctx.input(|i| (i.key_pressed(egui::Key::Escape), i.pointer.primary_pressed().then(|| i.pointer.interact_pos()).flatten()));
-        let chip = Rect::from_min_size(pos2(origin.x + 44.0 + 76.0 + 4.0 * 106.0, origin.y + 320.0), vec2(60.0, 20.0));
+        let chip = Rect::from_min_size(pos2(origin.x + 44.0 + 76.0 + 4.0 * 106.0, origin.y + 320.0), vec2(68.0, 20.0));
         let outside = click.is_some_and(|p| !Rect::from_min_size(pos, size).contains(p) && !chip.contains(p));
         if esc || outside {
             bv.more_open = false;
         }
     }
+    hovered
 }
 
 // ---- knob menu ---------------------------------------------------------------------------------
@@ -1065,7 +1074,7 @@ pub(super) fn matrix_body(ui: &mut Ui, c: &dyn Ctl, at: &dyn Fn(f32, f32, f32, f
     };
     let ed = MatrixEditor { shared, ctl: c };
     // ---- built-in routes
-    group_at(ui, at(44.0, 80.0, 912.0, 226.0), "Built-in routes", |ui| caption(ui, "Their amounts are the knobs of the same name on the SYNTH page"), |ui| {
+    group_at(ui, at(44.0, 80.0, 912.0, 226.0), "Built-in routes", |ui| caption(ui, "Their amounts are the matching knobs on the SYNTH page and the PATCH popover"), |ui| {
         ui.spacing_mut().item_spacing = vec2(24.0, 0.0);
         ui.horizontal_top(|ui| {
             for col in 0..3 {
@@ -1222,11 +1231,13 @@ fn slot_row(ui: &mut Ui, ed: &MatrixEditor, mv: &MView, names: &[&str], rect: Re
     let new_tgt = picked_tgt.or(cur_tgt);
     match (slot, new_src, new_tgt) {
         (Some(_), Some(s), Some(t)) => {
-            if mv.matrix.find(s, &t).is_some_and(|j| j != i) {
+            if live_route(s, &t, ed.ctl).is_some() {
+                notice(ui.ctx(), "That pair is a built-in route: edit its amount above.");
+            } else if mv.matrix.find(s, &t).is_some_and(|j| j != i) {
                 notice(ui.ctx(), "That source already moves that target in another routing.");
             } else {
                 ed.shared.edit(|m| {
-                    let sl = &mut m.slots[i];
+                    let Some(sl) = m.slots.get_mut(i) else { return };
                     if sl.source != s {
                         sl.bipolar = s.bipolar();
                     }
@@ -1237,6 +1248,7 @@ fn slot_row(ui: &mut Ui, ed: &MatrixEditor, mv: &MView, names: &[&str], rect: Re
         (None, Some(s), Some(t)) => {
             match ed.add_or_edit(s, &t, 0.5) {
                 Err(EditError::Full) => notice(ui.ctx(), "The matrix is full: remove a routing first."),
+                Ok(Edit::Fixed(_)) => notice(ui.ctx(), "That pair is a built-in route: its amount is now +50 %."),
                 _ => {}
             }
             ui.data_mut(|d| d.remove_temp::<(Option<Source>, Option<String>)>(draft_id()));

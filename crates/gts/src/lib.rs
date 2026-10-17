@@ -99,6 +99,20 @@ impl Plugin for Gts {
         self.params.clone()
     }
 
+    /// nih-plug restores only the fields a state contains, so a pre-matrix state (or one whose
+    /// matrix does not parse) would keep the instance's current matrix and macros. Such states
+    /// load an empty matrix and zero macros instead (SPEC v2 Track 5: older states sound identical).
+    fn filter_state(state: &mut PluginState) {
+        let ok = state.fields.get("matrix").is_some_and(|s| serde_json::from_str::<matrix::Matrix>(s).is_ok());
+        if !ok {
+            let empty = serde_json::to_string(&matrix::Matrix::default()).expect("the empty matrix serialises");
+            state.fields.insert("matrix".into(), empty);
+        }
+        for k in 1..=matrix::MACROS {
+            state.params.entry(format!("macro{k}")).or_insert(nih_plug::wrapper::state::ParamValue::F32(0.0));
+        }
+    }
+
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         editor::create(
             self.params.clone(),

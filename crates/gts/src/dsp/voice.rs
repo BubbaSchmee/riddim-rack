@@ -497,6 +497,11 @@ impl Voice {
         gp as f32
     }
 
+    /// `lfo_out` = the LFOs' values at their current phase (a new note's first sample).
+    pub fn peek_lfos(&mut self) {
+        self.lfo_out = [self.lfo[0].peek(), self.lfo[1].peek()];
+    }
+
     /// Mod A / Mod B -> `self.modulation`.
     fn modulate(&mut self, patch: &Patch, ctl: &Controls) {
         let (a, b) = (self.lfo[0].next(), self.lfo[1].next());

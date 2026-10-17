@@ -103,8 +103,16 @@ the plugin. Delete the plugin log first for a clean session.
       `GTS hero: GPU (<renderer> | GL 3.x ...)` per window open; `CPU fallback (<reason>)` means GL was refused.
     - Rings and popups: Osc A Index shows an amber ring while Mod A moves it; dragging any knob shows a
       value popup; the label turns into the value on hover.
-    - Source chips (Mod A, Mod B, Env): hover lights the knobs each drives and the help bar says
-      dragging to patch arrives with the modulation matrix; there is no Macro chip and nothing drags.
+    - Source chips (Mod A, Mod B, Filter Env, Amp Env A / B, MORE popover): hover lights the knobs each
+      drives. Drag a chip or a macro handle onto a knob: dashed rings show every valid target, release
+      patches at +50 %, Esc cancels; dropping the same source again resets the amount.
+    - Rings: drag a ring band up / down to set depth (Shift fine, double-click zero). Right-click a
+      modulated knob: Bipolar / Invert / Bypass / Remove / Remove all. There is no undo for matrix edits yet.
+    - MATRIX page: built-in routes listed; edit a slot's source, target, polarity and amount (drag the
+      bar), X removes a row, an empty row adds one. Double-click a macro name to rename it (Enter or
+      click away commits, Esc cancels); the old name starts selected.
+    - Save the set with slots and a renamed macro, reopen it: slots, amounts and labels match. Load a
+      factory preset: its macros and routings arrive. Reduced motion on: the dashed target rings do not pulse.
     - Help bar: hovering any control names it with its value and a help line, cut with an ellipsis
       before the Values and Reduced motion toggles; both toggles stay visible with nothing hovered too.
       Values on prints every knob value; Reduced motion stops sway, parallax and page / popup motion.

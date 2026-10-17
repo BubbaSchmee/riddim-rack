@@ -54,10 +54,10 @@ pub const HELP: &[(&str, &str)] = &[
     ("sub_oct", "How many octaves below Osc A the sub plays, -1 or -2."),
     ("mono_xover", "Makes the output mono below this frequency, 20 to 300 Hz. The bottom setting is Off."),
     ("volume", "Master volume before the limiter, -24 to +6 dB."),
-    ("macro1", "Macro 1, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
-    ("macro2", "Macro 2, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
-    ("macro3", "Macro 3, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
-    ("macro4", "Macro 4, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro1", "A macro, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro2", "A macro, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro3", "A macro, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
+    ("macro4", "A macro, 0 to 1. Patch it with its handle; turning it moves every knob it is routed to."),
     ("spread", "Stereo offset between the oscillators in Parallel routing: Osc A left, Osc B right. 0 is mono, 1 is full."),
     // Mod A
     ("moda_curve", "Wave shape of Mod A: sine, triangle, saws, square, random, one-cycle decay or attack."),
@@ -231,10 +231,10 @@ pub const UI_HELP: &[(&str, &str)] = &[
     ("src:Poly Aftertouch", "Pressure on each held key, 0 to 1. Drag the chip onto any knob to patch it."),
     ("src:Mod Wheel", "The mod wheel, 0 to 1. Drag the chip onto any knob to patch it."),
     ("src:Channel Aftertouch", "Channel pressure, 0 to 1. Drag the chip onto any knob to patch it."),
-    ("src:Macro 1", "Macro 1, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
-    ("src:Macro 2", "Macro 2, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
-    ("src:Macro 3", "Macro 3, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
-    ("src:Macro 4", "Macro 4, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 1", "A macro, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 2", "A macro, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 3", "A macro, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
+    ("src:Macro 4", "A macro, a knob you turn by hand. Drag its handle onto any knob; each patch has its own depth."),
     ("src:Bus CV 1", "The RR-BUS input in slot 1, -1 to +1. Drag the chip onto any knob to patch it."),
     ("src:Bus CV 2", "The RR-BUS input in slot 2, -1 to +1. Drag the chip onto any knob to patch it."),
     ("src:Bus CV 3", "The RR-BUS input in slot 3, -1 to +1. Drag the chip onto any knob to patch it."),
@@ -255,7 +255,7 @@ pub const UI_HELP: &[(&str, &str)] = &[
     ("matrix:target", "The parameter this routing moves, grouped by section. Switches and menus cannot be targets."),
     ("matrix:remove", "Removes this routing from the matrix."),
     ("matrix:empty", "Pick a source and a target to add a routing. New routings start at +50 %."),
-    ("matrix:fixed", "A built-in routing: its amount is the knob of the same name on the SYNTH page."),
+    ("matrix:fixed", "A built-in routing: its amount is the matching knob on the SYNTH page or the PATCH popover."),
 ];
 
 /// The help line for a non-parameter control (see [`UI_HELP`]).

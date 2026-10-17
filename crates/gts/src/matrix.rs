@@ -810,7 +810,14 @@ pub struct ModRt {
     v_off: [[f32; MAX_SLOTS]; MAX_VOICES],
     /// Normalized base value of each voice-scope target, from the engine patch.
     v_base: [f32; MAX_SLOTS],
+    /// Live targets are `g[..lg]` / `v[..lv]`; the rest lost their last slot and glide to 0
+    /// before [`ModRt::prune`] drops them (removal is smoothed like addition).
+    lg: usize,
+    lv: usize,
 }
+
+/// Offset below which a fading target is dropped.
+const SETTLED: f32 = 1e-5;
 
 impl Default for ModRt {
     fn default() -> Self {
@@ -855,12 +862,14 @@ impl ModRt {
             g_off: [0.0; MAX_SLOTS],
             v_off: [[0.0; MAX_SLOTS]; MAX_VOICES],
             v_base: [0.0; MAX_SLOTS],
+            lg: 0,
+            lv: 0,
         }
     }
 
-    /// Any enabled slot.
+    /// Any enabled slot, or a removed target still gliding out.
     pub fn is_on(&self) -> bool {
-        self.n > 0
+        self.ng + self.nv > 0
     }
     pub fn has_global(&self) -> bool {
         self.ng > 0
@@ -881,7 +890,7 @@ impl ModRt {
     }
 
     /// Takes a new encoded matrix. Offsets of targets that stay modulated carry over; new
-    /// targets start at 0 and glide in. Allocation-free.
+    /// targets start at 0 and glide in, removed ones glide out. Allocation-free.
     pub fn load(&mut self, enc: &[f32; ENC_LEN]) {
         let (old_g, old_ng, old_goff) = (self.g, self.ng, self.g_off);
         let (old_v, old_nv, old_voff) = (self.v, self.nv, self.v_off);
@@ -916,12 +925,66 @@ impl ModRt {
                 off[j] = k.map_or(0.0, |k| old[k]);
             }
         }
+        (self.lg, self.lv) = (self.ng, self.nv);
+        // Targets that lost their last slot keep their offset and glide out (raw sum 0).
+        // ponytail: past MAX_SLOTS distinct targets a removed one still drops at once.
+        for k in 0..old_ng {
+            let t = old_g[k];
+            if self.ng < MAX_SLOTS && !self.g[..self.ng].contains(&t) && old_goff[k].abs() > SETTLED {
+                (self.g[self.ng], self.g_off[self.ng]) = (t, old_goff[k]);
+                self.gflags |= self.info[t].flags;
+                self.ng += 1;
+            }
+        }
+        for k in 0..old_nv {
+            let t = old_v[k];
+            if self.nv < MAX_SLOTS && !self.v[..self.nv].contains(&t) && old_voff.iter().any(|o| o[k].abs() > SETTLED) {
+                self.v[self.nv] = t;
+                for (off, old) in self.v_off.iter_mut().zip(&old_voff) {
+                    off[self.nv] = old[k];
+                }
+                self.vflags |= self.info[t].flags;
+                self.nv += 1;
+            }
+        }
+    }
+
+    /// Drops fading targets whose offset settled (voice scope: on every active voice).
+    pub(crate) fn prune(&mut self, active: impl Fn(usize) -> bool) {
+        if (self.ng, self.nv) == (self.lg, self.lv) {
+            return;
+        }
+        let mut j = self.lg;
+        while j < self.ng {
+            if self.g_off[j].abs() < SETTLED {
+                self.g.copy_within(j + 1..self.ng, j);
+                self.g_off.copy_within(j + 1..self.ng, j);
+                self.ng -= 1;
+            } else {
+                j += 1;
+            }
+        }
+        let mut j = self.lv;
+        while j < self.nv {
+            if (0..MAX_VOICES).all(|v| !active(v) || self.v_off[v][j].abs() < SETTLED) {
+                self.v.copy_within(j + 1..self.nv, j);
+                for o in &mut self.v_off {
+                    o.copy_within(j + 1..self.nv, j);
+                }
+                self.nv -= 1;
+            } else {
+                j += 1;
+            }
+        }
+        self.gflags = self.g[..self.ng].iter().fold(0, |f, &t| f | self.info[t].flags);
+        self.vflags = self.v[..self.nv].iter().fold(0, |f, &t| f | self.info[t].flags);
     }
 
     /// Zeroes every smoothed offset (engine reset).
     pub fn reset(&mut self) {
         self.g_off = [0.0; MAX_SLOTS];
         self.v_off = [[0.0; MAX_SLOTS]; MAX_VOICES];
+        self.prune(|_| false);
     }
 
     /// Sum of the slots of one scope into `raw` (per target).

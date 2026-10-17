@@ -400,6 +400,9 @@ pub struct Engine {
     /// Samples to the next matrix evaluation, and the per-evaluation smoothing coefficient.
     mm_tick: usize,
     mm_k: f32,
+    /// Per-voice sources of the newest sounding voice at the last tick that had one: global
+    /// targets hold them while only tails ring (no snap to 0 at the end of a phrase).
+    held_src: [f32; N_SOURCES],
 }
 
 /// Matrix sources the engine keeps per voice.
@@ -461,6 +464,7 @@ impl Engine {
             bus_cv: [0.0; 3],
             mm_tick: 0,
             mm_k: 0.0,
+            held_src: [0.0; N_SOURCES],
         };
         e.set_sample_rate(44100.0);
         e
@@ -536,6 +540,7 @@ impl Engine {
         self.xover.reset();
         self.fx.reset();
         self.mm.reset();
+        self.held_src = [0.0; N_SOURCES];
         self.chan_at = 0.0;
         for s in &mut self.vsrc {
             s.poly_at = 0.0;
@@ -714,7 +719,14 @@ impl Engine {
     fn mod_tick(&mut self) {
         let k = self.mm_k;
         if self.mm.has_global() {
-            let src = self.sources(self.newest());
+            const PV: usize = Source::PolyAftertouch as usize + 1;
+            let newest = self.newest();
+            let mut src = self.sources(newest);
+            if newest.is_some() {
+                self.held_src[..PV].copy_from_slice(&src[..PV]);
+            } else {
+                src[..PV].copy_from_slice(&self.held_src[..PV]);
+            }
             self.mm.eval_global(&src, k);
             self.apply_global();
         }
@@ -728,6 +740,8 @@ impl Engine {
                 }
             }
         }
+        let voices = &self.voices;
+        self.mm.prune(|i| voices[i].is_active());
     }
 
     /// After note events: a voice with a new note-on draws its Random value, clears its
@@ -747,6 +761,7 @@ impl Engine {
             s.poly_at = 0.0;
             if self.mm.has_voice() {
                 self.mm.prepare_voice_base(&self.patch);
+                self.voices[i].peek_lfos();
                 let src = self.sources(Some(i));
                 self.mm.eval_voice(i, &src, 0.0);
                 self.apply_voice(i, true);
@@ -873,11 +888,13 @@ impl Engine {
             self.held[self.n_held] = (note, velocity);
             self.n_held += 1;
             let glide = self.glide_allowed(&self.voices[0]);
+            // The voice's own (matrix) patch: its modulated unison count etc. survive the retrigger.
+            let vp = *self.voice_patch(0);
             let v = &mut self.voices[0];
             // Legato: a new key while one is held moves the pitch without retriggering.
             let retrigger = !(patch.legato && v.gate);
-            v.trigger(note, velocity, glide, retrigger, age, &patch, &ctl);
-            v.configure_mods(&patch, &self.transport);
+            v.trigger(note, velocity, glide, retrigger, age, &vp, &ctl);
+            v.configure_mods(&vp, &self.transport);
             return;
         }
         let n = patch.poly.min(MAX_VOICES);
@@ -891,9 +908,10 @@ impl Engine {
             .or_else(|| oldest(&|_| true))
             .unwrap_or(0);
         let glide = self.glide_allowed(&self.voices[i]);
-        self.voices[i].trigger(note, velocity, glide, true, age, &patch, &ctl);
+        let vp = *self.voice_patch(i);
+        self.voices[i].trigger(note, velocity, glide, true, age, &vp, &ctl);
         // Lock synced LFOs to the grid now, not at the next block (that would step mid-note).
-        self.voices[i].configure_mods(&patch, &self.transport);
+        self.voices[i].configure_mods(&vp, &self.transport);
     }
 
     pub fn note_off(&mut self, note: u8) {
@@ -912,6 +930,7 @@ impl Engine {
             if !self.remove_held(note) {
                 return;
             }
+            let vp = *self.voice_patch(0);
             let v = &mut self.voices[0];
             if !(v.gate && v.note == note) {
                 return;
@@ -922,8 +941,8 @@ impl Engine {
                 // Fall back to the most recent still-held key.
                 let (n, vel) = self.held[self.n_held - 1];
                 self.age += 1;
-                v.trigger(n, vel, true, !patch.legato, self.age, &patch, &ctl);
-                v.configure_mods(&patch, &self.transport);
+                v.trigger(n, vel, true, !patch.legato, self.age, &vp, &ctl);
+                v.configure_mods(&vp, &self.transport);
             }
             return;
         }
