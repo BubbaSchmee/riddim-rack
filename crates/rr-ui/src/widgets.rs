@@ -21,13 +21,14 @@ pub fn group<R>(ui: &mut Ui, title: &str, body: impl FnOnce(&mut Ui) -> R) -> R 
 /// `header` controls laid out right-to-left at the right end of the 24 px title row. The title's
 /// hairline fills the space between the title and the header controls.
 pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
-    group_impl(ui, size, title, GROUP_HEADER_GAP, header, body)
+    let y = ui.cursor().min.y;
+    crate::motion::with_page_fx(ui, y, |ui| group_impl(ui, size, title, GROUP_HEADER_GAP, header, body))
 }
 
 /// v2 panel group (MOTION.md 2): exactly `rect`, title row 24 at y + 8, body from y + 34.
 pub fn group_at<R>(ui: &mut Ui, rect: Rect, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
     let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)));
-    group_impl(&mut child, rect.size(), title, 2.0, header, body)
+    crate::motion::with_page_fx(&mut child, rect.top(), |ui| group_impl(ui, rect.size(), title, 2.0, header, body))
 }
 
 fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
@@ -78,15 +79,16 @@ fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: 
         });
     }
 
-    p.set(
-        hi_idx,
-        Shape::rect_filled(rect.translate(vec2(0.0, 1.0)), GROUP_R, T.hi()),
-    );
+    let (_, page_dy) = crate::motion::page_fx(ui.ctx(), origin.y);
+    crate::fx::add_shadow(ui.ctx(), rect.translate(vec2(0.0, page_dy)), ui.opacity());
+    p.set(hi_idx, Shape::rect_filled(rect.translate(vec2(0.0, 1.0)), GROUP_R, T.hi()));
     p.set(
         bg_idx,
         Shape::Vec(vec![
             Shape::rect_filled(rect, GROUP_R, T.well),
-            Shape::line_segment([rect.left_top() + vec2(GROUP_R, 0.5), rect.right_top() + vec2(-GROUP_R, 0.5)], paint::st(1.0, T.lo())),
+            // Light from above: white 2.2 % fading out over the top 36 % (MOTION.md 6.3).
+            paint::vgradient_shape(Rect::from_min_size(rect.min + vec2(1.0, 1.0), vec2(rect.width() - 2.0, rect.height() * 0.36)), Color32::WHITE.gamma_multiply(0.022), Color32::TRANSPARENT),
+            Shape::line_segment([rect.left_top() + vec2(GROUP_R, 0.5), rect.right_top() + vec2(-GROUP_R, 0.5)], paint::hair(&p, T.lo())),
         ]),
     );
     ui.allocate_rect(rect, Sense::hover());
@@ -135,6 +137,9 @@ pub const DRAG_PX: f32 = 200.0;
 pub const FINE: f32 = 0.1;
 const ARC_START: f32 = 135.0;
 const ARC_SWEEP: f32 = 270.0;
+/// Wheel notch and arrow key step as a fraction of the range (Shift = 1/10).
+const WHEEL_STEP: f32 = 0.02;
+const KEY_STEP: f32 = 0.05;
 
 /// New normalised value after the pointer moved `dy_up_px` px upward (negative = down).
 /// `fine` (Shift held) scales the travel by [`FINE`]. Applied per frame, so toggling Shift
@@ -146,7 +151,8 @@ pub fn drag_value(value01: f32, dy_up_px: f32, fine: bool) -> f32 {
 
 /// What a knob (or slider) did this frame. Map `drag_started` / `drag_ended` to the host's
 /// begin / end gesture and `changed` to the set call. A double-click reports `reset` together
-/// with `changed = Some(default)` and no drag flags: wrap it in begin / set / end.
+/// with `changed = Some(default)` and no drag flags: wrap it in begin / set / end. Wheel and key
+/// changes also arrive as `changed` without drag flags.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct KnobResponse {
     pub changed: Option<f32>,
@@ -155,6 +161,15 @@ pub struct KnobResponse {
     pub reset: bool,
     /// Pointer over the control (or dragging it).
     pub hovered: bool,
+}
+
+/// One modulation range on a knob's ring: the span (0..1 of the knob's range) a source sweeps
+/// the value across, in the source colour (MOTION.md 5.2).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RingRange {
+    pub lo: f32,
+    pub hi: f32,
+    pub color: Color32,
 }
 
 /// Knob geometry/behaviour options.
@@ -173,11 +188,15 @@ pub struct KnobStyle {
     pub ring: Option<Color32>,
     /// Live modulation: the post-modulation value 0..1 and the source colour (live arc + dot).
     pub live: Option<(f32, Color32)>,
+    /// Modulation depth ranges, up to two sources (range arcs at 50 % alpha).
+    pub ranges: [Option<RingRange>; 2],
+    /// `Some(n)` for a stepped parameter with `n` steps: arrow keys and the wheel move one step.
+    pub steps: Option<usize>,
 }
 
 impl Default for KnobStyle {
     fn default() -> Self {
-        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false, compact: false, ring: None, live: None }
+        Self { diameter: KNOB_D, cell_w: KNOB_CELL_W, bipolar: false, compact: false, ring: None, live: None, ranges: [None; 2], steps: None }
     }
 }
 
@@ -222,43 +241,94 @@ pub fn knob(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &st
 }
 
 pub fn knob_styled(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &str, style: KnobStyle) -> KnobResponse {
+    let text = readout.to_string();
+    knob_fn(ui, label, value01, default01, &move |_| text.clone(), style)
+}
+
+/// [`knob_styled`] with the readout computed from the value being shown: during a drag the arc
+/// and the popup follow the pointer in the same frame (`readout(v)` gets the new 0..1 value, and
+/// only runs while something prints it).
+pub fn knob_fn(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: &dyn Fn(f32) -> String, style: KnobStyle) -> KnobResponse {
     let d = style.diameter;
     let (rect, resp) = ui.allocate_exact_size(vec2(style.cell_w, style.cell_h()), Sense::click_and_drag());
     let hot = resp.hovered() || resp.dragged();
     if hot {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
     }
-
-    let out = knob_interact(ui, &resp, value01, default01);
+    let mut out = knob_interact(ui, &resp, value01, default01, style.steps);
+    let shown = out.changed.unwrap_or(value01);
 
     if ui.is_rect_visible(rect) {
+        let ctx = ui.ctx().clone();
         let p = ui.painter();
         if style.compact {
-            // Label <-> value cross-fade (90 ms), glow in 100 ms.
-            let show = ui.ctx().animate_bool_with_time(resp.id.with("v"), hot || always_values(ui.ctx()), 0.09);
+            let focused = resp.has_focus();
+            // Label <-> value cross-fade (90 ms linear), glow in 100 ms; the popup shows while a drag
+            // runs and 400 ms after it (500 ms after a wheel or key step), in 100 ms, out 120 ms.
+            let show = crate::motion::tween_linear(&ctx, resp.id.with("v"), hot || focused || always_values(&ctx), 0.09);
+            let now = ui.input(|i| i.time);
+            let act = resp.id.with("act");
+            let mut until = ui.data(|d| d.get_temp::<f64>(act)).unwrap_or(0.0);
+            if resp.dragged() {
+                until = now + 0.4;
+            } else if out.changed.is_some() {
+                until = now + 0.5;
+            }
+            ui.data_mut(|d| d.insert_temp(act, until));
+            let pop_on = now < until;
+            let pop = crate::motion::tween(&ctx, resp.id.with("pop"), pop_on, if pop_on { 0.1 } else { 0.12 });
+            let text = (show > 0.0 || pop > 0.0).then(|| readout(shown));
             let lc = pos2(rect.center().x, rect.top() + V2_LABEL_H / 2.0);
             if show < 1.0 {
                 paint::caps(p, lc, Align2::CENTER_CENTER, label, 11.0, T.muted.gamma_multiply(1.0 - show));
             }
-            if show > 0.0 {
-                p.text(lc, Align2::CENTER_CENTER, readout, font::mono(11.0), T.accent.gamma_multiply(show));
+            if let (true, Some(t)) = (show > 0.0, &text) {
+                p.text(lc, Align2::CENTER_CENTER, t, font::mono(11.0), T.accent.gamma_multiply(show));
             }
             let c = pos2(rect.center().x, rect.top() + V2_LABEL_H + d / 2.0);
-            let glow = ui.ctx().animate_bool_with_time(resp.id.with("g"), hot, 0.1);
-            draw_knob_v2(p, c, d, value01, style, glow);
+            let glow = crate::motion::tween(&ctx, resp.id.with("g"), hot, 0.1);
+            draw_knob_v2(p, c, d, shown, style, glow);
+            if focused {
+                p.circle_stroke(c, d / 2.0 + 2.0, Stroke::new(1.5_f32, T.accent.gamma_multiply(0.55)));
+            }
+            if let (true, Some(t)) = (pop > 0.003, &text) {
+                value_popup(&ctx, pos2(c.x, c.y - d / 2.0), t, pop);
+            }
         } else {
+            let text = readout(shown);
             paint::caps(p, pos2(rect.center().x, rect.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
             let c = pos2(rect.center().x, rect.top() + KNOB_LABEL_H + d / 2.0);
-            draw_knob(p, c, d, value01, style.bipolar, hot);
+            draw_knob(p, c, d, shown, style.bipolar, hot);
             let col = if hot { T.accent } else { T.text };
-            p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, readout, font::mono(12.0), col);
+            p.text(pos2(rect.center().x, rect.bottom() - KNOB_READOUT_H / 2.0), Align2::CENTER_CENTER, text, font::mono(12.0), col);
         }
     }
+    out.hovered = hot;
     out
 }
 
+/// Value popup (MOTION.md 5.7): a pill above the knob, `#0b0f11` with an accent hairline, 12 px
+/// mono, a notch pointing at the dial. Drawn in its own foreground layer so nothing covers it.
+fn value_popup(ctx: &egui::Context, top_of_dial: egui::Pos2, text: &str, k: f32) {
+    let lp = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("rr-knob-popup")));
+    let f = font::mono(12.0);
+    let (w, h) = (paint::text_width(&lp, &f, text, 0.0) + 18.0, 20.0);
+    let screen = ctx.screen_rect();
+    let cx = top_of_dial.x.clamp(screen.left() + w / 2.0 + 4.0, screen.right() - w / 2.0 - 4.0);
+    let bottom = top_of_dial.y - 5.0 + 3.0 * (1.0 - k);
+    let r = Rect::from_min_max(pos2(cx - w / 2.0, bottom - h), pos2(cx + w / 2.0, bottom));
+    let fill = Color32::from_rgb(0x0b, 0x0f, 0x11);
+    lp.rect_filled(r.translate(vec2(0.0, 1.0)).expand(1.0), 6.0, Color32::BLACK.gamma_multiply(0.35 * k));
+    lp.rect_filled(r, 5.0, fill.gamma_multiply(k));
+    lp.rect_stroke(r, 5.0, paint::hair(&lp, T.a(0.35 * k)), StrokeKind::Inside);
+    let nx = top_of_dial.x.clamp(r.left() + 8.0, r.right() - 8.0);
+    lp.add(Shape::convex_polygon(vec![pos2(nx - 3.5, bottom), pos2(nx + 3.5, bottom), pos2(nx, bottom + 4.0)], fill.gamma_multiply(k), Stroke::NONE));
+    lp.text(r.center(), Align2::CENTER_CENTER, text, f, T.text.gamma_multiply(k));
+}
+
 /// v2 dial (MOTION.md 5.2): 2.5 px track and value arc, glow only while hot (`glow` 0..1), an
-/// optional highlight ring and the live modulation arc + dot just outside the track.
+/// optional highlight ring, then per source the range arc (50 % alpha) and the live modulation
+/// arc + dot just outside the track.
 pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, style: KnobStyle, glow: f32) {
     let r = d / 2.0 - 3.0;
     paint::arc_stroke(p, c, r, ARC_START, ARC_START + ARC_SWEEP, 2.5, T.track, true);
@@ -276,20 +346,26 @@ pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, styl
     if let Some(col) = style.ring {
         p.circle_stroke(c, r + 4.5, paint::st(3.0, col.gamma_multiply(0.8)));
     }
+    let rr = r + 3.9;
+    for rg in style.ranges.iter().flatten() {
+        let (a0, a1) = (ang(rg.lo.min(rg.hi)), ang(rg.lo.max(rg.hi)));
+        if a1 - a0 > 0.5 {
+            paint::arc_stroke(p, c, rr, a0, a1, 2.0, rg.color.gamma_multiply(0.5), false);
+        }
+    }
     if let Some((live, col)) = style.live {
-        let rr = r + 3.9;
         let a_live = ang(live);
         if (a_live - a_val).abs() > 0.5 {
             paint::arc_stroke(p, c, rr, a_val.min(a_live), a_val.max(a_live), 2.0, col.gamma_multiply(0.95), false);
         }
         let dot = c + vec2(a_live.to_radians().cos(), a_live.to_radians().sin()) * rr;
-        p.circle_filled(dot, 4.5, col.gamma_multiply(0.18));
+        crate::fx::glow(p, dot, 7.0, col, 0.26);
         p.circle_filled(dot, 3.3, Color32::BLACK.gamma_multiply(0.7));
         p.circle_filled(dot, 2.3, col);
     }
     let rc = r - 6.0;
     p.circle_filled(c, rc, T.cap1);
-    p.circle_stroke(c, rc, paint::st(1.0, Color32::BLACK));
+    p.circle_stroke(c, rc, paint::hair(p, Color32::BLACK));
     p.circle_filled(c - vec2(0.0, 1.0), rc - 2.0, T.cap2);
     let a = a_val.to_radians();
     let dir = vec2(a.cos(), a.sin());
@@ -300,12 +376,12 @@ pub fn draw_knob_v2(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, styl
 /// activity bar. Display only until the modulation matrix exists; returns the hover response.
 pub fn source_chip(ui: &mut Ui, rect: Rect, glyph: &str, name: &str, color: Color32, activity01: f32) -> egui::Response {
     let resp = ui.interact(rect, ui.id().with(("rr-chip", name)), Sense::hover());
-    let hot = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.14);
+    let hot = crate::motion::tween(ui.ctx(), resp.id, resp.hovered(), 0.14);
     if ui.is_rect_visible(rect) {
         let p = ui.painter();
         let rad = rect.height() / 2.0;
         p.rect_filled(rect, rad, T.inset);
-        p.rect_stroke(rect, rad, paint::st(1.0, color.gamma_multiply(0.35 + 0.45 * hot)), StrokeKind::Inside);
+        p.rect_stroke(rect, rad, paint::hair(p, color.gamma_multiply(0.35 + 0.45 * hot)), StrokeKind::Inside);
         let gc = pos2(rect.left() + rad, rect.center().y);
         p.circle_filled(gc, 7.0, color);
         p.text(gc, Align2::CENTER_CENTER, glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
@@ -320,15 +396,62 @@ pub fn source_chip(ui: &mut Ui, rect: Rect, glyph: &str, name: &str, color: Colo
     resp
 }
 
-/// Vertical-drag / double-click-reset gesture shared by every knob.
-fn knob_interact(ui: &Ui, resp: &egui::Response, value01: f32, default01: f32) -> KnobResponse {
+/// Vertical-drag / double-click-reset gesture shared by every knob, plus the wheel (2 %, Shift
+/// 0.2 %) while hovered and the arrow keys (5 %, Shift 0.5 %, Home = default) while focused. A
+/// stepped parameter (`steps`) moves one step per wheel notch or key press.
+fn knob_interact(ui: &Ui, resp: &egui::Response, value01: f32, default01: f32, steps: Option<usize>) -> KnobResponse {
     let mut out = KnobResponse { drag_started: resp.drag_started(), drag_ended: resp.drag_stopped(), hovered: resp.hovered() || resp.dragged(), ..Default::default() };
+    // Pointer use focuses the knob so the arrow keys then nudge it (egui focuses on Tab only).
+    if resp.drag_started() || resp.clicked() {
+        resp.request_focus();
+    }
     if resp.double_clicked() {
         out.reset = true;
         out.changed = Some(default01);
-    } else if resp.dragged() {
+        return out;
+    }
+    if resp.dragged() {
         let fine = ui.input(|i| i.modifiers.shift);
         let next = drag_value(value01, -resp.drag_delta().y, fine);
+        if next != value01 {
+            out.changed = Some(next);
+        }
+        return out;
+    }
+    let step = |fine: bool, base: f32| match steps {
+        Some(n) if n > 0 => 1.0 / n as f32,
+        _ => base * if fine { FINE } else { 1.0 },
+    };
+    let mut delta = 0.0f32;
+    if resp.hovered() {
+        // Shift + wheel arrives as horizontal scroll: read either axis.
+        let (sy, fine) = ui.input(|i| (i.raw_scroll_delta.y + i.raw_scroll_delta.x, i.modifiers.shift));
+        if sy != 0.0 {
+            delta += sy.signum() * (sy.abs() / 50.0).clamp(1.0, 3.0) * step(fine, WHEEL_STEP);
+        }
+    }
+    if resp.has_focus() {
+        ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() }));
+        let mut reset = false;
+        ui.input(|i| {
+            for e in &i.events {
+                if let egui::Event::Key { key, pressed: true, modifiers, .. } = e {
+                    match key {
+                        egui::Key::ArrowUp | egui::Key::ArrowRight => delta += step(modifiers.shift, KEY_STEP),
+                        egui::Key::ArrowDown | egui::Key::ArrowLeft => delta -= step(modifiers.shift, KEY_STEP),
+                        egui::Key::Home => reset = true,
+                        _ => {}
+                    }
+                }
+            }
+        });
+        if reset {
+            out.changed = Some(default01);
+            return out;
+        }
+    }
+    if delta != 0.0 {
+        let next = (value01 + delta).clamp(0.0, 1.0);
         if next != value01 {
             out.changed = Some(next);
         }
@@ -352,7 +475,7 @@ pub fn draw_knob(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, bipolar
     }
     let rc = r - 6.0;
     p.circle_filled(c, rc, T.cap1);
-    p.circle_stroke(c, rc, paint::st(1.0, Color32::BLACK));
+    p.circle_stroke(c, rc, paint::hair(p, Color32::BLACK));
     p.circle_filled(c - vec2(0.0, 1.0), rc - 2.0, T.cap2);
     let a = a_val.to_radians();
     let dir = vec2(a.cos(), a.sin());
@@ -368,13 +491,20 @@ pub fn draw_knob(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, bipolar
 
 /// 24 px toggle: 8 px LED plus an optional caps label. Returns the new state on click.
 pub fn led_toggle(ui: &mut Ui, label: &str, on: bool) -> Option<bool> {
+    led_toggle_ex(ui, label, on).0
+}
+
+/// [`led_toggle`] that also reports whether the pointer is over it (for the help bar). The LED
+/// eases in 180 ms.
+pub fn led_toggle_ex(ui: &mut Ui, label: &str, on: bool) -> (Option<bool>, bool) {
     let up = label.to_uppercase();
     let lw = if up.is_empty() { 0.0 } else { 8.0 + paint::text_width(ui.painter(), &font::label(11.0), &up, 0.5) };
     let (rect, resp) = ui.allocate_exact_size(vec2(8.0 + 8.0 + lw + 8.0, CONTROL_H), Sense::click());
     if ui.is_rect_visible(rect) {
         let p = ui.painter();
         paint::inset_box(p, rect, resp.hovered());
-        paint::led(p, pos2(rect.left() + 12.0, rect.center().y), on);
+        let k = crate::motion::tween(ui.ctx(), resp.id.with("led"), on, 0.18);
+        paint::led_level(p, pos2(rect.left() + 12.0, rect.center().y), k);
         if !up.is_empty() {
             let col = if on { T.text } else { T.muted };
             paint::tracked(p, pos2(rect.left() + 24.0, rect.center().y), Align2::LEFT_CENTER, &up, font::label(11.0), col, 0.5);
@@ -383,7 +513,7 @@ pub fn led_toggle(ui: &mut Ui, label: &str, on: bool) -> Option<bool> {
     if resp.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
     }
-    resp.clicked().then_some(!on)
+    (resp.clicked().then_some(!on), resp.hovered())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -396,23 +526,44 @@ const COMBO_FONT: f32 = 13.0;
 /// centred on the knob band) so combos line up with knobs; with an empty label it is a bare
 /// 24 px control for strips and group headers. Returns the picked index when it changes.
 pub fn combo(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> Option<usize> {
-    combo_impl(ui, label, selected, items, true, None)
+    combo_impl(ui, label, selected, items, Cell::Knob, None).0
+}
+
+/// [`combo`] that also reports whether the pointer is over the control (for the help bar).
+pub fn combo_ex(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> (Option<usize>, bool) {
+    combo_impl(ui, label, selected, items, Cell::Knob, None)
+}
+
+/// [`combo_ex`] in a v2 compact knob cell (14 px label band, 40 px knob band, 2 px: 56 px high), so
+/// a labelled combo lines up with compact knobs.
+pub fn combo_v2(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> (Option<usize>, bool) {
+    combo_impl(ui, label, selected, items, Cell::V2, None)
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Cell {
+    /// v1 knob cell: 13 px label, knob band, readout row.
+    Knob,
+    /// v2 compact knob cell.
+    V2,
+    /// Label directly over the control.
+    Stacked,
 }
 
 /// Like [`combo`] but compact: the labelled control sits directly under its label (37 px
 /// cell) instead of being centred on the 40 px knob band. For stacks of controls.
 pub fn combo_stacked(ui: &mut Ui, label: &str, selected: usize, items: &[&str]) -> Option<usize> {
-    combo_impl(ui, label, selected, items, false, None)
+    combo_impl(ui, label, selected, items, Cell::Stacked, None).0
 }
 
 /// [`combo_stacked`] that shows `shown` instead of the selected item (a modified-state marker, a
 /// placeholder) and never grows past the width it is given, so the closed control fits a fixed
 /// column; the popup lists `items` as usual.
 pub fn combo_stacked_as(ui: &mut Ui, label: &str, selected: usize, items: &[&str], shown: &str) -> Option<usize> {
-    combo_impl(ui, label, selected, items, false, Some(shown))
+    combo_impl(ui, label, selected, items, Cell::Stacked, Some(shown)).0
 }
 
-fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_band: bool, shown: Option<&str>) -> Option<usize> {
+fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], cell_kind: Cell, shown: Option<&str>) -> (Option<usize>, bool) {
     let f = font::label(COMBO_FONT);
     let text_w = items.iter().chain(shown.iter()).map(|s| paint::text_width(ui.painter(), &f, s, 0.0)).fold(0.0, f32::max);
     let mut ctrl_w = (text_w + 8.0 + 24.0).max(56.0).ceil();
@@ -421,12 +572,17 @@ fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_ba
     }
     let labelled = !label.is_empty();
     let (cell, ctrl) = if labelled {
-        let cell_h = if knob_band { knob_cell_h(KNOB_D) } else { KNOB_LABEL_H + CONTROL_H };
-        let band = if knob_band { KNOB_D } else { CONTROL_H };
+        let lh = if cell_kind == Cell::V2 { V2_LABEL_H } else { KNOB_LABEL_H };
+        let cell_h = match cell_kind {
+            Cell::Knob => knob_cell_h(KNOB_D),
+            Cell::V2 => V2_LABEL_H + KNOB_D + 2.0,
+            Cell::Stacked => KNOB_LABEL_H + CONTROL_H,
+        };
+        let band = if cell_kind == Cell::Stacked { CONTROL_H } else { KNOB_D };
         let lw = paint::text_width(ui.painter(), &font::label(11.0), &label.to_uppercase(), 0.5);
         let (cell, _) = ui.allocate_exact_size(vec2(ctrl_w.max(lw).max(KNOB_CELL_W - 8.0) + 8.0, cell_h), Sense::hover());
         let ctrl = Rect::from_min_size(
-            pos2(cell.center().x - ctrl_w / 2.0, cell.top() + KNOB_LABEL_H + (band - CONTROL_H) / 2.0),
+            pos2(cell.center().x - ctrl_w / 2.0, cell.top() + lh + (band - CONTROL_H) / 2.0),
             vec2(ctrl_w, CONTROL_H),
         );
         (cell, ctrl)
@@ -444,22 +600,27 @@ fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_ba
     if ui.is_rect_visible(cell) {
         let p = ui.painter();
         if labelled {
-            paint::caps(p, pos2(cell.center().x, cell.top() + KNOB_LABEL_H / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
+            let lh = if cell_kind == Cell::V2 { V2_LABEL_H } else { KNOB_LABEL_H };
+            paint::caps(p, pos2(cell.center().x, cell.top() + lh / 2.0), Align2::CENTER_CENTER, label, 11.0, T.muted);
         }
         paint::inset_box(p, ctrl, resp.hovered() || open);
         let cur = shown.unwrap_or_else(|| items.get(selected).copied().unwrap_or(""));
         // Clipped before the arrow, so a long name never runs into it.
         let text_clip = Rect::from_min_max(ctrl.min, pos2(ctrl.right() - 22.0, ctrl.bottom()));
         p.with_clip_rect(text_clip.intersect(p.clip_rect())).text(pos2(ctrl.left() + 8.0, ctrl.center().y), Align2::LEFT_CENTER, cur, f.clone(), T.text);
+        // Chevron turns over in 180 ms while the list is open.
+        let s = 1.0 - 2.0 * crate::motion::tween(ui.ctx(), popup_id.with("chev"), open, 0.18);
         let (cx, cy) = (ctrl.right() - 11.5, ctrl.center().y - 1.0);
-        p.add(Shape::line(vec![pos2(cx - 3.5, cy - 1.5), pos2(cx, cy + 2.0), pos2(cx + 3.5, cy - 1.5)], paint::st(1.5, T.muted)));
+        p.add(Shape::line(vec![pos2(cx - 3.5, cy - 1.5 * s), pos2(cx, cy + 2.0 * s), pos2(cx + 3.5, cy - 1.5 * s)], paint::st(1.5, T.muted)));
     }
     if resp.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
     }
 
     let mut picked = None;
+    let fade = crate::motion::tween(ui.ctx(), popup_id.with("fade"), open, if open { 0.13 } else { 0.09 });
     egui::popup::popup_below_widget(ui, popup_id, &resp, egui::popup::PopupCloseBehavior::CloseOnClick, |ui| {
+        ui.multiply_opacity(fade);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.set_min_width(ctrl_w - 8.0);
         for (i, item) in items.iter().enumerate() {
@@ -474,7 +635,7 @@ fn combo_impl(ui: &mut Ui, label: &str, selected: usize, items: &[&str], knob_ba
             }
         }
     });
-    picked
+    (picked, resp.hovered())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -506,7 +667,7 @@ pub fn segmented(ui: &mut Ui, items: &[&str], selected: usize) -> Option<usize> 
         let on = i == selected;
         if on {
             p.rect_filled(seg, 3.0, T.a(0.20));
-            p.rect_stroke(seg, 3.0, paint::st(1.0, T.a(0.55)), StrokeKind::Inside);
+            p.rect_stroke(seg, 3.0, paint::hair(p, T.a(0.55)), StrokeKind::Inside);
         } else if resp.hovered() {
             p.rect_filled(seg, 3.0, Color32::WHITE.gamma_multiply(0.04));
         }
@@ -532,19 +693,21 @@ pub fn gr_meter(ui: &mut Ui, width: f32, label: &str, reduction_db: f32, max_db:
     paint::caps(p, pos2(rect.left(), rect.top() + KNOB_LABEL_H / 2.0), Align2::LEFT_CENTER, label, 11.0, T.muted);
     p.text(pos2(rect.right(), rect.top() + KNOB_LABEL_H / 2.0), Align2::RIGHT_CENTER, readout, font::mono(12.0), T.text);
     let track = Rect::from_min_size(pos2(rect.left(), rect.top() + KNOB_LABEL_H), vec2(width, 20.0));
-    paint::inset_box(p, track, false);
+    crate::scope::small_glass(p, track);
     let inner = track.shrink(3.0);
     let x_at = |db: f32| inner.left() + inner.width() * (db / max_db).clamp(0.0, 1.0);
     let fill_x = x_at(reduction_db);
     if fill_x > inner.left() + 0.5 {
         let fill = Rect::from_min_max(inner.min, pos2(fill_x, inner.bottom()));
-        p.rect_filled(fill.expand(2.0), 3.0, T.a(0.10));
-        p.rect_filled(fill, 2.0, T.accent);
+        paint::hgradient(p, fill, T.accent.gamma_multiply(0.45), T.accent);
+        // The live edge: a bright line with a glow, the meter's pointer.
+        crate::fx::glow(p, pos2(fill_x, inner.center().y), 10.0, T.accent, 0.4);
+        p.rect_filled(Rect::from_min_max(pos2(fill_x - 1.0, inner.top()), pos2(fill_x, inner.bottom())), 0.0, Color32::WHITE.gamma_multiply(0.85));
     }
     let mut db = 0.0;
     while db <= max_db + 0.01 {
         let x = x_at(db).clamp(track.left() + 1.0, track.right() - 1.0);
-        p.line_segment([pos2(x, track.bottom() + 1.0), pos2(x, track.bottom() + 5.0)], paint::st(1.0, T.muted));
+        p.line_segment([pos2(x, track.bottom() + 1.0), pos2(x, track.bottom() + 5.0)], paint::hair(p, T.muted));
         let (txt, anchor) = if db == 0.0 { ("0".to_string(), Align2::LEFT_TOP) } else { (format!("-{db:.0}"), if db >= max_db { Align2::RIGHT_TOP } else { Align2::CENTER_TOP }) };
         p.text(pos2(x, track.bottom() + 6.0), anchor, txt, font::mono(10.0), T.muted);
         db += 3.0;
@@ -713,7 +876,7 @@ pub fn step_grid_ex(
             let k = dim(c);
             let (fill, stroke) = if is_cur { (T.a(0.07), T.a(0.18)) } else { (T.cell_off, T.cell_off_stroke) };
             p.rect_filled(rc, 4.0, fill.gamma_multiply(k));
-            p.rect_stroke(rc, 4.0, paint::st(1.0, stroke.gamma_multiply(k)), StrokeKind::Inside);
+            p.rect_stroke(rc, 4.0, paint::hair(p, stroke.gamma_multiply(k)), StrokeKind::Inside);
         }
     }
     // Pass 2: selected cells (glow spills over neighbours), the playing one last.
@@ -731,11 +894,11 @@ pub fn step_grid_ex(
         } else if is_hold {
             paint::vgradient(p, rc.shrink2(vec2(0.0, 2.0)), T.a(0.16 * k), T.a(0.08 * k));
             p.rect_filled(rc, 4.0, T.a(0.08 * k));
-            p.rect_stroke(rc, 4.0, paint::st(1.0, T.a(0.35 * k)), StrokeKind::Inside);
+            p.rect_stroke(rc, 4.0, paint::hair(p, T.a(0.35 * k)), StrokeKind::Inside);
         } else {
-            p.rect_stroke(rc.expand(2.0), 6.0, paint::st(1.0, T.a(0.18 * k)), StrokeKind::Inside);
+            p.rect_stroke(rc.expand(2.0), 6.0, paint::hair(p, T.a(0.18 * k)), StrokeKind::Inside);
             p.rect_filled(rc, 4.0, T.a(0.20 * k));
-            p.rect_stroke(rc, 4.0, paint::st(1.0, T.a(0.55 * k)), StrokeKind::Inside);
+            p.rect_stroke(rc, 4.0, paint::hair(p, T.a(0.55 * k)), StrokeKind::Inside);
         }
     }
     picked
@@ -753,9 +916,9 @@ pub fn curve_preview(ui: &mut Ui, size: Vec2, curve: &[f32]) {
         return;
     }
     let p = ui.painter();
-    p.rect_stroke(rect.shrink(0.5), 4.0, paint::st(1.0, Color32::WHITE.gamma_multiply(0.08)), StrokeKind::Inside);
+    p.rect_stroke(rect.shrink(0.5), 4.0, paint::hair(p, Color32::WHITE.gamma_multiply(0.08)), StrokeKind::Inside);
     let inner = rect.shrink(4.0);
-    p.line_segment([inner.left_bottom(), inner.right_top()], paint::st(1.0, Color32::WHITE.gamma_multiply(0.10)));
+    p.line_segment([inner.left_bottom(), inner.right_top()], paint::hair(p, Color32::WHITE.gamma_multiply(0.10)));
     let n = curve.len() - 1;
     let pts: Vec<_> = curve.iter().enumerate().map(|(i, &y)| pos2(inner.left() + inner.width() * i as f32 / n as f32, inner.bottom() - inner.height() * y.clamp(0.0, 1.0))).collect();
     p.add(Shape::line(pts.clone(), paint::st(5.0, T.a(0.25))));
@@ -792,11 +955,11 @@ pub fn waveform_display_ex(ui: &mut Ui, samples: &[f32], ghosts: &[&[f32]], mark
     let mid = rect.top() + 54.0;
     for i in 0..=8 {
         let x = x0 + w * i as f32 / 8.0;
-        p.line_segment([pos2(x, rect.top() + 22.0), pos2(x, rect.top() + 92.0)], paint::st(1.0, Color32::WHITE.gamma_multiply(0.05)));
+        p.line_segment([pos2(x, rect.top() + 22.0), pos2(x, rect.top() + 92.0)], paint::hair(p, Color32::WHITE.gamma_multiply(0.05)));
     }
-    p.line_segment([pos2(x0, mid), pos2(x0 + w, mid)], paint::st(1.0, Color32::WHITE.gamma_multiply(0.10)));
+    p.line_segment([pos2(x0, mid), pos2(x0 + w, mid)], paint::hair(p, Color32::WHITE.gamma_multiply(0.10)));
     for g in ghosts {
-        p.add(Shape::line(wave_points(rect, g), paint::st(1.0, T.a(0.14))));
+        p.add(Shape::line(wave_points(rect, g), paint::hair(p, T.a(0.14))));
     }
     let pts = wave_points(rect, samples);
     for (width, alpha) in [(12.0, 0.07), (6.0, 0.16)] {
@@ -959,7 +1122,7 @@ fn draw_knob_small(p: &egui::Painter, c: egui::Pos2, d: f32, value01: f32, hot: 
     }
     let rc = r - 4.0;
     p.circle_filled(c, rc, T.cap1);
-    p.circle_stroke(c, rc, paint::st(1.0, Color32::BLACK));
+    p.circle_stroke(c, rc, paint::hair(p, Color32::BLACK));
     p.circle_filled(c - vec2(0.0, 0.5), rc - 1.5, T.cap2);
     let a = a_val.to_radians();
     let dir = vec2(a.cos(), a.sin());
@@ -1044,7 +1207,7 @@ pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> Pa
                 if hot {
                     ui.ctx().set_cursor_icon(CursorIcon::ResizeVertical);
                 }
-                ev.amount = knob_interact(ui, &kr, row.amount01, 0.5);
+                ev.amount = knob_interact(ui, &kr, row.amount01, 0.5, None);
 
                 if ui.is_rect_visible(rr) {
                     let live = bound.is_some();
@@ -1060,6 +1223,24 @@ pub fn patch_strip(ui: &mut Ui, label: &mut String, rows: &mut [PatchRow]) -> Pa
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A labelled v2 combo is exactly as tall as a compact knob cell, so it lines up in a knob row.
+    #[test]
+    fn v2_combo_is_a_compact_knob_cell_high() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx);
+        let mut h = 0.0;
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 200.0))), ..Default::default() };
+        let _ = ctx.run(raw, |ctx| {
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+                let top = ui.cursor().min.y;
+                combo_v2(ui, "Type", 0, &["Tube", "Hard Clip"]);
+                h = ui.cursor().min.y - top;
+            });
+        });
+        assert_eq!(h, KnobStyle::default().compact().cell_h());
+    }
 
     #[test]
     fn drag_up_raises_down_lowers_and_clamps() {
@@ -1227,6 +1408,117 @@ mod tests {
         let c = pos2(0.0, 0.0);
         let p = paint::arc_points(c, 10.0, ARC_START + ARC_SWEEP / 2.0, ARC_START + ARC_SWEEP / 2.0);
         assert!(p[0].x.abs() < 1e-3 && (p[0].y + 10.0).abs() < 1e-3);
+    }
+
+    // --- knob keys, wheel, popup ----------------------------------------------------------------
+
+    /// A compact knob at (20, 20) driven frame by frame; `value` follows the reported changes.
+    struct KnobHarness {
+        ctx: egui::Context,
+        value: std::cell::Cell<f32>,
+        steps: Option<usize>,
+        last: std::cell::Cell<KnobResponse>,
+    }
+
+    impl KnobHarness {
+        fn new(value: f32, steps: Option<usize>) -> Self {
+            let ctx = egui::Context::default();
+            crate::fonts::install(&ctx);
+            Self { ctx, value: value.into(), steps, last: Default::default() }
+        }
+        fn frame(&self, events: Vec<egui::Event>, t: f64) {
+            let modifiers = events.iter().find_map(|e| match e {
+                egui::Event::Key { modifiers, .. } | egui::Event::MouseWheel { modifiers, .. } => Some(*modifiers),
+                _ => None,
+            });
+            let raw = egui::RawInput { time: Some(t), modifiers: modifiers.unwrap_or_default(), events, screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 200.0))), ..Default::default() };
+            let _ = self.ctx.run(raw, |ctx| {
+                egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+                    let mut style = KnobStyle::default().compact().cell(60.0);
+                    style.steps = self.steps;
+                    let r = knob_fn(ui, "Cut", self.value.get(), 0.25, &|v| format!("{:.2}", v), style);
+                    if let Some(v) = r.changed {
+                        self.value.set(v);
+                    }
+                    self.last.set(r);
+                });
+            });
+        }
+        fn click(&self, t: f64) {
+            let at = pos2(30.0, 40.0);
+            let btn = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+            self.frame(vec![egui::Event::PointerMoved(at)], t);
+            self.frame(vec![btn(true)], t + 0.02);
+            self.frame(vec![btn(false)], t + 0.04);
+            self.frame(vec![], t + 0.06);
+        }
+        fn key(&self, key: egui::Key, shift: bool, t: f64) {
+            let modifiers = egui::Modifiers { shift, ..Default::default() };
+            self.frame(vec![egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }], t);
+        }
+    }
+
+    #[test]
+    fn arrow_keys_nudge_a_focused_knob_five_percent_and_shift_is_fine() {
+        let h = KnobHarness::new(0.5, None);
+        h.frame(vec![], 0.0);
+        h.value.set(0.5);
+        h.click(0.1); // a bare click focuses it
+        let before = h.value.get();
+        h.key(egui::Key::ArrowUp, false, 0.3);
+        assert!((h.value.get() - (before + 0.05)).abs() < 1e-5, "up: {}", h.value.get());
+        h.key(egui::Key::ArrowDown, false, 0.4);
+        h.key(egui::Key::ArrowDown, false, 0.5);
+        assert!((h.value.get() - (before - 0.05)).abs() < 1e-5, "down: {}", h.value.get());
+        h.key(egui::Key::ArrowUp, true, 0.6);
+        assert!((h.value.get() - (before - 0.05 + 0.005)).abs() < 1e-5, "shift up: {}", h.value.get());
+        h.key(egui::Key::Home, false, 0.7);
+        assert!((h.value.get() - 0.25).abs() < 1e-6, "home resets to the default");
+    }
+
+    #[test]
+    fn stepped_knobs_move_one_step_per_key_and_unfocused_knobs_ignore_keys() {
+        let h = KnobHarness::new(0.5, Some(4));
+        h.frame(vec![], 0.0);
+        h.key(egui::Key::ArrowUp, false, 0.1);
+        assert_eq!(h.value.get(), 0.5, "no focus, no change");
+        h.click(0.2);
+        h.key(egui::Key::ArrowUp, false, 0.5);
+        assert!((h.value.get() - 0.75).abs() < 1e-6, "{}", h.value.get());
+    }
+
+    #[test]
+    fn wheel_over_a_knob_moves_it_two_percent() {
+        let h = KnobHarness::new(0.5, None);
+        h.frame(vec![egui::Event::PointerMoved(pos2(30.0, 40.0))], 0.0);
+        h.frame(vec![egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta: vec2(0.0, 1.0), modifiers: Default::default() }], 0.05);
+        assert!((h.value.get() - 0.52).abs() < 1e-5, "{}", h.value.get());
+        h.frame(vec![egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta: vec2(0.0, -1.0), modifiers: egui::Modifiers { shift: true, ..Default::default() } }], 0.1);
+        assert!((h.value.get() - 0.518).abs() < 1e-5, "{}", h.value.get());
+    }
+
+    #[test]
+    fn reduced_motion_makes_tweens_instant() {
+        let ctx = egui::Context::default();
+        let id = egui::Id::new("t");
+        let run = |t: f64, f: &dyn Fn(&egui::Context)| {
+            let _ = ctx.run(egui::RawInput { time: Some(t), ..Default::default() }, |ctx| f(ctx));
+        };
+        crate::motion::set_reduced_motion(&ctx, true);
+        run(0.0, &|ctx| {
+            assert_eq!(crate::motion::tween(ctx, id, true, 0.18), 1.0, "instant under reduced motion");
+            assert_eq!(crate::motion::dur(ctx, 0.2), 0.0);
+        });
+        crate::motion::set_reduced_motion(&ctx, false);
+        let id2 = egui::Id::new("t2");
+        run(1.0, &|ctx| {
+            assert_eq!(crate::motion::tween(ctx, id2, false, 0.18), 0.0);
+            assert_eq!(crate::motion::dur(ctx, 0.2), 0.2);
+        });
+        run(1.05, &|ctx| {
+            let v = crate::motion::tween(ctx, id2, true, 0.18);
+            assert!(v > 0.0 && v < 1.0, "eases when motion is on: {v}");
+        });
     }
 
     // --- PATCH strip -------------------------------------------------------------------------

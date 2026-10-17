@@ -21,7 +21,7 @@ fn rail(p: &egui::Painter, r: Rect, left: bool) {
     let dark = T.rail.lerp_to_gamma(Color32::BLACK, 0.3);
     paint::hgradient(p, r, T.rail, dark);
     let edge_x = if left { r.right() - 0.5 } else { r.left() + 0.5 };
-    p.line_segment([pos2(edge_x, r.top()), pos2(edge_x, r.bottom())], paint::st(1.0, T.lo()));
+    p.line_segment([pos2(edge_x, r.top()), pos2(edge_x, r.bottom())], paint::hair(p, T.lo()));
     let mut y = r.top() + 44.0;
     while y < r.bottom() - 60.0 {
         let slot = Rect::from_min_size(pos2(r.left() + 8.0, y), vec2(10.0, 18.0));
@@ -35,7 +35,7 @@ fn rail(p: &egui::Painter, r: Rect, left: bool) {
 fn nameplate(p: &egui::Painter, r: Rect, name: &str, descriptor: &str, status: &str) {
     paint::highlight_below(p, r, GROUP_R);
     paint::rounded_vgradient(p, r, GROUP_R, T.panel_bottom, T.well, true);
-    p.rect_stroke(r, GROUP_R, paint::st(1.0, T.lo()), StrokeKind::Inside);
+    p.rect_stroke(r, GROUP_R, paint::hair(p, T.lo()), StrokeKind::Inside);
     // Descriptor wraps to two lines when it does not fit the plate.
     let desc = descriptor.to_uppercase();
     let fits = |s: &str| paint::text_width(p, &font::label(11.0), s, 1.6) <= r.width() - 32.0;
@@ -71,14 +71,17 @@ pub fn rack_frame(ui: &Ui) -> Rect {
     let full = ui.max_rect();
     let p = ui.painter();
     paint::vgradient(p, full, T.panel_top, T.panel_bottom);
-    p.line_segment([full.left_top() + vec2(0.0, 0.5), full.right_top() + vec2(0.0, 0.5)], paint::st(1.0, T.hi()));
+    // Panel light (MOTION.md 6.1): a broad white sprite from above-left, a faint mint wash lower right.
+    crate::fx::glow_ellipse(p, pos2(full.left() + 0.34 * full.width(), full.top() - 24.0), vec2(380.0, 210.0), Color32::WHITE, 0.055);
+    crate::fx::glow_ellipse(p, pos2(full.right() - 240.0, full.bottom() - 150.0), vec2(260.0, 190.0), T.accent, 0.025);
+    p.line_segment([full.left_top() + vec2(0.0, 0.5), full.right_top() + vec2(0.0, 0.5)], paint::hair(p, T.hi()));
     rail(p, Rect::from_min_size(full.min, vec2(RAIL_W, full.height())), true);
     rail(p, Rect::from_min_size(pos2(full.right() - RAIL_W, full.top()), vec2(RAIL_W, full.height())), false);
     let (l, r, t, b) = (full.left() + 14.0, full.right() - 14.0, full.top() + 19.0, full.bottom() - 19.0);
     for (c, a) in [(pos2(l, t), 0), (pos2(l, b), 1), (pos2(r, t), 2), (pos2(r, b), 3)] {
         screw(p, c, SCREW_ANGLES[a]);
     }
-    p.rect_stroke(full, 0.0, paint::st(1.0, Color32::BLACK), StrokeKind::Inside);
+    p.rect_stroke(full, 0.0, paint::hair(p, Color32::BLACK), StrokeKind::Inside);
     full
 }
 
@@ -87,7 +90,7 @@ pub fn rack_frame(ui: &Ui) -> Rect {
 pub fn nameplate_v2(p: &egui::Painter, r: Rect, name: &str, descriptor: &str, note: Option<&str>) {
     paint::highlight_below(p, r, GROUP_R);
     paint::rounded_vgradient(p, r, GROUP_R, T.panel_bottom, T.well, true);
-    p.rect_stroke(r, GROUP_R, paint::st(1.0, T.lo()), StrokeKind::Inside);
+    p.rect_stroke(r, GROUP_R, paint::hair(p, T.lo()), StrokeKind::Inside);
     let f = font::strong(24.0);
     let at = pos2(r.left() + 14.0, r.top() + 7.0);
     paint::tracked(p, at + vec2(0.0, -1.0), Align2::LEFT_TOP, name, f.clone(), Color32::BLACK.gamma_multiply(0.6), 6.0);

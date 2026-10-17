@@ -18,7 +18,7 @@ pub fn small_glass(p: &Painter, r: Rect) {
     paint::highlight_below(p, r, 4.0);
     p.rect_filled(r, 4.0, T.disp_bottom);
     paint::rounded_vgradient(p, Rect::from_min_size(r.min, vec2(r.width(), r.height() * 0.4)), 4.0, T.disp_top, T.disp_bottom, false);
-    p.rect_stroke(r, 4.0, paint::st(1.0, Color32::BLACK), StrokeKind::Inside);
+    p.rect_stroke(r, 4.0, paint::hair(p, Color32::BLACK), StrokeKind::Inside);
 }
 
 /// Scope / spectrum, crossfaded by `mix` (0 = scope, 1 = spectrum). `trace` is -1..1 oldest
@@ -40,33 +40,42 @@ pub fn scope_display(p: &Painter, r: Rect, trace: &[f32], spec: &[f32], peak: &[
         glow_line(p, pts, 1.5, T.accent.gamma_multiply(a));
     }
     if mix > 0.01 && spec.len() > 1 {
-        let n = spec.len() - 1;
-        for f in [100.0f32, 1000.0, 10000.0] {
-            p.vline(snap(x0 + (x1 - x0) * (f / 30.0).ln() / (20000.0f32 / 30.0).ln()), y0..=y1, Stroke::new(px, Color32::WHITE.gamma_multiply(0.06 * mix)));
-        }
-        let pts: Vec<Pos2> = spec.iter().enumerate().map(|(i, v)| pos2(x0 + (x1 - x0) * i as f32 / n as f32, y1 - v.clamp(0.0, 1.0) * (y1 - y0))).collect();
-        // Under-fill: accent 30 % at the top of the box fading to 0 at the floor.
-        let mut mesh = Mesh::default();
-        for (i, q) in pts.iter().enumerate() {
-            let k = ((y1 - q.y) / (y1 - y0)).clamp(0.0, 1.0);
-            mesh.vertices.push(Vertex { pos: *q, uv: WHITE_UV, color: T.a(0.30 * k * mix) });
-            mesh.vertices.push(Vertex { pos: pos2(q.x, y1), uv: WHITE_UV, color: Color32::TRANSPARENT });
-            if i > 0 {
-                let b = (i as u32 - 1) * 2;
-                mesh.indices.extend_from_slice(&[b, b + 1, b + 2, b + 2, b + 1, b + 3]);
-            }
-        }
-        p.add(Shape::mesh(mesh));
-        glow_line(p, pts, 1.5, T.accent.gamma_multiply(mix));
-        if peak.len() == spec.len() {
-            let pk = peak.iter().enumerate().map(|(i, v)| pos2(x0 + (x1 - x0) * i as f32 / n as f32, y1 - v.clamp(0.0, 1.0) * (y1 - y0))).collect();
-            p.add(Shape::line(pk, paint::st(1.0, T.text.gamma_multiply(0.28 * mix))));
-        }
+        spectrum(p, Rect::from_min_max(pos2(x0, y0), pos2(x1, y1)), spec, peak, mix);
     }
     // Tabs: the active one in accent.
     let (sc, sp) = (if mix < 0.5 { T.accent } else { T.disp_caption }, if mix >= 0.5 { T.accent } else { T.disp_caption });
     let rr = paint::tracked(p, pos2(r.right() - 8.0, r.top() + 9.0), Align2::RIGHT_CENTER, "SPEC", font::label(11.0), sp, 0.8);
     paint::tracked(p, pos2(rr.left() - 8.0, r.top() + 9.0), Align2::RIGHT_CENTER, "SCOPE", font::label(11.0), sc, 0.8);
+}
+
+/// Spectrum curve in `r` (columns log-spaced 30 Hz .. 20 kHz, heights 0..1): decade lines, an accent
+/// under-fill (30 % at the top fading to 0), the glowing curve and the thin peak-hold line, all
+/// scaled by `alpha`. Shared by the header, the EQ and the Limiter displays.
+pub fn spectrum(p: &Painter, r: Rect, spec: &[f32], peak: &[f32], alpha: f32) {
+    let px = 1.0 / p.ctx().pixels_per_point();
+    let (x0, x1, y0, y1) = (r.left(), r.right(), r.top(), r.bottom());
+    for f in [100.0f32, 1000.0, 10000.0] {
+        let x = x0 + (x1 - x0) * (f / 30.0).ln() / (20000.0f32 / 30.0).ln();
+        p.vline((x / px).round() * px, y0..=y1, Stroke::new(px, Color32::WHITE.gamma_multiply(0.06 * alpha)));
+    }
+    let n = spec.len() - 1;
+    let pts: Vec<Pos2> = spec.iter().enumerate().map(|(i, v)| pos2(x0 + (x1 - x0) * i as f32 / n as f32, y1 - v.clamp(0.0, 1.0) * (y1 - y0))).collect();
+    let mut mesh = Mesh::default();
+    for (i, q) in pts.iter().enumerate() {
+        let k = ((y1 - q.y) / (y1 - y0)).clamp(0.0, 1.0);
+        mesh.vertices.push(Vertex { pos: *q, uv: WHITE_UV, color: T.a(0.30 * k * alpha) });
+        mesh.vertices.push(Vertex { pos: pos2(q.x, y1), uv: WHITE_UV, color: Color32::TRANSPARENT });
+        if i > 0 {
+            let b = (i as u32 - 1) * 2;
+            mesh.indices.extend_from_slice(&[b, b + 1, b + 2, b + 2, b + 1, b + 3]);
+        }
+    }
+    p.add(Shape::mesh(mesh));
+    glow_line(p, pts, 1.5, T.accent.gamma_multiply(alpha));
+    if peak.len() == spec.len() {
+        let pk = peak.iter().enumerate().map(|(i, v)| pos2(x0 + (x1 - x0) * i as f32 / n as f32, y1 - v.clamp(0.0, 1.0) * (y1 - y0))).collect();
+        p.add(Shape::line(pk, paint::hair(p, T.text.gamma_multiply(0.28 * alpha))));
+    }
 }
 
 /// Stereo level meter: two 5 px bars (mint gradient), `level` and `hold` as 0..1 of the scale;

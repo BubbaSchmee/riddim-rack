@@ -65,14 +65,14 @@ fn editor_binds_every_param_exactly() {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(WINDOW.0 as f32, WINDOW.1 as f32))),
         ..Default::default()
     };
-    // Both pages; two passes each, the first one only loads the fonts. The PATCH popover is open
+    // Both pages; 30 passes each (the first loads the fonts, the SYNTH / FX transition runs 260 ms). The PATCH popover is open
     // (its CV-in params live there).
     let mut bv = BusView { sources: vec!["GTS 1 · Mod A".into()], oversampling: 2, patch_open: true, ..Default::default() };
     let mut live = LiveView::idle();
     for fx_page in [false, true] {
         bv.fx_page = fx_page;
         let mut overflow = egui::Vec2::ZERO;
-        for _ in 0..2 {
+        for _ in 0..30 {
             let _ = ctx.run(input.clone(), |ctx| {
                 egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| overflow = draw(ui, &ctl, &tables, &mut live, &mut bv));
             });

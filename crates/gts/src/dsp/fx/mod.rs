@@ -155,7 +155,34 @@ impl FxPatch {
     }
 }
 
+/// What the editor's FX displays read (docs/design/MOTION.md 5.8): peaks since the last
+/// [`FxChain::telemetry`] call plus a few instantaneous values. Plain `Copy` data, no allocation.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FxTelemetry {
+    /// Distortion shaper input with the largest magnitude (signed, linear).
+    pub dist_in: f32,
+    /// Multiband band gain (dB, positive = upward) and detector level (dB) per band.
+    pub mb_gain_db: [f32; 3],
+    pub mb_level_db: [f32; 3],
+    /// Chorus LFO phase, turns.
+    pub cho_phase: f32,
+    /// Delay: peak input, peak wet (echo) signal (linear) and the gliding delay time in seconds.
+    pub dly_in: f32,
+    pub dly_wet: f32,
+    pub dly_time_s: f32,
+    /// Reverb: peak input and peak wet (tail) signal, linear.
+    pub rev_in: f32,
+    pub rev_wet: f32,
+}
+
 pub struct FxChain {
+    sr: f32,
+    /// Peaks gathered by `process` (see [`FxTelemetry`]).
+    tel: FxTelemetry,
+    /// 1 / mix of the delay and the reverb while they run (0 = not measurable): turns
+    /// `out - in = mix * (wet - in)` back into the wet signal.
+    dly_k: f32,
+    rev_k: f32,
     dist: Distortion,
     mb: Multiband,
     eq: Eq,
@@ -191,6 +218,10 @@ impl FxChain {
     /// Allocates every module's buffers (about 20 MB, mostly the delay's 8 s lines at 192 kHz).
     pub fn new() -> Self {
         Self {
+            sr: 44100.0,
+            tel: FxTelemetry::default(),
+            dly_k: 0.0,
+            rev_k: 0.0,
             dist: Distortion::new(),
             mb: Multiband::new(),
             eq: Eq::new(),
@@ -204,6 +235,7 @@ impl FxChain {
     }
 
     pub fn set_sample_rate(&mut self, sr: f32) {
+        self.sr = sr;
         self.dist.set_sample_rate(sr);
         self.mb.set_sample_rate(sr);
         self.eq.set_sample_rate(sr as f64);
@@ -236,6 +268,20 @@ impl FxChain {
         self.lim.take_gr_db()
     }
 
+    /// The displays' record: peaks since the last call (which resets them) and the live values.
+    pub fn telemetry(&mut self) -> FxTelemetry {
+        let t = FxTelemetry {
+            dist_in: self.dist.take_input_peak(),
+            mb_gain_db: self.mb.band_gain_db(),
+            mb_level_db: self.mb.band_level_db(),
+            cho_phase: self.cho.lfo_phase() as f32,
+            dly_time_s: (self.dly.delay_samples() / self.sr as f64) as f32,
+            ..self.tel
+        };
+        self.tel = FxTelemetry::default();
+        t
+    }
+
     /// True while the chain is the sample-exact bypass (only the delays and the limiter run).
     pub fn is_bypassed(&self) -> bool {
         !self.active && self.dist.is_bypassed()
@@ -253,6 +299,9 @@ impl FxChain {
         self.dly.set(&DelayParams { tempo: tempo as f32, ..p.dly });
         self.rev.set(&p.rev);
         self.lim.set(&LimiterParams { on: true, gain_db: p.lim_gain });
+        let k = |mix: f32, bypassed: bool| if bypassed || mix < 1e-3 { 0.0 } else { 1.0 / mix };
+        self.dly_k = k(p.dly.mix, self.dly.is_bypassed());
+        self.rev_k = k(p.rev.mix, self.rev.is_bypassed());
         self.active = !self.mb.is_bypassed()
             || !self.eq.is_bypassed()
             || !self.cho.is_bypassed()
@@ -277,8 +326,19 @@ impl FxChain {
             self.eq.process(l, r);
             self.cho.process(l, r);
             self.dim.process(l, r);
+            let (il, ir) = (*l, *r);
             self.dly.process(l, r);
+            let t = &mut self.tel;
+            t.dly_in = t.dly_in.max(il.abs()).max(ir.abs());
+            if self.dly_k > 0.0 {
+                t.dly_wet = t.dly_wet.max(((*l - il) * self.dly_k + il).abs()).max(((*r - ir) * self.dly_k + ir).abs());
+            }
+            let (il, ir) = (*l, *r);
             self.rev.process(l, r);
+            t.rev_in = t.rev_in.max(il.abs()).max(ir.abs());
+            if self.rev_k > 0.0 {
+                t.rev_wet = t.rev_wet.max(((*l - il) * self.rev_k + il).abs()).max(((*r - ir) * self.rev_k + ir).abs());
+            }
         }
         (*l, *r) = (*l * volume, *r * volume);
         self.lim.process(l, r);

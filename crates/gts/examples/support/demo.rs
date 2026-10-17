@@ -58,6 +58,27 @@ impl Ctl for MapCtl {
     fn readout_at(&self, id: &str, v: f32) -> String {
         self.table.readout_at(id, v)
     }
+    fn name(&self, id: &str) -> String {
+        self.table.name(id)
+    }
+    fn plain(&self, id: &str, v01: f32) -> f32 {
+        self.table.plain(id, v01)
+    }
+    fn norm(&self, id: &str, plain: f32) -> f32 {
+        self.table.norm(id, plain)
+    }
+}
+
+/// The FX page shots and benchmarks show the chain working: Distortion, Multiband, EQ, Dimension,
+/// Delay and Reverb on, in the real engine's patch and on the toggles.
+pub fn fx_on(ctl: &MapCtl, patch: &mut Patch) {
+    let f = &mut patch.fx;
+    for b in [&mut f.dist.on, &mut f.mb.on, &mut f.eq.on, &mut f.dim.on, &mut f.dly.on, &mut f.rev.on] {
+        *b = true;
+    }
+    for id in ["dist_on", "mb_on", "eq_on", "dim_on", "dly_on", "rev_on"] {
+        ctl.vals.borrow_mut().insert(id.to_string(), 1.0);
+    }
 }
 
 /// Factory preset by name.
@@ -120,7 +141,8 @@ impl Feed {
                 m.fetch_max(p.to_bits(), Ordering::Relaxed);
             }
             self.meters.gr_db.fetch_max(self.engine.limiter_gr_db().to_bits(), Ordering::Relaxed);
-            self.writer.publish(&self.engine, &self.params, &self.patch, self.sr);
+            let fx = self.engine.fx_telemetry();
+            self.writer.publish(&self.engine, &self.params, &self.patch, self.sr, &fx);
             self.clock += block as u64;
             n -= block;
         }

@@ -118,7 +118,7 @@ pub fn inset_box(p: &Painter, r: Rect, hot: bool) {
     if hot {
         p.rect_filled(r, 4.0, Color32::WHITE.gamma_multiply(0.04));
     }
-    p.rect_stroke(r, 4.0, st(1.0, T.lo()), StrokeKind::Inside);
+    p.rect_stroke(r, 4.0, hair(p, T.lo()), StrokeKind::Inside);
 }
 
 /// Dark display glass: gradient top 40 %, inner shadow, 1 px black edge, highlight below.
@@ -131,23 +131,23 @@ pub fn display_bg(p: &Painter, r: Rect) {
     // Inner shadow, strongest at the top edge.
     let shade = Rect::from_min_size(r.min + vec2(1.0, 1.0), vec2(r.width() - 2.0, 10.0));
     vgradient(p, shade, Color32::BLACK.gamma_multiply(0.5), Color32::TRANSPARENT);
-    p.rect_stroke(r, rad, st(1.0, Color32::BLACK), StrokeKind::Inside);
+    p.rect_stroke(r, rad, hair(p, Color32::BLACK), StrokeKind::Inside);
 }
 
 /// Anti-aliased single px line helper (half-px offset keeps 1 px lines crisp).
 pub fn hline(p: &Painter, x0: f32, x1: f32, y: f32, color: Color32) {
-    p.line_segment([pos2(x0, y), pos2(x1, y)], st(1.0, color));
+    p.line_segment([pos2(x0, y), pos2(x1, y)], hair(p, color));
 }
 
 /// LED with layered glow when lit (see DESIGN.md "LED on").
 pub fn led(p: &Painter, c: Pos2, on: bool) {
     if on {
-        glow_discs(p, c, T.accent, &[(10.0, 0.04), (8.0, 0.07), (6.5, 0.12)]);
-        p.circle_stroke(c, 5.0, st(1.0, T.a(0.4)));
+        crate::fx::glow(p, c, 11.0, T.accent, 0.34);
+        p.circle_stroke(c, 5.0, hair(p, T.a(0.4)));
         p.circle_filled(c, 4.0, T.accent);
     } else {
         p.circle_filled(c, 4.0, T.led_off);
-        p.circle_stroke(c, 4.0, st(1.0, Color32::BLACK));
+        p.circle_stroke(c, 4.0, hair(p, Color32::BLACK));
     }
 }
 
@@ -156,8 +156,8 @@ pub fn led_level(p: &Painter, c: Pos2, level: f32) {
     led(p, c, false);
     let k = level.clamp(0.0, 1.0);
     if k > 0.02 {
-        glow_discs(p, c, T.accent, &[(10.0, 0.04 * k), (8.0, 0.07 * k), (6.5, 0.12 * k)]);
-        p.circle_stroke(c, 5.0, st(1.0, T.a(0.4 * k)));
+        crate::fx::glow(p, c, 11.0, T.accent, 0.34 * k);
+        p.circle_stroke(c, 5.0, hair(p, T.a(0.4 * k)));
         p.circle_filled(c, 4.0, T.accent.gamma_multiply(k));
     }
 }
@@ -165,4 +165,21 @@ pub fn led_level(p: &Painter, c: Pos2, level: f32) {
 /// `Stroke::new` with the width pinned to f32 (avoids float-literal inference warnings).
 pub fn st(width: f32, color: Color32) -> Stroke {
     Stroke::new(width, color)
+}
+
+/// A one physical-pixel stroke: `1 / pixels_per_point` wide, so hairlines, dividers and outlines
+/// resolve to one full-coverage pixel at every UI scale (a bare 1.0 is 1.25 or 1.5 px, blurred, at
+/// fractional scales; motion-feasibility.md 3).
+pub fn hair(p: &Painter, color: Color32) -> Stroke {
+    Stroke::new(1.0 / p.ctx().pixels_per_point(), color)
+}
+
+/// A gradient quad as a shape (for placing inside a `Shape::Vec` at a reserved slot).
+pub fn vgradient_shape(r: Rect, top: Color32, bottom: Color32) -> Shape {
+    let mut m = Mesh::default();
+    for (pos, color) in [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom()].into_iter().zip([top, top, bottom, bottom]) {
+        m.vertices.push(Vertex { pos, uv: WHITE_UV, color });
+    }
+    m.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
+    Shape::mesh(m)
 }

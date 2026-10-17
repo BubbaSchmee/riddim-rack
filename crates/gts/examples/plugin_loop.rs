@@ -112,7 +112,12 @@ fn main() {
     let updates = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let update_ms = Arc::new(Mutex::new(Vec::<f64>::new()));
     let (pi, preset) = demo::factory("Wobble Shot");
-    let feed = demo::Feed::new(preset.patch);
+    let ctl = demo::MapCtl::with_preset(Some(preset));
+    let mut patch = preset.patch;
+    if val("page").as_deref() == Some("fx") {
+        demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
+    }
+    let feed = demo::Feed::new(patch);
     let (meters, viz, ring) = (feed.meters.clone(), feed.viz.clone(), feed.ring.clone());
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let audio = has("notes").then(|| {
@@ -140,7 +145,7 @@ fn main() {
     let state = State {
         gts: has("gts"),
         gl: has("gl").then(|| wavegl::WaveGl::new(wavegl::demo_waves())),
-        ctl: demo::MapCtl::with_preset(Some(preset)),
+        ctl,
         tables,
         bv: BusView { label: "GTS 1".into(), oversampling: 2, preset: Some(pi), peak_db: -6.0, fx_page: val("page").as_deref() == Some("fx"), ..Default::default() },
         live,

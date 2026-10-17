@@ -91,7 +91,11 @@ fn main() -> eframe::Result {
         for (k, v) in [("cv1_target", 5.0 / 8.0), ("cv1_amount", 0.78), ("cv2_target", 1.0 / 8.0), ("cv2_amount", 0.35), ("cv3_target", 7.0 / 8.0), ("cv3_amount", 0.5)] {
             ctl.vals.borrow_mut().insert(k.to_string(), v);
         }
-        let mut feed = demo::Feed::new(preset.patch);
+        let mut patch = preset.patch;
+        if has("fx") {
+            demo::fx_on(&ctl, &mut patch); // the FX shot shows the modules working
+        }
+        let mut feed = demo::Feed::new(patch);
         // Pre-roll into the pattern: a note was just struck when the shot is taken.
         feed.render((0.92 * feed.sr()) as usize);
         let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));

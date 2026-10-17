@@ -28,7 +28,7 @@ pub const MAX_VOICES: usize = 8;
 /// Base delay multiplier per voice (pairs share one, so left and right sit at the same depth).
 const SPREAD: [f64; MAX_VOICES] = [1.0, 1.0, 0.8, 0.8, 1.25, 1.25, 0.65, 0.65];
 /// LFO phase offset per voice, turns.
-const OFFSET: [f64; MAX_VOICES] = [0.0, 0.25, 0.5, 0.75, 0.125, 0.375, 0.625, 0.875];
+pub const OFFSET: [f64; MAX_VOICES] = [0.0, 0.25, 0.5, 0.75, 0.125, 0.375, 0.625, 0.875];
 /// Largest delay slew (= pitch deviation ratio) the depth can reach.
 const MAX_SLEW: f64 = 0.03;
 /// Per-stage glide time constants, seconds (two stages: ~20 ms and ~100 ms to 90 %).

@@ -340,6 +340,15 @@ pub struct Distortion {
     dc: [[f32; 2]; 2],
     /// On/off fade (see [`super::fade`]): the wet/dry mix is scaled by it.
     en: f32,
+    /// Shaper input sample with the largest magnitude since the last [`Distortion::take_input_peak`]
+    /// (signed, so a GUI dot lands on the right side of the transfer curve).
+    peak_in: f32,
+}
+
+/// The distortion's transfer curve for the GUI (`docs/design/MOTION.md` 5.8): output for input `x`
+/// (-1..1 is a full-scale voice) at `drive_db` / `bias`, before autogain, trim and filter.
+pub fn transfer(kind: DistType, drive_db: f32, bias: f32, x: f32) -> f32 {
+    Shape::new(kind, drive_db.clamp(-12.0, 36.0), bias.clamp(-1.0, 1.0)).eval(x)
 }
 
 impl Default for Distortion {
@@ -373,6 +382,7 @@ impl Distortion {
             dc_r: 0.0,
             dc: [[0.0; 2]; 2],
             en: 0.0,
+            peak_in: 0.0,
         };
         d.set_sample_rate(48000.0);
         d.apply(&p, true);
@@ -415,6 +425,11 @@ impl Distortion {
 
     pub fn set(&mut self, p: &DistortionParams) {
         self.apply(p, false);
+    }
+
+    /// Largest-magnitude shaper input (signed) since the last call, which resets it (the GUI dot).
+    pub fn take_input_peak(&mut self) -> f32 {
+        std::mem::take(&mut self.peak_in)
     }
 
     /// True once off and faded out: `process` is then only the compensation delay.
@@ -501,6 +516,9 @@ impl Distortion {
             let mut v = x[ch];
             if fm == FilterMode::Pre {
                 v = self.svf.process(ch, v, ft);
+            }
+            if v.abs() > self.peak_in.abs() {
+                self.peak_in = v;
             }
             let mut s = if kind.oversampled() {
                 let st = Cell::new(self.adaa[ch]);

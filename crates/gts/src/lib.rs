@@ -3,6 +3,8 @@
 pub mod bus;
 pub mod dsp;
 pub mod editor;
+pub mod fxview;
+pub mod help;
 pub mod params;
 pub mod preset;
 pub mod viz;
@@ -220,7 +222,8 @@ impl Plugin for Gts {
         for (m, p) in self.meters.peak.iter().zip(peak) {
             m.fetch_max(p.to_bits(), Ordering::Relaxed);
         }
-        self.viz.publish(&self.engine, &self.params, self.engine.patch(), self.sample_rate);
+        let fx = self.engine.fx_telemetry();
+        self.viz.publish(&self.engine, &self.params, self.engine.patch(), self.sample_rate, &fx);
         ProcessStatus::Normal
     }
 }

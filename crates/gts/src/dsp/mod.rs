@@ -606,6 +606,11 @@ impl Engine {
         }
     }
 
+    /// FX display record (peaks since the last call). Audio thread, once per block.
+    pub fn fx_telemetry(&mut self) -> fx::FxTelemetry {
+        self.fx.telemetry()
+    }
+
     /// Limiter gain reduction in dB (>= 0), deepest since the last call. Audio thread, once per block.
     pub fn limiter_gr_db(&mut self) -> f32 {
         self.fx.limiter_gr_db()

@@ -61,13 +61,25 @@ impl RingReader {
     /// leaves `out` unspecified) if fewer than `out.len()` samples exist yet or the window is
     /// larger than half the capacity (the writer could lap the copy every time).
     pub fn latest(&self, out: &mut [f32]) -> bool {
+        self.window(out, None)
+    }
+
+    /// Like [`latest`](Self::latest) but the window ends at sample count `end` (a value of
+    /// [`written`](Self::written), possibly of another ring pushed in step with this one), so two
+    /// rings can be read sample-aligned. `false` when `end` is in the future or already overwritten.
+    pub fn latest_ending(&self, out: &mut [f32], end: u64) -> bool {
+        self.window(out, Some(end))
+    }
+
+    fn window(&self, out: &mut [f32], at: Option<u64>) -> bool {
         let n = out.len() as u64;
         if n > self.inner.mask.div_ceil(2) {
             return false;
         }
         for _ in 0..8 {
-            let end = self.inner.written.load(Ordering::Acquire);
-            if end < n {
+            let written = self.inner.written.load(Ordering::Acquire);
+            let end = at.unwrap_or(written);
+            if end < n || end > written {
                 return false;
             }
             let start = end - n;
@@ -105,6 +117,10 @@ mod tests {
         assert_eq!(out, [46.0, 47.0, 48.0, 49.0]);
         assert_eq!(r.written(), 50);
         assert!(!r.latest(&mut [0.0; 9]), "window over half the capacity is refused");
+        assert!(r.latest_ending(&mut out, 40));
+        assert_eq!(out, [36.0, 37.0, 38.0, 39.0]);
+        assert!(!r.latest_ending(&mut out, 51), "future end");
+        assert!(!r.latest_ending(&mut out, 20), "overwritten");
     }
 
     #[test]

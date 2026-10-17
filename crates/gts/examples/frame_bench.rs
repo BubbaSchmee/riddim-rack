@@ -40,7 +40,11 @@ fn main() {
     tables.generate();
     let (pi, preset) = demo::factory("Wobble Shot");
     let ctl = demo::MapCtl::with_preset(Some(preset));
-    let mut feed = demo::Feed::new(preset.patch);
+    let mut patch = preset.patch;
+    if fx {
+        demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
+    }
+    let mut feed = demo::Feed::new(patch);
     let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
     live.hero.force_cpu = cpu;
     let mut bv = BusView {

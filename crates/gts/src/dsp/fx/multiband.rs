@@ -177,6 +177,8 @@ pub struct Multiband {
     env: [f32; 3],
     /// Last applied band gain in dB (metering / tests).
     gr: [f32; 3],
+    /// Detector level per band in dB (metering).
+    lvl: [f32; 3],
     /// On/off fade (see [`super::fade`]).
     en: f32,
 }
@@ -213,6 +215,7 @@ impl Multiband {
             ms: [0.0; 3],
             env: [0.0; 3],
             gr: [0.0; 3],
+            lvl: [-120.0; 3],
             en: 0.0,
         };
         m.set_sample_rate(48000.0);
@@ -233,6 +236,7 @@ impl Multiband {
         self.ms = [0.0; 3];
         self.env = [0.0; 3];
         self.gr = [0.0; 3];
+        self.lvl = [-120.0; 3];
         self.en = if self.p.on { 1.0 } else { 0.0 };
         for s in [&mut self.lo_f, &mut self.hi_f, &mut self.depth, &mut self.inp, &mut self.out, &mut self.mix] {
             s.snap();
@@ -251,6 +255,11 @@ impl Multiband {
     /// Current per-band gain in dB (positive = upward), for meters and tests.
     pub fn band_gain_db(&self) -> [f32; 3] {
         self.gr
+    }
+
+    /// Detector level per band in dB (sine-peak referenced: a full-scale sine reads 0), for meters.
+    pub fn band_level_db(&self) -> [f32; 3] {
+        self.lvl
     }
 
     fn set_times(&mut self) {
@@ -301,6 +310,7 @@ impl Multiband {
         let e = &mut self.env[b];
         *e = if m > *e { m } else { m + (*e - m) * self.rel };
         let level = 10.0 * (2.0 * *e + 1e-20).log10();
+        self.lvl[b] = level;
         let cut = (level - down).max(0.0) * slope;
         let boost = ((up - level).max(0.0) * slope).min(UP_MAX_DB);
         let g = boost - cut + gain;

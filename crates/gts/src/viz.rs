@@ -2,15 +2,19 @@
 //! editor can draw live data without re-running any DSP.
 //!
 //! * the output scope ring: `rr_ui::ring`, mono sum after the limiter, pushed every 64 samples;
+//! * the output side ring: (L - R) / 2 in the same chunks as the scope ring (mid = scope), for the
+//!   Dimension display;
 //! * one [`Snap`] record per block: globals (sample rate, live grain position and table per osc),
 //!   `VoiceViz` (per voice: note, gate, velocity, age since note-on, amp env A / B level and stage,
 //!   filter env level and stage, Mod A / B phase and output) and `ModLive` (post-modulation
-//!   normalized value of every ring target in [`MOD_IDS`], from the newest sounding voice).
+//!   normalized value of every ring target in [`MOD_IDS`], from the newest sounding voice) and the
+//!   FX display values ([`xf`], from `dsp::fx::FxTelemetry`).
 //!
 //! Everything here is allocation-free on the audio side ([`VizWriter`] owns fixed buffers) and
 //! lock-free on both sides; the GUI copies a record with [`Viz::read`] and keeps the last good one.
 
 use crate::dsp::env::Stage;
+use crate::dsp::fx::FxTelemetry;
 use crate::dsp::voice::vel_scale;
 use crate::dsp::{Engine, Patch, MAX_VOICES};
 use crate::params::GtsParams;
@@ -69,29 +73,58 @@ pub const MOD_IDS: [&str; 14] = [
     "filta_freq", "filtb_freq", "moda_pitch", "moda_index", "moda_shift", "fenv_amt",
 ];
 
+/// FX display fields (`dsp::fx::FxTelemetry`), after the ModLive block.
+pub mod xf {
+    /// Distortion shaper input with the largest magnitude, signed linear.
+    pub const DIST_IN: usize = 0;
+    /// Multiband band gain, dB (positive = upward), three bands.
+    pub const MB_GAIN: usize = 1;
+    /// Multiband detector level per band, dB.
+    pub const MB_LEVEL: usize = 4;
+    /// Chorus LFO phase, turns.
+    pub const CHO_PHASE: usize = 7;
+    /// Delay peak input, peak wet (echo) signal (linear) and delay time (s).
+    pub const DLY_IN: usize = 8;
+    pub const DLY_WET: usize = 9;
+    pub const DLY_TIME: usize = 10;
+    /// Reverb peak input and peak wet (tail) signal, linear.
+    pub const REV_IN: usize = 11;
+    pub const REV_WET: usize = 12;
+    pub const N: usize = 13;
+}
+
 pub const VOICE_BASE: usize = gf::N;
 pub const MOD_BASE: usize = VOICE_BASE + MAX_VOICES * vf::N;
+pub const FX_BASE: usize = MOD_BASE + MOD_IDS.len();
 /// Values per record.
-pub const LEN: usize = MOD_BASE + MOD_IDS.len();
+pub const LEN: usize = FX_BASE + xf::N;
 /// Scope ring capacity (the GUI reads up to half of it).
 pub const SCOPE_RING: usize = 8192;
 /// Samples gathered before one ring push.
 const CHUNK: usize = 64;
 
 /// The shared record. Writer: [`VizWriter`] (audio thread). Reader: the editor.
-pub struct Viz(Snap);
+pub struct Viz {
+    snap: Snap,
+    side: RingReader,
+}
 
 impl Default for Viz {
     fn default() -> Self {
-        Self(Snap::new(LEN))
+        Self { snap: Snap::new(LEN), side: ring(2).1 }
     }
 }
 
 impl Viz {
+    /// The side ring, (L - R) / 2 of the output in step with the scope ring (empty until audio runs).
+    pub fn side(&self) -> &RingReader {
+        &self.side
+    }
+
     /// Copies the latest complete record into `out`; `false` keeps the caller's previous copy.
     pub fn read(&self, out: &mut VizFrame) -> bool {
         let mut tmp = [0.0f32; LEN];
-        let ok = self.0.read(&mut tmp);
+        let ok = self.snap.read(&mut tmp);
         if ok {
             out.0 = tmp;
         }
@@ -100,12 +133,12 @@ impl Viz {
 
     /// Completed writes so far (0 = nothing published yet).
     pub fn version(&self) -> u32 {
-        self.0.version()
+        self.snap.version()
     }
 
     /// Writes a raw record (tests and demo drivers).
     pub fn write(&self, rec: &[f32; LEN]) {
-        self.0.write(rec)
+        self.snap.write(rec)
     }
 }
 
@@ -143,6 +176,10 @@ impl VizFrame {
         MOD_IDS.iter().position(|m| *m == id).map(|k| self.0[MOD_BASE + k])
     }
     /// The held note of the newest voice with its gate open.
+    /// FX display value `k` (see [`xf`]).
+    pub fn fx(&self, k: usize) -> f32 {
+        self.0[FX_BASE + k]
+    }
     pub fn held_note(&self) -> Option<u8> {
         (0..MAX_VOICES)
             .filter(|&v| self.voice(v, vf::GATE) > 0.5)
@@ -155,7 +192,9 @@ impl VizFrame {
 pub struct VizWriter {
     viz: Arc<Viz>,
     scope: RingWriter,
+    side: RingWriter,
     chunk: [f32; CHUNK],
+    side_chunk: [f32; CHUNK],
     n: usize,
     /// Samples rendered so far, and per voice the sample of its last note-on (seen by its age stamp).
     clock: u64,
@@ -169,9 +208,10 @@ pub struct VizWriter {
 impl VizWriter {
     /// Allocates the record and the ring (call off the audio thread).
     pub fn new() -> (Self, Arc<Viz>, RingReader) {
-        let viz = Arc::new(Viz::default());
         let (scope, reader) = ring(SCOPE_RING);
-        let w = Self { viz: viz.clone(), scope, chunk: [0.0; CHUNK], n: 0, clock: 0, block_start: 0, on_at: [0; MAX_VOICES], seen: [0; MAX_VOICES], rec: VizFrame::default().0 };
+        let (side, side_reader) = ring(SCOPE_RING);
+        let viz = Arc::new(Viz { snap: Snap::new(LEN), side: side_reader });
+        let w = Self { viz: viz.clone(), scope, side, chunk: [0.0; CHUNK], side_chunk: [0.0; CHUNK], n: 0, clock: 0, block_start: 0, on_at: [0; MAX_VOICES], seen: [0; MAX_VOICES], rec: VizFrame::default().0 };
         (w, viz, reader)
     }
 
@@ -179,19 +219,22 @@ impl VizWriter {
     #[inline]
     pub fn push(&mut self, l: f32, r: f32) {
         self.chunk[self.n] = 0.5 * (l + r);
+        self.side_chunk[self.n] = 0.5 * (l - r);
         self.n += 1;
         self.clock += 1;
         if self.n == CHUNK {
             self.scope.push(&self.chunk);
+            self.side.push(&self.side_chunk);
             self.n = 0;
         }
     }
 
     /// End of a block: flushes the scope and publishes one record. `patch` is the block's patch
-    /// (what the voices read), `sr` the sample rate.
-    pub fn publish(&mut self, engine: &Engine, params: &GtsParams, patch: &Patch, sr: f32) {
+    /// (what the voices read), `sr` the sample rate, `fx` the chain's display record.
+    pub fn publish(&mut self, engine: &Engine, params: &GtsParams, patch: &Patch, sr: f32, fx: &FxTelemetry) {
         if self.n > 0 {
             self.scope.push(&self.chunk[..self.n]);
+            self.side.push(&self.side_chunk[..self.n]);
             self.n = 0;
         }
         let rec = &mut self.rec;
@@ -269,6 +312,16 @@ impl VizWriter {
         for (k, x) in live.into_iter().enumerate() {
             rec[MOD_BASE + k] = x.clamp(0.0, 1.0);
         }
+        let f = &mut rec[FX_BASE..];
+        f[xf::DIST_IN] = fx.dist_in;
+        f[xf::MB_GAIN..xf::MB_GAIN + 3].copy_from_slice(&fx.mb_gain_db);
+        f[xf::MB_LEVEL..xf::MB_LEVEL + 3].copy_from_slice(&fx.mb_level_db);
+        f[xf::CHO_PHASE] = fx.cho_phase;
+        f[xf::DLY_IN] = fx.dly_in;
+        f[xf::DLY_WET] = fx.dly_wet;
+        f[xf::DLY_TIME] = fx.dly_time_s;
+        f[xf::REV_IN] = fx.rev_in;
+        f[xf::REV_WET] = fx.rev_wet;
         self.viz.write(rec);
         self.block_start = self.clock;
     }
@@ -280,7 +333,7 @@ mod tests {
 
     #[test]
     fn layout_is_dense_and_ids_are_real() {
-        assert_eq!(LEN, gf::N + MAX_VOICES * vf::N + MOD_IDS.len());
+        assert_eq!(LEN, gf::N + MAX_VOICES * vf::N + MOD_IDS.len() + xf::N);
         let params = GtsParams::default();
         let ids: Vec<String> = nih_plug::prelude::Params::param_map(&params).into_iter().map(|(id, _, _)| id).collect();
         for id in MOD_IDS {
@@ -303,7 +356,8 @@ mod tests {
                 let (l, r) = e.next_frame();
                 w.push(l, r);
             }
-            w.publish(&e, &params, &patch, 44100.0);
+            let fx = e.fx_telemetry();
+            w.publish(&e, &params, &patch, 44100.0, &fx);
         }
         let mut f = VizFrame::default();
         assert!(viz.read(&mut f));
@@ -315,6 +369,7 @@ mod tests {
         assert_eq!(f.held_note(), Some(41));
         assert!((f.index01(0) - params.osca.index.value() / 127.0).abs() < 0.02);
         assert_eq!(ring.written(), 2048);
+        assert_eq!(viz.side().written(), 2048);
         let mut s = [0.0f32; 1024];
         assert!(ring.latest(&mut s));
         assert!(s.iter().any(|x| x.abs() > 0.01), "scope is silent");

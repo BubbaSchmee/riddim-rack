@@ -93,6 +93,24 @@ pub fn proto_mag2(p: &Proto, x: f64) -> f64 {
     (nr * nr + ni * ni) / (dr * dr + di * di)
 }
 
+/// EQ magnitude response in dB at `f` Hz for `p` (the analog prototypes the biquads are matched
+/// to; 0 dB when the module is off). For the GUI curve, no allocation.
+pub fn response_db(p: &EqParams, f: f64) -> f64 {
+    if !p.on {
+        return 0.0;
+    }
+    let g = |v: f32| v.clamp(-15.0, 15.0) as f64;
+    let mut m2 = proto_mag2(&proto_low_shelf(g(p.low_gain)), f / p.low_freq.clamp(30.0, 500.0) as f64)
+        * proto_mag2(&proto_peak(g(p.peak_gain), p.peak_q.clamp(0.2, 10.0) as f64), f / p.peak_freq.clamp(20.0, 20000.0) as f64)
+        * proto_mag2(&proto_high_shelf(g(p.high_gain)), f / p.high_freq.clamp(1000.0, 20000.0) as f64);
+    if p.cut_on {
+        for s in proto_low_cut() {
+            m2 *= proto_mag2(&s, f / p.cut_freq.clamp(20.0, 500.0) as f64);
+        }
+    }
+    10.0 * m2.max(1e-12).log10()
+}
+
 /// Magnitude-matched biquad `[b0, b1, b2, a1, a2]` for a prototype with corner `f0` Hz.
 pub fn matched(p: &Proto, f0: f64, sr: f64) -> [f64; 5] {
     let [_, _, _, d2, d1, d0] = *p;

@@ -959,6 +959,10 @@ pub struct GtsParams {
     /// their label. Host state, not a param.
     #[persist = "show_values"]
     pub show_values: AtomicBool,
+    /// Editor setting "Reduced motion" (MOTION.md 4): no sway, parallax, page or popover motion,
+    /// instant chrome transitions. Host state, not a param; off by default (no OS query).
+    #[persist = "reduced_motion"]
+    pub reduced_motion: AtomicBool,
 }
 
 impl GtsParams {
@@ -1079,6 +1083,7 @@ impl Default for GtsParams {
             instance_label: RwLock::new(String::new()),
             oversampling: AtomicUsize::new(2),
             show_values: AtomicBool::new(false),
+            reduced_motion: AtomicBool::new(false),
         }
 
     }

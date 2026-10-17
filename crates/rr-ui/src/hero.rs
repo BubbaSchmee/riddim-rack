@@ -254,6 +254,7 @@ impl Hero {
             });
             p.add(egui::PaintCallback { rect, callback: Arc::new(cb) });
         }
+        ghosts(&p, rect, inp.frames, &scene);
         overlay(ui, &p, rect, inp, &scene, base, self.mix);
         // Tabs and the 2D / 3D switch sit on top of the scrub area.
         let tab = |i: usize| Rect::from_min_size(rect.min + vec2(14.0 + 24.0 * i as f32, 14.0), vec2(24.0, 20.0));
@@ -333,10 +334,10 @@ fn graticule(p: &egui::Painter, rect: Rect, pr: &Proj) {
 fn seg(p: &egui::Painter, r: Rect, label: &str, on: bool, hot: bool) {
     if on {
         p.rect_filled(r, 3.0, T.a(0.20));
-        p.rect_stroke(r, 3.0, paint::st(1.0, T.a(0.55)), StrokeKind::Inside);
+        p.rect_stroke(r, 3.0, paint::hair(p, T.a(0.55)), StrokeKind::Inside);
     } else {
         p.rect_filled(r, 3.0, Color32::BLACK.gamma_multiply(0.45));
-        p.rect_stroke(r, 3.0, paint::st(1.0, Color32::WHITE.gamma_multiply(if hot { 0.16 } else { 0.08 })), StrokeKind::Inside);
+        p.rect_stroke(r, 3.0, paint::hair(p, Color32::WHITE.gamma_multiply(if hot { 0.16 } else { 0.08 })), StrokeKind::Inside);
     }
     let col = if on { T.accent } else if hot { T.text } else { T.muted };
     p.text(r.center(), Align2::CENTER_CENTER, label, font::label(11.0), col);
@@ -354,7 +355,7 @@ fn overlay(ui: &Ui, p: &egui::Painter, rect: Rect, inp: &HeroInput, s: &Scene, b
         let px = 1.0 / ui.ctx().pixels_per_point();
         let rx = |t: f32| at(0.0, 0.0, t) - vec2(12.0 * (1.0 - 0.5 * t), 0.0);
         let pts: Vec<Pos2> = (0..=20).map(|i| rx(i as f32 / 20.0)).collect();
-        p.add(Shape::line(pts, paint::st(1.0, Color32::WHITE.gamma_multiply(0.22 * m))));
+        p.add(Shape::line(pts, paint::hair(p, Color32::WHITE.gamma_multiply(0.22 * m))));
         for q in 0..=4 {
             let c = rx(q as f32 / 4.0);
             p.hline((c.x - 3.0)..=(c.x + 3.0), c.y, Stroke::new(px, Color32::WHITE.gamma_multiply(0.22 * m)));
@@ -392,13 +393,33 @@ fn overlay(ui: &Ui, p: &egui::Painter, rect: Rect, inp: &HeroInput, s: &Scene, b
         p.text(rect.center() + vec2(0.0, 4.0), Align2::CENTER_CENTER, format!("{osc} IS OFF"), font::strong(12.0), T.muted);
     }
     // Glass edge: inner rim, black outline.
-    p.rect_stroke(rect.shrink(1.0), 7.0, paint::st(1.0, Color32::WHITE.gamma_multiply(0.035)), StrokeKind::Inside);
-    p.rect_stroke(rect, 8.0, paint::st(1.0, Color32::BLACK), StrokeKind::Inside);
+    p.rect_stroke(rect.shrink(1.0), 7.0, paint::hair(p, Color32::WHITE.gamma_multiply(0.035)), StrokeKind::Inside);
+    p.rect_stroke(rect, 8.0, paint::hair(p, Color32::BLACK), StrokeKind::Inside);
 }
 
 // ---- CPU fallback ----------------------------------------------------------------------------
 
 /// The scene with egui shapes: 129 points per frame, hairlines, hidden-line fills, three-pass lit frame.
+/// 2D view: the two modulation extremes as dashed `src_a` ghosts (nearest stored frames), fading
+/// out as the view opens into 3D. Drawn with egui (dashes follow the path length, so steep edges
+/// dash like the rest); both paint paths use it.
+fn ghosts(p: &egui::Painter, rect: Rect, frames: &[f32], s: &Scene) {
+    let a = 0.34 * (1.0 - s.p.m);
+    if s.p.m >= 0.98 || !s.tint || frames.len() < FRAMES * POINTS || a < 0.01 {
+        return;
+    }
+    let o = rect.min.to_vec2();
+    for f in [s.lo, s.hi] {
+        let gi = ((f / 127.0 * (FRAMES - 1) as f32).round() as usize).min(FRAMES - 1);
+        if (gi as f32 - s.gh).abs() < 0.5 {
+            continue;
+        }
+        let w = &frames[gi * POINTS..(gi + 1) * POINTS];
+        let pts: Vec<Pos2> = (0..POINTS).step_by(2).map(|i| (s.p.pt(i as f32 / SEGS as f32, w[i].clamp(-1.25, 1.25), 0.0) + o).to_pos2()).collect();
+        p.extend(Shape::dashed_line(&pts, Stroke::new(1.2_f32, SRC_A.gamma_multiply(a)), 5.0, 3.5));
+    }
+}
+
 fn paint_cpu(p: &egui::Painter, rect: Rect, frames: &[f32], s: &Scene) {
     if frames.len() < FRAMES * POINTS {
         return;
@@ -840,15 +861,6 @@ unsafe fn draw_gl(gl: &glow::Context, g: &Gpu, info: &egui::PaintCallbackInfo, s
         }
     };
 
-    // 2D: modulation extremes as faint src_a ghosts (nearest stored frames).
-    if m < 0.98 && s.tint {
-        for f in [s.lo, s.hi] {
-            let gi = ((f / 127.0 * (FRAMES - 1) as f32).round() as usize).min(FRAMES - 1);
-            if (gi as f32 - s.gh).abs() >= 0.5 {
-                line(g.line_vao, gi * SEGS, 0.0, rgb(SRC_A), 0.28 * (1.0 - m), 1.2);
-            }
-        }
-    }
     // Frames back to front, the lit frame spliced in at its depth.
     let mut lit_done = false;
     for gi in (0..FRAMES).rev() {
