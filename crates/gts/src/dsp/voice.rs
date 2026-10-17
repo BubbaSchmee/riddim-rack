@@ -4,7 +4,8 @@
 //! Per-sample stages of `Voice::next`, in order:
 //!   1. glide (portamento in semitones),
 //!   2. modulators: Mod A / Mod B LFOs -> `Voice::modulation` (Target, Mod B -> Mod A depth,
-//!      wheel / velocity Mod amounts),
+//!      wheel / velocity Mod amounts); Mod C / Mod D and the mod envelope run alongside (matrix
+//!      sources only, SPEC v2 Track 7),
 //!   3. per osc: pitch, Shift, Index + Motion, 1..7 unison grain oscillators, amp envelope, Vol,
 //!      then the sine sub on Osc A's pitch and envelope,
 //!   4. shared filter envelope, cutoffs (every `FILTER_TICK` samples), Shaper -> Filter A / B per
@@ -27,7 +28,8 @@ use super::lfo::Lfo;
 use super::shaper::Shaper;
 use super::tables::{Tables, GRAINS};
 use super::{OscPatch, Patch, Transport};
-use crate::params::{Routing, Target};
+use super::shape::Shape;
+use crate::params::{Routing, Target, Trigger};
 use std::f64::consts::TAU;
 
 /// Most unison voices per oscillator.
@@ -164,6 +166,16 @@ impl Hp2 {
     }
 }
 
+/// Mod C / Mod D, constructed from their own seed counter (`Lfo::new_cd`) so the Mod A / B seeds
+/// stay as they were.
+struct LfoCd([Lfo; 2]);
+
+impl Default for LfoCd {
+    fn default() -> Self {
+        Self([Lfo::new_cd(), Lfo::new_cd()])
+    }
+}
+
 #[derive(Default)]
 pub struct Voice {
     pub note: u8,
@@ -177,10 +189,13 @@ pub struct Voice {
     target: f32,
     osc: [Osc; 2],
     pub modulation: VoiceMod,
-    /// Raw Mod A / Mod B outputs (-1..1) of the last sample, published on the bus.
-    pub lfo_out: [f32; 2],
+    /// Raw Mod A..D outputs (-1..1) of the last sample (Mod A / B are published on the bus).
+    pub lfo_out: [f32; 4],
     /// Mod A, Mod B.
     lfo: [Lfo; 2],
+    /// SPEC v2 Track 7: Mod C, Mod D and the mod envelope (matrix sources).
+    lfo_cd: LfoCd,
+    menv: Adsr,
     /// Filter A / B cutoff in Hz at the last cutoff update (for the GUI).
     pub cutoff_hz: [f32; 2],
     /// `[channel][filter]`: Filter A, Filter B for the left (and, in stereo, right) channel.
@@ -298,9 +313,26 @@ impl Voice {
         &self.fenv
     }
 
-    /// Mod A / Mod B phase in cycles (unwrapped; a finished one-shot is at or above 1).
+    /// Mod A..D phase in cycles (unwrapped; a finished one-shot is at or above 1).
     pub fn lfo_phase(&self, i: usize) -> f32 {
-        self.lfo[i].phase()
+        if i < 2 { self.lfo[i].phase() } else { self.lfo_cd.0[i - 2].phase() }
+    }
+
+    /// The mod envelope (matrix source Mod Env).
+    pub fn mod_env(&self) -> &Adsr {
+        &self.menv
+    }
+
+    /// Mod A..D, in order.
+    fn lfos(&mut self) -> impl Iterator<Item = &mut Lfo> {
+        self.lfo.iter_mut().chain(self.lfo_cd.0.iter_mut())
+    }
+
+    /// Custom shape of LFO `k` (0 = Mod A .. 3 = Mod D).
+    pub fn set_lfo_shape(&mut self, k: usize, s: &Shape) {
+        if let Some(l) = self.lfos().nth(k) {
+            l.set_shape(s);
+        }
     }
 
     /// Current oscillator f0 in Hz (after glide, bend, octave/semi/cent and pitch modulation).
@@ -320,7 +352,7 @@ impl Voice {
 
     /// Not real-time: resets the filters.
     pub fn set_sample_rate(&mut self, sr: f32) {
-        for l in &mut self.lfo {
+        for l in self.lfos() {
             l.set_sample_rate(sr as f64);
         }
         for f in self.filt.iter_mut().chain(&mut self.old).flatten() {
@@ -363,6 +395,7 @@ impl Voice {
             o.uni = uni;
         }
         self.fenv.set_curved(patch.fenv_att, patch.fenv_dec, patch.fenv_sus, patch.fenv_rel, patch.fenv_curve, sr);
+        self.menv.set_curved(patch.menv_att, patch.menv_dec, patch.menv_sus, patch.menv_rel, patch.menv_curve, sr);
         for s in &mut self.shaper {
             s.set(patch.shaper_mode, patch.shaper_amt);
         }
@@ -383,12 +416,16 @@ impl Voice {
         }
     }
 
-    /// LFO rate / sync / curve, per block. Synced LFOs lock to the host beat only while it plays.
+    /// LFO rate / sync / curve and the Track 7 extensions, per block. Synced LFOs lock to the host
+    /// beat only while it plays. Trigger Envelope = One-Shot; One-Shot on wins over Free.
     pub fn configure_mods(&mut self, patch: &Patch, transport: &Transport) {
         let beat = transport.playing.then_some(transport.pos_beats);
-        for (l, m) in self.lfo.iter_mut().zip([&patch.moda, &patch.modb]) {
+        let mods = [&patch.moda, &patch.modb, &patch.modc, &patch.modd];
+        for ((l, m), e) in self.lfos().zip(mods).zip(&patch.lfo_ext) {
             let sync = m.sync.then_some((m.div, transport.tempo, beat));
-            l.configure(m.curve, m.rate, sync, m.oneshot);
+            let one_shot = m.oneshot || e.trig == Trigger::Envelope;
+            l.configure(m.curve, m.rate, sync, one_shot);
+            l.set_ext(e.phase, e.fade, e.smooth, e.trig == Trigger::Free && !one_shot);
         }
     }
 
@@ -417,9 +454,10 @@ impl Voice {
             o.scan = 0.0;
             o.env.gate_on();
         }
-        for l in &mut self.lfo {
+        for l in self.lfos() {
             l.trigger();
         }
+        self.menv.gate_on();
         if !active {
             // An idle voice froze its filter envelope wherever its tail ended.
             self.fenv.kill();
@@ -461,6 +499,7 @@ impl Voice {
             o.env.gate_off();
         }
         self.fenv.gate_off();
+        self.menv.gate_off();
     }
 
     /// Hard stop (choke / reset / CC123 is a release, not this): no tail.
@@ -470,6 +509,7 @@ impl Voice {
             o.env.kill();
         }
         self.fenv.kill();
+        self.menv.kill();
         self.tail = false;
         self.click_n = 0;
     }
@@ -499,13 +539,16 @@ impl Voice {
 
     /// `lfo_out` = the LFOs' values at their current phase (a new note's first sample).
     pub fn peek_lfos(&mut self) {
-        self.lfo_out = [self.lfo[0].peek(), self.lfo[1].peek()];
+        let [c, d] = &self.lfo_cd.0;
+        self.lfo_out = [self.lfo[0].peek(), self.lfo[1].peek(), c.peek(), d.peek()];
     }
 
     /// Mod A / Mod B -> `self.modulation`.
     fn modulate(&mut self, patch: &Patch, ctl: &Controls) {
         let (a, b) = (self.lfo[0].next(), self.lfo[1].next());
-        self.lfo_out = [a, b];
+        let [lc, ld] = &mut self.lfo_cd.0;
+        self.lfo_out = [a, b, lc.next(), ld.next()];
+        self.menv.next();
         // Mod B "Mod A" amount, wheel Mod and velocity Mod all scale the Mod A depth.
         let depth = a
             * (1.0 + patch.modb_moda * b)
@@ -622,7 +665,9 @@ impl Voice {
                 o.scan -= SCAN_WRAP;
             }
             o.shift = shift + (o.shift - shift) * ctl.smooth;
-            let pitch = self.pitch + 12.0 * op.oct as f32 + op.semi as f32 + op.cent / 100.0 + ctl.bend + m.pitch[i];
+            // Track 7 pitch offsets come last: adding 0 leaves the v1 pitch bit for bit.
+            let pitch = self.pitch + 12.0 * op.oct as f32 + op.semi as f32 + op.cent / 100.0 + ctl.bend + m.pitch[i]
+                + ([patch.osca_pitch, patch.oscb_pitch][i] + patch.pitch_all);
             o.freq = (440.0 * 2f32.powf((pitch - 69.0) / 12.0)).clamp(1.0, 0.45 * ctl.sr);
             if !op.on || env <= 0.0 {
                 continue;
@@ -653,7 +698,8 @@ impl Voice {
             }
         }
 
-        // Sub: sine on Osc A's pitch and envelope, phase 0 at note-on, 25 Hz low-cut.
+        // Sub: sine on Osc A's pitch (so it follows Pitch All, and Osc A Pitch) and envelope,
+        // phase 0 at note-on, 25 Hz low-cut.
         let mut sub = 0.0;
         if self.sub_on && env_a > 0.0 {
             self.sub_phase += (self.osc[0].freq * self.sub_mul) as f64 / ctl.sr as f64;

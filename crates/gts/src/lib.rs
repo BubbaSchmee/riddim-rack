@@ -41,6 +41,9 @@ pub struct Gts {
     /// Matrix snapshot version applied last, and the record buffer it is read into.
     matrix_seen: u32,
     matrix_rec: [f32; matrix::ENC_LEN],
+    /// Custom LFO shapes snapshot version applied last and its record (SPEC v2 Track 7).
+    shapes_seen: u32,
+    shapes_rec: [f32; dsp::shape::SHAPES_ENC],
 }
 
 /// Writes one engine frame to the plugin's output channels: channel 0 = left, the rest = right.
@@ -67,6 +70,8 @@ impl Default for Gts {
             oversampling: 2,
             matrix_seen: u32::MAX,
             matrix_rec: [0.0; matrix::ENC_LEN],
+            shapes_seen: u32::MAX,
+            shapes_rec: [0.0; dsp::shape::SHAPES_ENC],
         }
     }
 }
@@ -130,6 +135,11 @@ impl Plugin for Gts {
         }
         for k in 1..=matrix::MACROS {
             state.params.entry(format!("macro{k}")).or_insert(nih_plug::wrapper::state::ParamValue::F32(0.0));
+        }
+        // Same for the custom LFO shapes (SPEC v2 Track 7): absent or unreadable = the defaults.
+        if !state.fields.get("lfo_shapes").is_some_and(|s| serde_json::from_str::<dsp::shape::LfoShapes>(s).is_ok()) {
+            let d = serde_json::to_string(&dsp::shape::LfoShapes::default()).expect("shapes serialise");
+            state.fields.insert("lfo_shapes".into(), d);
         }
     }
 
@@ -231,6 +241,9 @@ impl Plugin for Gts {
         // Matrix edits from the editor, a preset or a state load: lock-free snapshot, read once per block.
         if self.params.matrix.poll(&mut self.matrix_seen, &mut self.matrix_rec) {
             self.engine.set_matrix(&self.matrix_rec);
+        }
+        if self.params.lfo_shapes.poll(&mut self.shapes_seen, &mut self.shapes_rec) {
+            self.engine.set_lfo_shapes(&self.shapes_rec);
         }
         let n = buffer.samples();
         self.bus.exchange(self.engine.bus_signals());

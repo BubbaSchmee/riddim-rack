@@ -54,6 +54,9 @@ pub enum Curve {
     Decay,
     #[name = "Attack"]
     Attack,
+    /// Appended (SPEC v2 Track 7, G1): the LFO's drawn / step shape (`dsp::shape`).
+    #[name = "Custom"]
+    Custom,
 }
 
 #[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
@@ -84,6 +87,30 @@ pub enum Division {
     ThirtySecond,
     #[name = "1/32T"]
     ThirtySecondT,
+    // Appended (SPEC v2 Track 7, G6): dotted divisions.
+    #[name = "1/2D"]
+    HalfD,
+    #[name = "1/4D"]
+    QuarterD,
+    #[name = "1/8D"]
+    EighthD,
+    #[name = "1/16D"]
+    SixteenthD,
+}
+
+/// LFO trigger mode (SPEC v2 Track 7, G6). Synced LFOs lock to the host grid while it plays in
+/// Retrigger and Free mode.
+#[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Trigger {
+    /// Phase restarts at every note-on (the v1 behaviour).
+    #[name = "Retrigger"]
+    Retrigger,
+    /// Phase runs on across notes.
+    #[name = "Free"]
+    Free,
+    /// One cycle per note, then holds the end (= One-Shot).
+    #[name = "Envelope"]
+    Envelope,
 }
 
 #[derive(Enum, Debug, PartialEq, Eq, Clone, Copy)]
@@ -307,7 +334,7 @@ impl OscParams {
 pub struct ModParams {
     #[id = "curve"]
     pub curve: EnumParam<Curve>,
-    /// Free rate in Hz, 0.03..30 (log).
+    /// Free rate in Hz, 0.03..100 (log; SPEC v2 Track 7 raised the ceiling from 30).
     #[id = "rate"]
     pub rate: FloatParam,
     #[id = "sync"]
@@ -325,19 +352,24 @@ impl ModParams {
         let n = |s: &str| format!("Mod {letter} {s}");
         Self {
             curve: EnumParam::new(n("Curve"), curve),
-            rate: FloatParam::new(
-                n("Rate"),
-                4.0,
-                FloatRange::Skewed { min: 0.03, max: 30.0, factor: FloatRange::skew_factor(-2.0) },
-            )
-            .with_value_to_string(formatters::v2s_f32_rounded(2))
-            .with_unit(" Hz"),
+            rate: lfo_rate(n("Rate")),
             sync: BoolParam::new(n("Sync"), sync),
             div: EnumParam::new(n("Division"), Division::Eighth),
             oneshot: BoolParam::new(n("One-Shot"), oneshot),
             target: EnumParam::new(n("Target"), Target::Both),
         }
     }
+}
+
+/// LFO free rate, 0.03..100 Hz. The skew keeps the 4 Hz default at the normalized position it
+/// had on the v1 0.03..30 Hz range (saved states and presets store plain values, so they load
+/// unchanged).
+fn lfo_rate(name: String) -> FloatParam {
+    // v1: ((4 - 0.03) / 29.97)^0.25; solve ((4 - 0.03) / 99.97)^k for the same value.
+    let k = ((4.0f32 - 0.03) / 29.97).powf(0.25).ln() / ((4.0f32 - 0.03) / 99.97).ln();
+    FloatParam::new(name, 4.0, FloatRange::Skewed { min: 0.03, max: 100.0, factor: k })
+        .with_value_to_string(formatters::v2s_f32_rounded(2))
+        .with_unit(" Hz")
 }
 
 /// Mod A amounts, all bipolar -1..+1. Ids: `moda_{pitch,index,shift}`.
@@ -883,6 +915,121 @@ impl Default for LimiterFxParams {
     }
 }
 
+// ---- SPEC v2 Track 7 modulation (G1, G2, G6, G7) -------------------------------------------
+// Appended block. Every default is neutral: Mod C / Mod D and Mod Env are matrix-only sources
+// (no fixed routes), the extensions default to the v1 behaviour, the pitch offsets to 0.
+
+/// LFO extensions shared by Mod A..D. Ids `mod{a,b,c,d}_{phase,fade,smooth,trig}`.
+#[derive(Params)]
+pub struct LfoExtParams {
+    /// Start phase, 0..360 degrees.
+    #[id = "phase"]
+    pub phase: FloatParam,
+    /// Fade-in after note-on, 0..4 s (linear, 0 = off).
+    #[id = "fade"]
+    pub fade: FloatParam,
+    /// Output smoothing, 0..1 (one-pole, time constant up to a quarter cycle).
+    #[id = "smooth"]
+    pub smooth: FloatParam,
+    #[id = "trig"]
+    pub trig: EnumParam<Trigger>,
+}
+
+impl LfoExtParams {
+    fn new(letter: &str) -> Self {
+        let n = |s: &str| format!("Mod {letter} {s}");
+        Self {
+            phase: FloatParam::new(n("Phase"), 0.0, FloatRange::Linear { min: 0.0, max: 360.0 })
+                .with_unit("°")
+                .with_value_to_string(formatters::v2s_f32_rounded(0)),
+            fade: FloatParam::new(n("Fade"), 0.0, FloatRange::Skewed { min: 0.0, max: 4.0, factor: FloatRange::skew_factor(-1.0) })
+                .with_unit(" s")
+                .with_value_to_string(formatters::v2s_f32_rounded(2)),
+            smooth: unit(n("Smooth"), 0.0),
+            trig: EnumParam::new(n("Trigger"), Trigger::Retrigger),
+        }
+    }
+}
+
+/// Mod C / Mod D: the Mod A / B LFO set without Target (they have no fixed routes; matrix
+/// sources only). Ids `mod{c,d}_{curve,rate,sync,div,oneshot}`.
+#[derive(Params)]
+pub struct ModCdParams {
+    #[id = "curve"]
+    pub curve: EnumParam<Curve>,
+    #[id = "rate"]
+    pub rate: FloatParam,
+    #[id = "sync"]
+    pub sync: BoolParam,
+    #[id = "div"]
+    pub div: EnumParam<Division>,
+    #[id = "oneshot"]
+    pub oneshot: BoolParam,
+}
+
+impl ModCdParams {
+    fn new(letter: &str) -> Self {
+        let n = |s: &str| format!("Mod {letter} {s}");
+        Self {
+            curve: EnumParam::new(n("Curve"), Curve::Sine),
+            rate: lfo_rate(n("Rate")),
+            sync: BoolParam::new(n("Sync"), false),
+            div: EnumParam::new(n("Division"), Division::Eighth),
+            oneshot: BoolParam::new(n("One-Shot"), false),
+        }
+    }
+}
+
+/// Mod envelope (G7): ADSR with curve, matrix source "Mod Env". Ids `menv_{att,dec,sus,rel,curve}`.
+#[derive(Params)]
+pub struct ModEnvParams {
+    #[id = "att"]
+    pub att: FloatParam,
+    #[id = "dec"]
+    pub dec: FloatParam,
+    #[id = "sus"]
+    pub sus: FloatParam,
+    #[id = "rel"]
+    pub rel: FloatParam,
+    /// -1 log .. 0 exponential .. +1 linear.
+    #[id = "curve"]
+    pub curve: FloatParam,
+}
+
+impl Default for ModEnvParams {
+    fn default() -> Self {
+        Self {
+            att: time("Mod Env Attack".into(), 0.001),
+            dec: time("Mod Env Decay".into(), 0.25),
+            sus: unit("Mod Env Sustain".into(), 0.0),
+            rel: time("Mod Env Release".into(), 0.1),
+            curve: bipolar("Mod Env Curve".into(), 0.0),
+        }
+    }
+}
+
+/// Continuous pitch offsets (G2), -48..+48 st, voice-scope matrix targets. `pitch_all` moves
+/// Osc A, Osc B and the sub. Ids `osca_pitch`, `oscb_pitch`, `pitch_all`.
+#[derive(Params)]
+pub struct PitchParams {
+    #[id = "osca_pitch"]
+    pub osca: FloatParam,
+    #[id = "oscb_pitch"]
+    pub oscb: FloatParam,
+    #[id = "pitch_all"]
+    pub all: FloatParam,
+}
+
+impl Default for PitchParams {
+    fn default() -> Self {
+        Self {
+            osca: semitones("Osc A Pitch".into(), 0.0, 48.0),
+            oscb: semitones("Osc B Pitch".into(), 0.0, 48.0),
+            all: semitones("Pitch All".into(), 0.0, 48.0),
+        }
+    }
+}
+
 #[derive(Params)]
 pub struct GtsParams {
     #[nested(id_prefix = "osca", group = "Osc A")]
@@ -975,6 +1122,24 @@ pub struct GtsParams {
     #[id = "cv3_amount"]
     pub cv3_amount: FloatParam,
 
+    // ---- SPEC v2 Track 7 modulation (appended) ----
+    #[nested(id_prefix = "moda", group = "Mod A")]
+    pub moda_ext: LfoExtParams,
+    #[nested(id_prefix = "modb", group = "Mod B")]
+    pub modb_ext: LfoExtParams,
+    #[nested(id_prefix = "modc", group = "Mod C")]
+    pub modc: ModCdParams,
+    #[nested(id_prefix = "modc", group = "Mod C")]
+    pub modc_ext: LfoExtParams,
+    #[nested(id_prefix = "modd", group = "Mod D")]
+    pub modd: ModCdParams,
+    #[nested(id_prefix = "modd", group = "Mod D")]
+    pub modd_ext: LfoExtParams,
+    #[nested(id_prefix = "menv", group = "Mod Env")]
+    pub menv: ModEnvParams,
+    #[nested(group = "Pitch")]
+    pub pitch: PitchParams,
+
     /// Persisted CV-in sources, `"<label> · <name>"`, empty = none (GUI thread only).
     #[persist = "cv_sources"]
     pub cv_sources: RwLock<[String; 3]>,
@@ -1004,6 +1169,10 @@ pub struct GtsParams {
     /// GUI, read lock-free by the audio thread (see `crate::matrix`).
     #[persist = "matrix"]
     pub matrix: crate::matrix::MatrixShared,
+    /// Custom LFO shapes of Mod A..D (SPEC v2 Track 7, G1): project and preset state, read
+    /// lock-free by the audio thread (see `crate::dsp::shape`).
+    #[persist = "lfo_shapes"]
+    pub lfo_shapes: crate::dsp::shape::ShapesShared,
 }
 
 impl GtsParams {
@@ -1129,6 +1298,17 @@ impl Default for GtsParams {
             preset_key: RwLock::new(String::new()),
             preset_dirty: AtomicBool::new(false),
             matrix: Default::default(),
+
+            // SPEC v2 Track 7 (appended)
+            moda_ext: LfoExtParams::new("A"),
+            modb_ext: LfoExtParams::new("B"),
+            modc: ModCdParams::new("C"),
+            modc_ext: LfoExtParams::new("C"),
+            modd: ModCdParams::new("D"),
+            modd_ext: LfoExtParams::new("D"),
+            menv: ModEnvParams::default(),
+            pitch: PitchParams::default(),
+            lfo_shapes: Default::default(),
         }
 
     }

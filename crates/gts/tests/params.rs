@@ -41,6 +41,21 @@ fn spec_ids() -> Vec<String> {
         v.push(format!("cv{n}_target"));
         v.push(format!("cv{n}_amount"));
     }
+    // SPEC v2 Track 7: Mod C / Mod D (no target), LFO extensions on all four, mod envelope, pitch.
+    for m in ["modc", "modd"] {
+        for s in ["curve", "rate", "sync", "div", "oneshot"] {
+            v.push(format!("{m}_{s}"));
+        }
+    }
+    for m in ["moda", "modb", "modc", "modd"] {
+        for s in ["phase", "fade", "smooth", "trig"] {
+            v.push(format!("{m}_{s}"));
+        }
+    }
+    for s in ["att", "dec", "sus", "rel", "curve"] {
+        v.push(format!("menv_{s}"));
+    }
+    v.extend(["osca_pitch", "oscb_pitch", "pitch_all"].map(String::from));
     v
 }
 
@@ -72,7 +87,7 @@ fn ids_match_spec() {
     got.sort();
     want.sort();
     assert_eq!(got, want);
-    assert_eq!((fx_ids().len(), got.len()), (74, 186));
+    assert_eq!((fx_ids().len(), got.len()), (74, 220));
 }
 
 /// SPEC v2 Track 4 ranges and defaults: (id, min, max, default) for every float FX param; on

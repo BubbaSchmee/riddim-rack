@@ -6,13 +6,15 @@ pub mod filter;
 pub mod fx;
 pub mod grain;
 pub mod lfo;
+pub mod shape;
 pub mod shaper;
 pub mod tables;
 pub mod voice;
 
 use crate::matrix::{self, flag, ModRt, Source, ENC_LEN, N_SOURCES, TICK};
 use crate::params::{
-    Curve, Division, FilterParams, FilterType, GtsParams, ModParams, OscParams, Routing, ShaperMode, Table, Target,
+    Curve, Division, FilterParams, FilterType, GtsParams, LfoExtParams, ModCdParams, ModParams, OscParams, Routing,
+    ShaperMode, Table, Target, Trigger,
 };
 use fx::{FxChain, FxPatch};
 use nih_plug::prelude::NoteEvent;
@@ -108,6 +110,38 @@ impl ModPatch {
     }
 }
 
+impl ModPatch {
+    /// Mod C / Mod D (no Target param: `target` is `Both` and unused, they have no fixed routes).
+    fn from_cd(p: &ModCdParams) -> Self {
+        Self {
+            curve: p.curve.value(),
+            rate: p.rate.value(),
+            sync: p.sync.value(),
+            div: p.div.value(),
+            oneshot: p.oneshot.value(),
+            target: Target::Both,
+        }
+    }
+}
+
+/// SPEC v2 Track 7 LFO extensions of one LFO (Mod A..D). Defaults are the v1 behaviour.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LfoExt {
+    /// Start phase, degrees 0..360.
+    pub phase: f32,
+    /// Fade-in, seconds (0 = off).
+    pub fade: f32,
+    /// Smoothing 0..1.
+    pub smooth: f32,
+    pub trig: Trigger,
+}
+
+impl LfoExt {
+    fn from_params(p: &LfoExtParams) -> Self {
+        Self { phase: p.phase.value(), fade: p.fade.value(), smooth: p.smooth.value(), trig: p.trig.value() }
+    }
+}
+
 /// Filter A or B settings.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FilterPatch {
@@ -188,6 +222,23 @@ pub struct Patch {
     pub fx: FxPatch,
     /// Macro 1..4, 0..1 (matrix sources, SPEC v2 Track 5).
     pub macros: [f32; 4],
+
+    // ---- SPEC v2 Track 7 modulation (appended block) ----
+    /// Mod C, Mod D: matrix-only sources.
+    pub modc: ModPatch,
+    pub modd: ModPatch,
+    /// Mod A..D extensions.
+    pub lfo_ext: [LfoExt; 4],
+    /// Mod envelope: seconds, sustain 0..1, curve -1..1.
+    pub menv_att: f32,
+    pub menv_dec: f32,
+    pub menv_sus: f32,
+    pub menv_rel: f32,
+    pub menv_curve: f32,
+    /// Pitch offsets in semitones: Osc A, Osc B, and all (Osc A, Osc B and the sub).
+    pub osca_pitch: f32,
+    pub oscb_pitch: f32,
+    pub pitch_all: f32,
 }
 
 impl Patch {
@@ -237,6 +288,18 @@ impl Patch {
             spread: p.spread.value(),
             fx: FxPatch::from_params(p),
             macros: p.macros.values(),
+
+            modc: ModPatch::from_cd(&p.modc),
+            modd: ModPatch::from_cd(&p.modd),
+            lfo_ext: [&p.moda_ext, &p.modb_ext, &p.modc_ext, &p.modd_ext].map(LfoExt::from_params),
+            menv_att: p.menv.att.value(),
+            menv_dec: p.menv.dec.value(),
+            menv_sus: p.menv.sus.value(),
+            menv_rel: p.menv.rel.value(),
+            menv_curve: p.menv.curve.value(),
+            osca_pitch: p.pitch.osca.value(),
+            oscb_pitch: p.pitch.oscb.value(),
+            pitch_all: p.pitch.all.value(),
         }
     }
 }
@@ -633,6 +696,17 @@ impl Engine {
         self.bus_cv = cv;
     }
 
+    /// Takes new custom LFO shapes (`dsp::shape::ShapesShared::poll`) at a block start: every
+    /// voice's Mod A..D gets its shape. Allocation-free.
+    pub fn set_lfo_shapes(&mut self, enc: &[f32; shape::SHAPES_ENC]) {
+        for (k, rec) in enc.chunks_exact(shape::ENC).enumerate() {
+            let s = shape::Shape::decode(rec);
+            for v in &mut self.voices {
+                v.set_lfo_shape(k, &s);
+            }
+        }
+    }
+
     /// The patch voice `i` renders with (its voice-scope targets applied).
     pub fn voice_patch(&self, i: usize) -> &Patch {
         if self.mm.has_voice() { &self.vpatch[i] } else { &self.patch }
@@ -657,6 +731,9 @@ impl Engine {
             s[Source::Keytrack as usize] = ((v.pitch() - voice::KBD_REF) / 60.0).clamp(-1.0, 1.0);
             s[Source::Random as usize] = x.random;
             s[Source::PolyAftertouch as usize] = x.poly_at;
+            s[Source::ModC as usize] = v.lfo_out[2];
+            s[Source::ModD as usize] = v.lfo_out[3];
+            s[Source::ModEnv as usize] = v.mod_env().level();
         }
         s[Source::ModWheel as usize] = self.ctl.wheel;
         s[Source::ChannelAftertouch as usize] = self.chan_at;
@@ -719,13 +796,14 @@ impl Engine {
     fn mod_tick(&mut self) {
         let k = self.mm_k;
         if self.mm.has_global() {
-            const PV: usize = Source::PolyAftertouch as usize + 1;
             let newest = self.newest();
             let mut src = self.sources(newest);
-            if newest.is_some() {
-                self.held_src[..PV].copy_from_slice(&src[..PV]);
-            } else {
-                src[..PV].copy_from_slice(&self.held_src[..PV]);
+            for k in (0..N_SOURCES).filter(|&k| Source::ALL[k].per_voice()) {
+                if newest.is_some() {
+                    self.held_src[k] = src[k];
+                } else {
+                    src[k] = self.held_src[k];
+                }
             }
             self.mm.eval_global(&src, k);
             self.apply_global();
