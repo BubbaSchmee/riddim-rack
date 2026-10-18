@@ -33,14 +33,14 @@
 
 use super::env::Adsr;
 use super::filter::MultiFilter;
-use super::grain::{GrainOsc, PhaseMap};
+use super::grain::{GrainOsc, MapLut, PhaseMap};
 use super::noise::{Noise, NoiseCfg, NOISE_OFF_DB};
 use super::lfo::Lfo;
 use super::shaper::Shaper;
 use super::tables::{Tables, GRAINS, N, TOP};
 use super::{OscPatch, Patch, Transport};
 use super::shape::Shape;
-use crate::params::{Routing, SubShape, Target, Trigger, WarpMode};
+use crate::params::{NoiseType, Routing, SubShape, Target, Trigger, WarpMode};
 use std::f64::consts::TAU;
 
 /// Most unison voices per oscillator.
@@ -158,7 +158,7 @@ struct Osc {
     // ---- Track 7 (G4) ----
     /// Warp decimators (left, right); FM: the modulator shadow, its last value, the rate-deviation
     /// envelope and the value the mip follows, the shadow is in step.
-    dec: [Dec; 2],
+    dec: Dec,
     fm_mod: GrainOsc,
     fm_last: f32,
     fm_dev: f64,
@@ -166,6 +166,19 @@ struct Osc {
     fm_live: bool,
     /// Grid factor rendered last sample (0 = unwarped); a change restarts the decimators.
     os: u8,
+    /// `440 * 2^((pitch - 69) / 12)` and `2^(shift / 12)` for the pitch / Shift bits they were
+    /// computed from.
+    pitch_key: Option<u32>,
+    hz: f32,
+    shift_key: Option<u32>,
+    ratio: f64,
+    /// Unison count, detune, curve, blend, width `uni` was built from.
+    uni_key: Option<[u32; 5]>,
+    /// Warp mode and amount `map`, `map_fmul` and `sync_mul` were built for.
+    warp_key: Option<(WarpMode, u32)>,
+    map: PhaseMap,
+    map_fmul: f64,
+    sync_mul: f64,
 }
 
 /// What a warped osc needs of the other one: f0 (Sync) and the FM modulator's settings, plus its
@@ -225,19 +238,36 @@ const DEC4: [[f64; 5]; 6] = [
     [1.0, -1.45782546493645992e+00, 1.0, -1.56537860221310199e+00, 9.81228066608045402e-01],
 ];
 
+/// Left and right decimator, one lane each (`z[section][state][lane]`: the two lanes vectorise).
 #[derive(Debug, Clone, Copy, Default)]
 struct Dec {
-    z: [[f64; 2]; 6],
+    z: [[[f64; 2]; 2]; 6],
 }
 
 impl Dec {
-    #[inline]
-    fn process(&mut self, x: f64, sections: &[[f64; 5]]) -> f64 {
+    #[inline(always)]
+    fn process(&mut self, x: [f64; 2], sections: &[[f64; 5]]) -> [f64; 2] {
         let mut y = x;
         for (z, c) in self.z.iter_mut().zip(sections) {
-            let o = c[0] * y + z[0];
-            z[0] = c[1] * y - c[3] * o + z[1];
-            z[1] = c[2] * y - c[4] * o;
+            let mut o = [0.0; 2];
+            for ch in 0..2 {
+                o[ch] = c[0] * y[ch] + z[0][ch];
+                z[0][ch] = c[1] * y[ch] - c[3] * o[ch] + z[1][ch];
+                z[1][ch] = c[2] * y[ch] - c[4] * o[ch];
+            }
+            y = o;
+        }
+        y
+    }
+
+    /// The left lane only (a mono osc).
+    #[inline(always)]
+    fn process_left(&mut self, x: f64, sections: &[[f64; 5]]) -> f64 {
+        let mut y = x;
+        for (z, c) in self.z.iter_mut().zip(sections) {
+            let o = c[0] * y + z[0][0];
+            z[0][0] = c[1] * y - c[3] * o + z[1][0];
+            z[1][0] = c[2] * y - c[4] * o;
             y = o;
         }
         y
@@ -245,46 +275,74 @@ impl Dec {
 }
 
 impl Osc {
+    /// One base sample on the `OS`x grid: every unison voice through `f` (voice, its detune
+    /// ratio, grid step) for all `OS` steps in turn, the steps' sums (in voice order, as one step
+    /// at a time adds them) through the decimators. The last decimated step is the output.
+    #[inline(always)]
+    fn grid<const OS: usize>(&mut self, sections: &[[f64; 5]], mut f: impl FnMut(&mut GrainOsc, f64, usize) -> f32) -> (f32, f32) {
+        let u = self.uni;
+        // ponytail: `f` (a whole grain step) stays out of line here; inlining it into both loops
+        // measured 40 % slower (register pressure, code size).
+        if u.n == 1 {
+            let mut l = 0.0;
+            for s in 0..OS {
+                l = self.dec.process_left(f(&mut self.grain[0], u.ratio[0], s) as f64, sections);
+            }
+            return (l as f32, l as f32);
+        }
+        let (mut a, mut b) = ([0.0f32; OS], [0.0f32; OS]);
+        for k in 0..u.n {
+            let g = &mut self.grain[k];
+            for s in 0..OS {
+                let v = f(g, u.ratio[k], s);
+                a[s] += v * u.gl[k];
+                b[s] += v * u.gr[k];
+            }
+        }
+        let mut y = [0.0; 2];
+        for s in 0..OS {
+            y = self.dec.process([a[s] as f64, b[s] as f64], sections);
+        }
+        (y[0] as f32, y[1] as f32)
+    }
+
     /// One base-rate sample of a warped osc (Track 7 G4): its unison sum (left, right) on its
     /// grid through the decimators, before DC blocking and gain.
     #[allow(clippy::too_many_arguments)]
-    fn warped(&mut self, tables: &Tables, table: usize, op: &OscPatch, ratio: f64, gp: f32, sr: f32, other: Other) -> (f32, f32) {
+    fn warped(
+        &mut self,
+        tables: &Tables,
+        table: usize,
+        op: &OscPatch,
+        ratio: f64,
+        gp: f32,
+        sr: f32,
+        other: Other,
+        lut: Option<&MapLut>,
+    ) -> (f32, f32) {
         let os = warp_os(op.warp);
         if self.os as usize != os {
-            self.dec = [Dec::default(); 2];
+            self.dec = Dec::default();
             self.os = os as u8;
         }
         let sections: &[[f64; 5]] = if os == 4 { &DEC4 } else { &DEC2 };
-        let u = self.uni;
-        let two = u.n > 1;
         let amt = op.warp_amt.clamp(0.0, 1.0) as f64;
+        if self.warp_key != Some((op.warp, op.warp_amt.to_bits())) {
+            // Per mode / amount change, not per sample: the map, its mip factor, Sync's rate factor.
+            self.warp_key = Some((op.warp, op.warp_amt.to_bits()));
+            self.map = warp_map(op.warp, op.warp_amt);
+            self.map_fmul = (TOP * self.map.slope() / MAP_HEADROOM).max(1.0);
+            self.sync_mul = 2f64.powf(SYNC_OCT * amt);
+        }
         let osf = os as f64;
         let own_hz = self.freq;
         let dphase = own_hz as f64 / sr as f64;
         let ds = dphase / osf;
-        let (mut l, mut r) = (0.0, 0.0);
-        // One grid sample: every unison voice through `f`, summed and decimated.
-        let mut grid = |o: &mut Self, f: &mut dyn FnMut(&mut GrainOsc, f64) -> f32| {
-            let (mut a, mut b) = (0.0, 0.0);
-            for k in 0..u.n {
-                let v = f(&mut o.grain[k], u.ratio[k]);
-                if two {
-                    a += v * u.gl[k];
-                    b += v * u.gr[k];
-                } else {
-                    a = v;
-                }
-            }
-            l = o.dec[0].process(a as f64, sections) as f32;
-            r = if two { o.dec[1].process(b as f64, sections) as f32 } else { l };
-        };
         match op.warp {
             WarpMode::Sync => {
                 let master = other.hz as f64 / sr as f64 / osf;
-                let rho = ratio * (own_hz / other.hz) as f64 * 2f64.powf(SYNC_OCT * amt);
-                for _ in 0..os {
-                    grid(self, &mut |g, k| g.next_sync(tables, table, master * k, rho, gp, osf));
-                }
+                let rho = ratio * (own_hz / other.hz) as f64 * self.sync_mul;
+                self.grid::<4>(sections, |g, k, _| g.next_sync(tables, table, master * k, rho, gp, osf))
             }
             WarpMode::Fm => {
                 let rate = ratio * dphase;
@@ -297,28 +355,61 @@ impl Osc {
                     (self.fm_mod, self.fm_live) = (g, true);
                 }
                 let md = other.hz as f64 / sr as f64 / osf;
-                for _ in 0..os {
-                    let mv = self.fm_mod.next_with(tables, other.table, md, other.ratio, other.gp, osf, 1.0, |p| p);
+                // The modulator first: its phase offsets for both grid steps.
+                let mut off = [0.0; 2];
+                for o in &mut off {
+                    let mv = self.fm_mod.next_with(tables, other.table, md, other.ratio, other.gp, osf, 1.0, true, |p| p);
                     let dev = (mv - self.fm_last).abs() as f64 * amt * FM_DEPTH * osf;
                     self.fm_dev = dev.max(self.fm_dev * FM_DEV_DECAY);
                     self.fm_last = mv;
-                    let off = amt * FM_DEPTH * mv as f64 * N as f64;
-                    grid(self, &mut |g, k| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, |p| p + off));
+                    *o = amt * FM_DEPTH * mv as f64 * N as f64;
                 }
+                self.grid::<2>(sections, |g, k, s| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, true, |p| p + off[s]))
             }
             _ => {
-                let map = match op.warp {
-                    WarpMode::BendPlus => PhaseMap::new(BEND_R * amt, 0.0),
-                    WarpMode::BendMinus => PhaseMap::new(-BEND_R * amt, 0.0),
-                    _ => PhaseMap::new(0.0, PWM_R * amt),
-                };
-                let fmul = (TOP * map.slope() / MAP_HEADROOM).max(1.0);
-                for _ in 0..os {
-                    grid(self, &mut |g, k| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, |p| map.apply(p)));
+                let (map, fmul) = (self.map, self.map_fmul);
+                match lut {
+                    Some(t) => self.grid::<2>(sections, |g, k, _| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, true, |p| t.apply(p))),
+                    None => self.grid::<2>(sections, |g, k, _| g.next_with(tables, table, ds * k, ratio, gp, osf, fmul, true, |p| map.apply(p))),
                 }
             }
         }
-        (l, r)
+    }
+}
+
+/// Bend / PWM map for a warp mode and amount.
+fn warp_map(mode: WarpMode, amt: f32) -> PhaseMap {
+    let amt = amt.clamp(0.0, 1.0) as f64;
+    match mode {
+        WarpMode::BendPlus => PhaseMap::new(BEND_R * amt, 0.0),
+        WarpMode::BendMinus => PhaseMap::new(-BEND_R * amt, 0.0),
+        _ => PhaseMap::new(0.0, PWM_R * amt),
+    }
+}
+
+/// Engine-wide Bend / PWM map tables, one per oscillator, for the engine patch's warp mode and
+/// amount (Warp is not a matrix target, so every voice shares them; a voice whose patch differs
+/// falls back to [`PhaseMap::apply`]).
+#[derive(Default)]
+pub struct WarpLuts {
+    key: [Option<(WarpMode, u32)>; 2],
+    lut: [MapLut; 2],
+}
+
+impl WarpLuts {
+    /// Per sample (two compares): rebuilds a table when its osc's Bend / PWM setting changed.
+    pub fn update(&mut self, patch: &Patch) {
+        for (i, o) in patch.osc.iter().enumerate() {
+            let key = Some((o.warp, o.warp_amt.to_bits()));
+            if matches!(o.warp, WarpMode::BendPlus | WarpMode::BendMinus | WarpMode::Pwm) && self.key[i] != key {
+                self.lut[i].build(&warp_map(o.warp, o.warp_amt));
+                self.key[i] = key;
+            }
+        }
+    }
+
+    fn get(&self, i: usize, op: &OscPatch) -> Option<&MapLut> {
+        (self.key[i] == Some((op.warp, op.warp_amt.to_bits()))).then(|| &self.lut[i])
     }
 }
 
@@ -418,6 +509,7 @@ pub struct Voice {
     /// Noise layer generators (left, right), settings, on (latched at `update`).
     noise: [Noise; 2],
     noise_cfg: NoiseCfg,
+    noise_key: Option<(NoiseType, [u32; 3])>,
     noise_on: bool,
 }
 
@@ -593,6 +685,13 @@ impl Voice {
         let att_scale = 2f32.powf(4.0 * patch.vel_att * self.velocity);
         for (o, op) in self.osc.iter_mut().zip(&patch.osc) {
             o.env.set_curved((op.att * att_scale).clamp(0.001, 10.0), op.dec, op.sus, op.rel, op.curve, sr);
+            // The layout only when its settings moved (a matrix tick re-runs `update` every 32
+            // samples; 7 powf + 7 sin / cos per osc otherwise).
+            let key = [op.unison as u32, op.detune.to_bits(), op.det_curve.to_bits(), op.blend.to_bits(), op.width.to_bits()];
+            if o.uni_key == Some(key) {
+                continue;
+            }
+            o.uni_key = Some(key);
             let uni = Unison::new(op);
             // Voices joining mid-note start in phase with voice 0 instead of from stale state.
             for k in o.uni.n..uni.n {
@@ -605,9 +704,10 @@ impl Voice {
         }
         self.fenv.set_curved(patch.fenv_att, patch.fenv_dec, patch.fenv_sus, patch.fenv_rel, patch.fenv_curve, sr);
         self.menv.set_curved(patch.menv_att, patch.menv_dec, patch.menv_sus, patch.menv_rel, patch.menv_curve, sr);
-        for s in &mut self.shaper {
-            s.set(patch.shaper_mode, patch.shaper_amt);
-        }
+        // The right shaper takes the left one's curve (the same computation, done once).
+        let [sl, sr_] = &mut self.shaper;
+        sl.set(patch.shaper_mode, patch.shaper_amt);
+        sr_.set_like(sl);
         self.on = [patch.osc[0].on, patch.osc[1].on];
         self.sub_on = patch.sub_on;
         self.sub_amp = if patch.sub_on { SUB_REF * 10f32.powf(patch.sub_level_db / 20.0) } else { 0.0 };
@@ -616,7 +716,11 @@ impl Voice {
             -1 => 0.5,
             _ => 1.0,
         };
-        self.noise_cfg = NoiseCfg::new(patch.noise_type, patch.noise_level_db, patch.noise_tone, sr);
+        let key = (patch.noise_type, [patch.noise_level_db.to_bits(), patch.noise_tone.to_bits(), sr.to_bits()]);
+        if self.noise_key != Some(key) {
+            self.noise_key = Some(key);
+            self.noise_cfg = NoiseCfg::new(patch.noise_type, patch.noise_level_db, patch.noise_tone, sr);
+        }
         self.noise_on = self.noise_cfg.on();
         if needs_stereo(patch) && !self.stereo {
             if self.is_active() {
@@ -851,7 +955,7 @@ impl Voice {
 
     /// One sample, (left, right) after routing, Spread and the sub.
     #[inline]
-    pub fn next(&mut self, tables: &Tables, patch: &Patch, ctl: &Controls) -> (f32, f32) {
+    pub fn next(&mut self, tables: &Tables, patch: &Patch, ctl: &Controls, luts: &WarpLuts) -> (f32, f32) {
         // 1. glide
         self.pitch = self.target + (self.pitch - self.target) * ctl.glide;
 
@@ -886,7 +990,14 @@ impl Voice {
             // Track 7 pitch offsets come last: adding 0 leaves the v1 pitch bit for bit.
             let pitch = self.pitch + 12.0 * op.oct as f32 + op.semi as f32 + op.cent / 100.0 + ctl.bend + m.pitch[i]
                 + ([patch.osca_pitch, patch.oscb_pitch][i] + patch.pitch_all);
-            o.freq = (440.0 * 2f32.powf((pitch - 69.0) / 12.0)).clamp(1.0, 0.45 * ctl.sr);
+            // The two exponentials only when their input moved (both settle on held notes).
+            if o.pitch_key != Some(pitch.to_bits()) {
+                (o.pitch_key, o.hz) = (Some(pitch.to_bits()), 440.0 * 2f32.powf((pitch - 69.0) / 12.0));
+            }
+            if o.shift_key != Some(o.shift.to_bits()) {
+                (o.shift_key, o.ratio) = (Some(o.shift.to_bits()), 2f64.powf(o.shift as f64 / 12.0));
+            }
+            o.freq = o.hz.clamp(1.0, 0.45 * ctl.sr);
         }
         let env_a = envs[0];
         for i in 0..2 {
@@ -902,13 +1013,13 @@ impl Voice {
                 Other {
                     hz: oo.freq,
                     table: patch.osc[j].table as usize,
-                    ratio: if op.warp == WarpMode::Fm { 2f64.powf(oo.shift as f64 / 12.0) } else { 1.0 },
+                    ratio: if op.warp == WarpMode::Fm { oo.ratio } else { 1.0 },
                     gp: gps[j],
                     grain: fresh.then_some(oo.grain[0]),
                 }
             });
             let o = &mut self.osc[i];
-            let ratio = 2f64.powf(o.shift as f64 / 12.0);
+            let ratio = o.ratio;
             let dphase = o.freq as f64 / ctl.sr as f64;
             let table = op.table as usize;
             let gain = (1.0 + m.vol[i]).max(0.0);
@@ -917,7 +1028,7 @@ impl Voice {
                 if op.warp != WarpMode::Fm {
                     o.fm_live = false;
                 }
-                let (l, r) = o.warped(tables, table, op, ratio, gp, ctl.sr, other);
+                let (l, r) = o.warped(tables, table, op, ratio, gp, ctl.sr, other, luts.get(i, op));
                 o.dc[0] += ctl.dc * (l - o.dc[0]);
                 let l = l - o.dc[0];
                 let r = if o.uni.n == 1 {

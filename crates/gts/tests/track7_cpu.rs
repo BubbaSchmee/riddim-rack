@@ -147,3 +147,113 @@ fn track7_cpu_report() {
     println!("+ 4 custom LFOs, Mod Env, FM warp on both oscs, noise: {c:.2} % ({:+.2})", c - b);
     println!("+ phaser + flanger on: {d:.2} % ({:+.2})", d - c);
 }
+
+/// The factory-bank worst case: 8 voices, both oscs unison 7 (width), Bend+ on A and Sync on B,
+/// four custom LFOs, Mod Env, 32 voice-scope slots, noise, every FX module on (phaser, flanger).
+fn heavy() -> Patch {
+    let mut p = base();
+    for o in &mut p.osc {
+        o.on = true;
+        o.unison = 7;
+        o.detune = 25.0;
+        o.width = 0.8;
+        o.warp_amt = 0.5;
+    }
+    p.osc[0].warp = WarpMode::BendPlus;
+    p.osc[1].warp = WarpMode::Sync;
+    for m in [&mut p.moda, &mut p.modb, &mut p.modc, &mut p.modd] {
+        m.curve = Curve::Custom;
+        m.oneshot = false;
+        m.rate = 2.0;
+    }
+    p.menv_dec = 0.4;
+    p.noise_level_db = -12.0;
+    p.fx.phs.on = true;
+    p.fx.flg.on = true;
+    p
+}
+
+/// One `secs` render of 8 held notes, % of a core.
+fn render1(p: &Patch, slots: &[Slot], shapes: Option<&LfoShapes>, secs: f64) -> f64 {
+    let mut e = Engine::new();
+    e.initialize(SR);
+    e.set_patch(p);
+    e.set_matrix(&Matrix { slots: slots.to_vec(), ..Default::default() }.encode());
+    if let Some(s) = shapes {
+        e.set_lfo_shapes(&s.encode());
+    }
+    for n in 0..8 {
+        e.note_on(29 + 5 * n, 0.5 + 0.06 * n as f32);
+    }
+    let t = std::time::Instant::now();
+    let mut acc = 0f32;
+    for i in 0..(secs * SR as f64) as usize {
+        if i % 512 == 0 {
+            e.set_patch(p);
+        }
+        let (l, r) = e.next_frame();
+        acc += l + r;
+    }
+    assert!(acc.is_finite());
+    100.0 * t.elapsed().as_secs_f64() / secs
+}
+
+/// Median of three renders, % of a core.
+fn median3(p: &Patch, slots: &[Slot], shapes: Option<&LfoShapes>, secs: f64) -> f64 {
+    let mut v: Vec<f64> = (0..3).map(|_| render1(p, slots, shapes, secs)).collect();
+    v.sort_by(f64::total_cmp);
+    v[1]
+}
+
+/// Profile by ablation (no sampling profiler on this machine): the heavy scenario, then with one
+/// feature removed at a time; the difference is that feature's share. A report, like the rest of
+/// this file: `cargo test -p gts --release --test track7_cpu heavy -- --ignored --nocapture
+/// --test-threads=1`.
+#[test]
+#[ignore]
+fn heavy_scenario_profile() {
+    use Source::*;
+    let secs = 2.0;
+    let lib = library();
+    let shapes = LfoShapes([lib[0].1.clone(), lib[3].1.clone(), lib[5].1.clone(), lib[10].1.clone()]);
+    let src = [ModA, ModB, ModC, ModD, ModEnv, FilterEnv, Velocity, Random];
+    let full = slots(&src);
+    let h = heavy();
+    let total = median3(&h, &full, Some(&shapes), secs);
+    println!("heavy scenario: {total:.2} % of a core");
+    let mut rows: Vec<(&str, f64)> = vec![];
+    let mut ab = |name: &'static str, p: Patch, sl: &[Slot], sh: Option<&LfoShapes>| {
+        rows.push((name, total - median3(&p, sl, sh, secs)));
+    };
+    let mut p = h;
+    p.osc[0].warp = WarpMode::Off;
+    ab("Osc A Bend+ warp (vs Off)", p, &full, Some(&shapes));
+    let mut p = h;
+    p.osc[1].warp = WarpMode::Off;
+    ab("Osc B Sync warp (vs Off)", p, &full, Some(&shapes));
+    let mut p = h;
+    for o in &mut p.osc {
+        o.warp = WarpMode::Off;
+        o.unison = 1;
+    }
+    ab("osc work over unison 1 unwarped", p, &full, Some(&shapes));
+    ab("32-slot matrix (vs none)", h, &[], Some(&shapes));
+    let mut p = h;
+    for m in [&mut p.moda, &mut p.modb, &mut p.modc, &mut p.modd] {
+        m.curve = Curve::Sine;
+    }
+    ab("custom LFO shapes (vs sine)", p, &full, None);
+    let mut p = h;
+    p.fx = Patch::riddim_v1().fx;
+    ab("FX chain (vs factory default)", p, &full, Some(&shapes));
+    let mut p = h;
+    p.noise_level_db = -200.0;
+    ab("noise", p, &full, Some(&shapes));
+    let mut p = h;
+    p.shaper_on = false;
+    ab("shaper", p, &full, Some(&shapes));
+    rows.sort_by(|a, b| b.1.total_cmp(&a.1));
+    for (n, d) in rows {
+        println!("  {n:36} {d:+6.2} % of a core ({:4.1} % of the scenario)", 100.0 * d / total);
+    }
+}

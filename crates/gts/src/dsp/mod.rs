@@ -453,6 +453,8 @@ pub struct Engine {
     /// Shaper oversampling factor (1 / 2 / 4) set on every voice.
     oversampling: usize,
     voices: [Voice; MAX_VOICES],
+    /// Track 7: Bend / PWM map tables for both oscs (rebuilt on a warp change).
+    warp: voice::WarpLuts,
     patch: Patch,
     ctl: Controls,
     /// Mono note stack in press order, last = sounding.
@@ -520,6 +522,7 @@ impl Engine {
             xover: MonoXover { g: 0.0, g_target: 0.0, side: [[0.0; 2]; 4], mid: [[0.0; 2]; 2], on: 0.0, mix: 0.0 },
             oversampling: 2,
             voices: std::array::from_fn(|_| Voice::default()),
+            warp: Default::default(),
             patch: Patch::default(),
             ctl: Controls { sr: 44100.0, bend: 0.0, wheel: 0.0, glide: 0.0, smooth: 0.0, dc: 0.0, sub_g: 0.0 },
             held: [(0, 0.0); MAX_HELD],
@@ -1108,6 +1111,7 @@ impl Engine {
         let Some(tables) = self.tables.get() else {
             return (0.0, 0.0);
         };
+        self.warp.update(&self.patch);
         let (mut l, mut r) = (0.0, 0.0);
         let vm = self.mm.has_voice();
         let porta = vm && self.mm.vflags() & flag::PORTA != 0;
@@ -1123,7 +1127,7 @@ impl Engine {
             } else {
                 &self.ctl
             };
-            let (a, b) = v.next(tables, p, ctl);
+            let (a, b) = v.next(tables, p, ctl, &self.warp);
             l += a;
             r += b;
         }

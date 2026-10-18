@@ -50,22 +50,34 @@ pub(crate) fn marker_amp(ratio: f64) -> f64 {
     MARKER * (1.0 - (ratio - k).abs() / MARKER_WIDTH).max(0.0) / TAU * N as f64
 }
 
+/// Track 7 warp only (the unwarped path keeps libm, bit for bit): the grain window
+/// `0.5 - 0.5 cos(pi phase)` for phase in [0, 1] as `0.5 + 0.5 sin(pi (phase - 0.5))`, sin(pi y)
+/// on |y| <= 0.5 by a near-minimax polynomial (|err| < 1.4e-11; no libm call, no branch).
+#[inline(always)]
+fn hann(phase: f64) -> f64 {
+    let y = phase - 0.5;
+    let (u, y) = (y * y, 0.5 * y);
+    let u2 = u * u;
+    let s = (3.141_592_653_244_535_5 - 5.167_712_741_271_129 * u)
+        + u2 * ((2.550_162_795_692_813 - 0.599_247_413_040_686_3 * u) + u2 * (0.082_031_260_698_699_13 - 0.007_000_542_739_186_552_5 * u));
+    0.5 + y * s
+}
+
 /// Smooth monotonic phase warp (Bend+, Bend-, PWM): the Blaschke factor
 /// `z -> (z - a) / (1 - conj(a) z)` on the unit circle, rotated so phase 0 stays at 0. It is
 /// analytic, so a warped band-limited table stays band-limited around its peak instantaneous
 /// frequency `slope()` x the plain one (no corners, nothing for the oversampling to miss).
 /// Real `a` squeezes the table's start (a > 0, the grain's main event) or its middle (a < 0);
 /// imaginary `a` squeezes the first half of the cycle into less time: pulse-width warp.
-#[derive(Debug, Clone, Copy)]
+/// The warped oscs read it through a [`MapLut`]; `apply` is the exact map (reference, fallback).
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PhaseMap {
     a: (f64, f64),
-    /// `arg B(1)`, subtracted so the map keeps phase 0.
-    off: f64,
 }
 
 impl PhaseMap {
     pub fn new(re: f64, im: f64) -> Self {
-        Self { a: (re, im), off: 2.0 * (-im).atan2(1.0 - re) }
+        Self { a: (re, im) }
     }
 
     /// Largest phase slope, `(1 + |a|) / (1 - |a|)`.
@@ -74,19 +86,69 @@ impl PhaseMap {
         (1.0 + r) / (1.0 - r)
     }
 
-    /// Table position (frame samples, any real) -> warped position. `arg B(z) = 2 arg(z - a) - arg z`.
-    /// The warp term is computed in f32 (1e-7 rad, far under the table's own error) on the
-    /// position folded to one cycle; the cycle count and the identity part stay f64.
-    #[inline]
+    /// Table position (frame samples, any real) -> warped position. `arg B(z) = 2 arg(z - a) -
+    /// arg z`, less `arg B(1)`, wrapped to within half a cycle of `p`.
     pub fn apply(&self, p: f64) -> f64 {
-        let n = N as f64;
-        let q = p.rem_euclid(n);
-        let th = (std::f32::consts::TAU / N as f32) * q as f32;
+        let th = TAU / N as f64 * p;
         let (s, c) = th.sin_cos();
-        let d = 2.0 * (s - self.a.1 as f32).atan2(c - self.a.0 as f32) - 2.0 * th - self.off as f32;
-        // `d` is the map minus the identity, wrapped to (-pi, pi].
-        let d = d - std::f32::consts::TAU * (d / std::f32::consts::TAU).round();
-        p + d as f64 * (n / TAU)
+        let off = 2.0 * (-self.a.1).atan2(1.0 - self.a.0);
+        let d = 2.0 * (s - self.a.1).atan2(c - self.a.0) - 2.0 * th - off;
+        let d = d - TAU * (d / TAU).round();
+        p + d * (N as f64 / TAU)
+    }
+}
+
+/// Nodes of a [`MapLut`] per cycle.
+pub const LUT: usize = 1024;
+
+/// A [`PhaseMap`] tabulated for the warped oscs' hot loop (SPEC v2 Track 7 CPU): the warp term
+/// and its slope at [`LUT`] nodes, cubic Hermite in between, within 3e-7 rad of the exact map at
+/// the steepest one (PWM at amount 1; tests/warp_opt.rs). ~4 ns per read against ~25 ns for the
+/// libm map; [`MapLut::build`] costs ~50 us, so the engine keeps one per oscillator and rebuilds
+/// it only when the warp mode or amount changes.
+pub struct MapLut {
+    /// `[d, h d']` per node (the map minus the identity in rad, its slope per node step), node
+    /// `LUT` = node 0 so the last interval needs no wrap.
+    tab: Box<[[f64; 2]]>,
+}
+
+impl Default for MapLut {
+    /// The identity map. Allocates: build it off the audio thread.
+    fn default() -> Self {
+        Self { tab: vec![[0.0; 2]; LUT + 1].into_boxed_slice() }
+    }
+}
+
+impl MapLut {
+    /// Tabulates `m` (allocation-free). With `a = r e^(i alpha)`, `k = (1 + r) / (1 - r)` and
+    /// `phi = theta - alpha`, the map minus the identity is `2 atan(k tan(phi / 2)) - phi =
+    /// 2 atan2((k - 1) sin phi, (k + 1) - (k - 1) cos phi)` less its value at theta = 0: the
+    /// denominator stays >= 2, so it is continuous over the cycle; its slope is the Poisson kernel
+    /// of `a` minus 1.
+    pub fn build(&mut self, m: &PhaseMap) {
+        let (r, alpha) = (m.a.0.hypot(m.a.1), m.a.1.atan2(m.a.0));
+        let k = (1.0 + r) / (1.0 - r);
+        let g = |phi: f64| 2.0 * ((k - 1.0) * phi.sin()).atan2((k + 1.0) - (k - 1.0) * phi.cos());
+        let off = g(-alpha);
+        let h = TAU / LUT as f64;
+        for (i, e) in self.tab.iter_mut().enumerate() {
+            let phi = (i % LUT) as f64 * h - alpha;
+            *e = [g(phi) - off, h * ((1.0 - r * r) / (1.0 - 2.0 * r * phi.cos() + r * r) - 1.0)];
+        }
+    }
+
+    /// Table position (frame samples, > -4 N) -> warped position.
+    #[inline(always)]
+    pub fn apply(&self, p: f64) -> f64 {
+        // Offset by 4 cycles so truncation is floor for the slightly negative marker positions.
+        let x = p * (LUT as f64 / N as f64) + 4.0 * LUT as f64;
+        let i = x as i64;
+        let t = x - i as f64;
+        let k = i as usize & (LUT - 1);
+        let ([d0, m0], [d1, m1]) = (self.tab[k], self.tab[k + 1]);
+        let c2 = 3.0 * (d1 - d0) - 2.0 * m0 - m1;
+        let c3 = 2.0 * (d0 - d1) + m0 + m1;
+        p + (d0 + t * (m0 + t * (c2 + t * c3))) * (N as f64 / TAU)
     }
 }
 
@@ -145,14 +207,15 @@ impl GrainOsc {
 
     /// One sample. `dphase` = f0 / sr (must stay below 1), `ratio` = 2^(shift/12), `gp` = grain
     /// position for the next grain that starts.
-    #[inline]
+    #[inline(never)]
     pub fn next(&mut self, tables: &Tables, table: usize, dphase: f64, ratio: f64, gp: f32) -> f32 {
-        self.next_with(tables, table, dphase, ratio, gp, 1.0, 1.0, |p| p)
+        self.next_with(tables, table, dphase, ratio, gp, 1.0, 1.0, false, |p| p)
     }
 
     /// [`GrainOsc::next`] on a grid `os` times the base rate (`dphase` per grid sample), the mip
     /// picked for `fmul` times the base-rate read rate, both reader positions through `warp`.
-    /// `os = fmul = 1` with the identity is `next` exactly.
+    /// `fast` (the warped oscs) takes the grain window from [`hann`] instead of libm (1.4e-11
+    /// off). `os = fmul = 1`, `fast = false` with the identity is `next` exactly.
     #[inline(always)]
     #[allow(clippy::too_many_arguments)]
     pub fn next_with(
@@ -164,6 +227,7 @@ impl GrainOsc {
         gp: f32,
         os: f64,
         fmul: f64,
+        fast: bool,
         warp: impl Fn(f64) -> f64,
     ) -> f32 {
         let n = N as f64;
@@ -213,15 +277,23 @@ impl GrainOsc {
         } else {
             (warp(pa), warp(pb))
         };
-        let w = if same { 1.0 } else { (0.5 - 0.5 * (PI * self.phase).cos()) as f32 };
-        let mix = |m: u8| {
-            let sa = tables.read(table, m as usize, ga, pa);
-            if same { sa } else { w * sa + (1.0 - w) * tables.read(table, m as usize, gb, pb) }
+        let w = if same {
+            1.0
+        } else {
+            (if fast { hann(self.phase) } else { 0.5 - 0.5 * (PI * self.phase).cos() }) as f32
         };
-        let mut s = mix(self.mip);
+        // The mip fade-out reads are rare: out of line, so the hot reads can inline.
+        let read = |m: u8, g: f32, p: f64, cold: bool| {
+            if cold { tables.read_cold(table, m as usize, g, p) } else { tables.read(table, m as usize, g, p) }
+        };
+        let mix = |m: u8, cold: bool| {
+            let sa = read(m, ga, pa, cold);
+            if same { sa } else { w * sa + (1.0 - w) * read(m, gb, pb, cold) }
+        };
+        let mut s = mix(self.mip, false);
         if self.fade < 1.0 {
             self.fade = (self.fade + 1.0 / BLOCK as f32).min(1.0);
-            s = s * self.fade + mix(self.prev) * (1.0 - self.fade);
+            s = s * self.fade + mix(self.prev, true) * (1.0 - self.fade);
         }
         s * self.level
     }
@@ -254,8 +326,9 @@ impl GrainOsc {
         self.blk = (self.blk + 1) % BLOCK;
         self.level += (self.level_target - self.level) * (1.0 / BLOCK as f32);
         let (g, top) = (self.gp[0], rho * n);
-        let read = |m: u8, ph: f64| tables.read(table, m as usize, g, top * ph);
-        let mut s = read(self.mip, self.phase);
+        // Hot: this read. Out of line: the fade-out and the step reads (once per period).
+        let mut s = tables.read(table, self.mip as usize, g, top * self.phase);
+        let read = |m: u8, ph: f64| tables.read_cold(table, m as usize, g, top * ph);
         if self.fade < 1.0 {
             self.fade = (self.fade + 1.0 / BLOCK as f32).min(1.0);
             s = s * self.fade + read(self.prev, self.phase) * (1.0 - self.fade);
@@ -267,13 +340,16 @@ impl GrainOsc {
             s -= 0.5 * h * x * x;
             self.step = 0.0;
         }
-        let d = (1.0 - self.phase) / dphase;
-        if d < 1.0 {
-            // The next sample wraps: the step is the table at 0 against the table at rho cycles.
-            let h = read(self.mip, 0.0) - read(self.mip, 1.0);
-            let x = (1.0 - d) as f32;
-            s += 0.5 * h * x * x;
-            self.step = h;
+        // `d < 1` implies `1 - phase < dphase`, so the division only runs next to a wrap.
+        if 1.0 - self.phase < dphase {
+            let d = (1.0 - self.phase) / dphase;
+            if d < 1.0 {
+                // The next sample wraps: the step is the table at 0 against the table at rho cycles.
+                let h = read(self.mip, 0.0) - read(self.mip, 1.0);
+                let x = (1.0 - d) as f32;
+                s += 0.5 * h * x * x;
+                self.step = h;
+            }
         }
         s * self.level
     }
