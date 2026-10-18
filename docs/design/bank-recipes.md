@@ -521,3 +521,7 @@ B. Matrix lines read "source -> target (amount)". Macro lines read "M1 Name: wha
 
 Engine features exercised: all four LFOs; custom shapes (13, 17); Step mode (3, 19, 39, 40); dotted sync (5, 31); triplets (2, 6, 10, 14, 15, 22, 34, 39); Mod Env dives (7, 28, 30, 33, 37); all nine tables;
 all four warp types (FM 5, 13, 17, 34; Sync 14, 28; Bend+ 15, 29; PWM 4, 6); all nine filter types; noise (16, 35-38); sub triangle (26); reordered FX chain (3, 13, 15, 16, 21, 22, 24, 29, 36).
+
+## Calibration update (2026-10-18)
+
+From the QA tool's baseline run: Brightness is judged on the amplitude-weighted centroid (a −6..0 dB sub drags the power-weighted centroid below every bass band); hold-window RMS/LUFS bands for Riddim, Wobble, Tearout, Formant, Reese, Sub and Seq are +1.5 dB (−18.5..−14.5 dBFS RMS), because the original bands came from pattern measurements with rests; Init brightness band 300–1000 Hz (amplitude-weighted). Reese beat rate uses the unison voice spacing span/(n−1); FX width checks read correlation (a widening riser lowers correlation).
