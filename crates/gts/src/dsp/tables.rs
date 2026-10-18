@@ -247,8 +247,8 @@ impl Tables {
                     for k in 0..S {
                         let u = k as f64 / S as f64;
                         let mk = amp * sn[k];
-                        let a = bspline(f, ((u - 1.0) * n * ratio + mk).rem_euclid(n) * scale) as f64;
-                        let b = bspline(f, (u * n * ratio + mk).rem_euclid(n) * scale) as f64;
+                        let a = bspline_q(f, ((u - 1.0) * n * ratio + mk).rem_euclid(n) * scale) as f64;
+                        let b = bspline_q(f, (u * n * ratio + mk).rem_euclid(n) * scale) as f64;
                         let y = w[k] * a + (1.0 - w[k]) * b;
                         s1 += y;
                         s2 += y * y;
@@ -304,28 +304,44 @@ impl Tables {
     /// Cubic B-spline read of mip `mip` at frame position `p` (any real; wrapped to `[0, N)`) and
     /// grain position `gp` in `[0, GRAINS)` (the fraction crossfades to the next grain, wrapping
     /// 31 -> 0 for forward Motion scans).
-    #[inline]
+    #[inline(always)]
     pub fn read(&self, table: usize, mip: usize, gp: f32, p: f64) -> f32 {
-        let g0 = (gp as usize).min(GRAINS - 1);
-        let gf = gp - g0 as f32;
+        // ponytail: the conversions go through i32 / i64 (one instruction each on x86-64, where
+        // u64 <-> float takes a dozen); for these ranges they give the same values as `as usize`.
+        let g0 = (gp as i32).clamp(0, GRAINS as i32 - 1) as usize;
+        let gf = gp - g0 as i32 as f32;
         let g1 = (g0 + 1) % GRAINS;
         let (fa, fb) = (self.frame(table, g0, mip), self.frame(table, g1, mip));
         // Positions >= N wrap through the index mask in `bspline`; only negatives need folding.
         let p = if p < 0.0 { p.rem_euclid(N as f64) } else { p };
-        let q = p * (fa.len() as f64 / N as f64);
-        let sa = bspline(fa, q);
-        let sb = bspline(fb, q);
+        let q = p * (fa.len() as i64 as f64 / N as f64);
+        // Both grains share the sample index and fraction.
+        let i = q as i64;
+        let t = (q - i as f64) as f32;
+        let sa = bspline(fa, i as usize, t);
+        let sb = bspline(fb, i as usize, t);
         sa + (sb - sa) * gf
+    }
+
+    /// [`Tables::read`] out of line, for the rare reads next to hot ones.
+    #[cold]
+    #[inline(never)]
+    pub fn read_cold(&self, table: usize, mip: usize, gp: f32, p: f64) -> f32 {
+        self.read(table, mip, gp, p)
     }
 }
 
-/// Uniform cubic B-spline at position `q` in `[0, len)` of a power-of-two frame of prefiltered
-/// samples (see `generate_table`), which makes it an exact interpolator of the band-limited cycle.
-#[inline]
-fn bspline(f: &[f32], q: f64) -> f32 {
-    let mask = f.len() - 1;
+/// [`bspline`] at position `q` in `[0, len)`.
+fn bspline_q(f: &[f32], q: f64) -> f32 {
     let i = q as usize;
-    let t = (q - i as f64) as f32;
+    bspline(f, i, (q - i as f64) as f32)
+}
+
+/// Uniform cubic B-spline at sample `i` + fraction `t` of a power-of-two frame of prefiltered
+/// samples (see `generate_table`), which makes it an exact interpolator of the band-limited cycle.
+#[inline(always)]
+fn bspline(f: &[f32], i: usize, t: f32) -> f32 {
+    let mask = f.len() - 1;
     let (ym, y0, y1, y2) = (f[i.wrapping_sub(1) & mask], f[i & mask], f[(i + 1) & mask], f[(i + 2) & mask]);
     let c0 = (ym + 4.0 * y0 + y1) * (1.0 / 6.0);
     let c1 = 0.5 * (y1 - ym);

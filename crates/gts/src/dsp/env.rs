@@ -45,6 +45,8 @@ pub struct Adsr {
     a_target: f32,
     d_over: f32,
     r_target: f32,
+    /// `set_curved` inputs the coefficients are for (bits; recomputed only when one moves).
+    key: [u32; 6],
 }
 
 impl Default for Adsr {
@@ -59,6 +61,7 @@ impl Default for Adsr {
             a_target: ATTACK_TARGET,
             d_over: 0.0,
             r_target: RELEASE_TARGET,
+            key: [u32::MAX; 6],
         }
     }
 }
@@ -80,6 +83,11 @@ impl Adsr {
 
     /// [`Adsr::set`] with a curve, -1 log .. 0 exponential .. +1 linear.
     pub fn set_curved(&mut self, attack: f32, decay: f32, sustain: f32, release: f32, curve: f32, sr: f32) {
+        let key = [attack, decay, sustain, release, curve, sr].map(f32::to_bits);
+        if key == self.key {
+            return;
+        }
+        self.key = key;
         let c = curve.clamp(-1.0, 1.0);
         if c == 0.0 {
             self.a_target = ATTACK_TARGET;

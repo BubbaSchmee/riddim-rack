@@ -116,6 +116,11 @@ impl Shaper {
         self.warm = 0;
     }
 
+    /// `o`'s curve settings (what `set` with its mode and amount computes), state untouched.
+    pub fn set_like(&mut self, o: &Shaper) {
+        (self.mode, self.amt, self.curve, self.levels) = (o.mode, o.amt, o.curve, o.levels);
+    }
+
     pub fn set(&mut self, mode: ShaperMode, amt: f32) {
         let amt = amt.clamp(0.0, 1.0);
         if mode == self.mode && amt == self.amt {
