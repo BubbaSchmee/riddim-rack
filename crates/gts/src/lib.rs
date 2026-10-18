@@ -57,8 +57,11 @@ pub fn write_frame(mut frame: nih_plug::buffer::ChannelSamples, (l, r): (f32, f3
 impl Default for Gts {
     fn default() -> Self {
         let (viz, viz_shared, scope) = viz::VizWriter::new();
+        let params = Arc::new(GtsParams::default());
+        // Undo snapshots of the matrix cover the custom LFO shapes and the FX order (matrix.rs, Track 7).
+        params.matrix.link(Arc::downgrade(&params));
         Self {
-            params: Arc::new(GtsParams::default()),
+            params,
             engine: dsp::Engine::new(),
             meters: Arc::new(editor::Meters::default()),
             viz,

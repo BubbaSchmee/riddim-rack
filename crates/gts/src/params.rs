@@ -1207,9 +1207,10 @@ pub struct PitchParams {
 impl Default for PitchParams {
     fn default() -> Self {
         Self {
-            osca: semitones("Osc A Pitch".into(), 0.0, 48.0),
-            oscb: semitones("Osc B Pitch".into(), 0.0, 48.0),
-            all: semitones("Pitch All".into(), 0.0, 48.0),
+            // One decimal ("+0.0 st"): the editor's Pitch knob has a centre detent at 0 (addendum 4).
+            osca: semitones("Osc A Pitch".into(), 0.0, 48.0).with_value_to_string(Arc::new(|v| format!("{v:+.1} st"))).with_unit(""),
+            oscb: semitones("Osc B Pitch".into(), 0.0, 48.0).with_value_to_string(Arc::new(|v| format!("{v:+.1} st"))).with_unit(""),
+            all: semitones("Pitch All".into(), 0.0, 48.0).with_value_to_string(Arc::new(|v| format!("{v:+.1} st"))).with_unit(""),
         }
     }
 }

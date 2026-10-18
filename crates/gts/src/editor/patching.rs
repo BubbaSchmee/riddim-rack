@@ -10,7 +10,7 @@
 
 use super::*;
 use crate::matrix::{self, fixed_routes, gate_open, live_route, Edit, params_info, EditError, FixedRoute, Matrix, MatrixEditor, Source, MAX_SLOTS};
-use rr_ui::theme::{SRC_AMP, SRC_BUS, SRC_CTRL, SRC_M, SRC_NOTE};
+use rr_ui::theme::{SRC_AMP, SRC_BUS, SRC_C, SRC_CTRL, SRC_D, SRC_M, SRC_N, SRC_NOTE};
 
 // ---- sources: look -----------------------------------------------------------------------------
 
@@ -43,19 +43,31 @@ pub(super) fn src_style(s: Source) -> SrcStyle {
         BusCv1 => ("1", SRC_BUS, "Bus 1"),
         BusCv2 => ("2", SRC_BUS, "Bus 2"),
         BusCv3 => ("3", SRC_BUS, "Bus 3"),
-        // Track 7 engine wave: placeholder looks, the UI wave styles and places them.
-        ModC => ("C", SRC_A, "Mod C"),
-        ModD => ("D", SRC_B, "Mod D"),
-        ModEnv => ("M", SRC_E, "Mod Env"),
+        // Track 7 (MOTION-addendum-track7.md 2): pink C, yellow D, coral M.
+        ModC => ("C", SRC_C, "Mod C"),
+        ModD => ("D", SRC_D, "Mod D"),
+        ModEnv => ("M", SRC_N, "Mod Env"),
     };
     SrcStyle { glyph, color, name }
 }
 
-/// The five chips of the first row, in order.
-const PRIMARY: [Source; 5] = [Source::ModA, Source::ModB, Source::FilterEnv, Source::AmpEnvA, Source::AmpEnvB];
-/// Behind the MORE chip.
-const MORE: [Source; 9] =
-    [Source::Velocity, Source::Keytrack, Source::Random, Source::PolyAftertouch, Source::ModWheel, Source::ChannelAftertouch, Source::BusCv1, Source::BusCv2, Source::BusCv3];
+/// The five chips of the first row, in order: the modulators of the MODULATOR module.
+const PRIMARY: [Source; 5] = [Source::ModA, Source::ModB, Source::ModC, Source::ModD, Source::ModEnv];
+/// Behind the MORE chip: a 3 x 4 grid (the envelopes moved here from the first row).
+const MORE: [Source; 12] = [
+    Source::FilterEnv,
+    Source::AmpEnvA,
+    Source::AmpEnvB,
+    Source::Velocity,
+    Source::Keytrack,
+    Source::Random,
+    Source::PolyAftertouch,
+    Source::ModWheel,
+    Source::ChannelAftertouch,
+    Source::BusCv1,
+    Source::BusCv2,
+    Source::BusCv3,
+];
 const MACROS: [Source; 4] = [Source::Macro1, Source::Macro2, Source::Macro3, Source::Macro4];
 
 fn macro_index(s: Source) -> Option<usize> {
@@ -165,7 +177,7 @@ pub(super) fn drag_src(ctx: &egui::Context) -> Option<Source> {
     ctx.data(|d| d.get_temp::<Option<Source>>(drag_id())).flatten()
 }
 
-fn start_drag(ctx: &egui::Context, s: Source) {
+pub(super) fn start_drag(ctx: &egui::Context, s: Source) {
     ctx.data_mut(|d| d.insert_temp(drag_id(), Some(s)));
 }
 
@@ -227,6 +239,12 @@ impl MView {
             return m;
         }
         let base = c.get01(id);
+        // Pitch All has no knob of its own: its routings ring on the pitch knobs it moves (Osc A and
+        // Osc B Pitch and the Sub Oct), where they can be grabbed.
+        let pitch_all = is_pitch_knob(id);
+        if pitch_all {
+            let _ = c.get01("pitch_all");
+        }
         let mut legacy = if MOD_IDS.contains(&id) { ring_ranges(c, id) } else { [None, None] };
         let mut n = 0;
         let mut push = |m: &mut KnobMod, rg: RingRange, ed: Option<ArcEdit>, src: Option<Source>| {
@@ -235,7 +253,7 @@ impl MView {
                 n += 1;
             }
         };
-        for ct in self.contribs(id) {
+        for ct in self.contribs(id).iter().chain(if pitch_all { self.contribs("pitch_all") } else { &[] }) {
             m.srcs |= 1 << ct.src as u32;
             m.modulated = true;
             let color = src_style(ct.src).color;
@@ -321,6 +339,21 @@ fn fixed_arc(c: &dyn Ctl, id: &str, r: &FixedRoute, amt: f32, base: f32) -> Opti
         "cv1_amount" | "cv2_amount" | "cv3_amount" => Some(((base - amt.abs()).clamp(0.0, 1.0), (base + amt.abs()).clamp(0.0, 1.0))),
         _ => None,
     }
+}
+
+/// Pitch All has no knob of its own: its routings ring on the pitch knobs it moves (Osc A and Osc B Pitch
+/// and the Sub Oct), where they can be grabbed, listed in the knob menu and removed.
+fn is_pitch_knob(id: &str) -> bool {
+    matches!(id, "osca_pitch" | "oscb_pitch" | "sub_oct")
+}
+
+/// What the knob menu lists for a knob: its own routings and, for the pitch knobs, the Pitch All ones.
+fn menu_contribs(mv: &MView, id: &str) -> Vec<Contrib> {
+    let mut v = mv.contribs(id).to_vec();
+    if is_pitch_knob(id) {
+        v.extend_from_slice(mv.contribs("pitch_all"));
+    }
+    v
 }
 
 // ---- test hooks --------------------------------------------------------------------------------
@@ -516,8 +549,8 @@ pub(super) fn end_frame(ui: &mut Ui, c: &dyn Ctl, bv: &mut BusView, at: &dyn Fn(
 
 // ---- sources strip -----------------------------------------------------------------------------
 
-/// The two strip rows under the hero (MOTION.md 2.1): SOURCES (Mod A, Mod B, Filter Env, Amp A,
-/// Amp B) and MACROS (four labelled knobs, each with a drag handle) with the MORE chip for the rest.
+/// The two strip rows under the hero (MOTION.md 2.1, addendum 8): SOURCES (Mod A, Mod B, Mod C, Mod D,
+/// Mod Env) and MACROS (four labelled knobs, each with a drag handle) with the MORE chip for the rest.
 /// Returns the chip under the pointer (display only; the ring on its targets is drawn next frame).
 pub(super) fn sources_strip(ui: &mut Ui, c: &dyn Ctl, f: &VizFrame, bv: &mut BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) -> Option<Source> {
     let Some(mv) = mview(ui.ctx()) else { return None };
@@ -537,9 +570,9 @@ pub(super) fn sources_strip(ui: &mut Ui, c: &dyn Ctl, f: &VizFrame, bv: &mut Bus
             let a = match src {
                 Source::ModA => act(vf::OUT_A),
                 Source::ModB => act(vf::OUT_B),
-                Source::FilterEnv => act(vf::FENV),
-                Source::AmpEnvA => act(vf::AMP_A),
-                _ => act(vf::AMP_B),
+                Source::ModC => act(vf::OUT_C),
+                Source::ModD => act(vf::OUT_D),
+                _ => act(vf::MENV),
             };
             chip(ui, &mv, src, Rect::from_min_size(pos2(x, row1.top()), vec2(w, 20.0)), Some(a.unwrap_or(0.0)), &mut hovered);
             x += w + gap;
@@ -657,7 +690,7 @@ fn macro_pill(ui: &mut Ui, c: &dyn Ctl, mv: &MView, k: usize, src: Source, rect:
     }
 }
 
-/// The MORE chip: opens the popover with the other nine sources; dots show which are in use.
+/// The MORE chip: opens the popover with the other twelve sources; dots show which are in use.
 fn more_chip(ui: &mut Ui, mv: &MView, rect: Rect, bv: &mut BusView) {
     let resp = ui.interact(rect, Id::new("gts-more-chip"), Sense::click());
     let p = ui.painter().clone();
@@ -675,14 +708,14 @@ fn more_chip(ui: &mut Ui, mv: &MView, rect: Rect, bv: &mut BusView) {
     }
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-        set_hover(ui, "MORE", "9 sources", None, crate::help::ui_help("more").unwrap_or(""));
+        set_hover(ui, "MORE", "12 sources", None, crate::help::ui_help("more").unwrap_or(""));
     }
     if resp.clicked() {
         bv.more_open = !bv.more_open;
     }
 }
 
-/// The nine less common sources as chips in a layer above the strip (150 ms fade, 6 px rise). It
+/// The twelve other sources as chips in a layer above the strip (150 ms fade, 6 px rise). It
 /// closes on Esc, a click elsewhere, or as soon as one chip is picked up for a drag.
 fn more_popover(ui: &mut Ui, mv: &MView, bv: &mut BusView, origin: Pos2) -> Option<Source> {
     let ctx = ui.ctx().clone();
@@ -691,7 +724,7 @@ fn more_popover(ui: &mut Ui, mv: &MView, bv: &mut BusView, origin: Pos2) -> Opti
         return None;
     }
     let tile = vec2(104.0, 20.0);
-    let size = vec2(3.0 * tile.x + 2.0 * 6.0 + 16.0, 3.0 * tile.y + 2.0 * 6.0 + 16.0);
+    let size = vec2(3.0 * tile.x + 2.0 * 6.0 + 16.0, 4.0 * tile.y + 3.0 * 6.0 + 16.0);
     let chip_row = Rect::from_min_size(origin + vec2(44.0, 320.0), vec2(568.0, 20.0));
     let pos = pos2(chip_row.right() - size.x, chip_row.top() - 30.0 - size.y + 6.0 * (1.0 - k));
     let open = bv.more_open;
@@ -784,7 +817,8 @@ fn menu_button(ui: &mut Ui, rect: Rect, id: Id, label: &str, lit: bool, col: Col
 fn knob_menu(ui: &mut Ui, c: &dyn Ctl, mv: &MView) {
     let ctx = ui.ctx().clone();
     let Some(menu) = ctx.data(|d| d.get_temp::<KMenu>(Id::new("gts-kmenu"))) else { return };
-    let cs = mv.contribs(&menu.id);
+    let cs_all = menu_contribs(mv, &menu.id);
+    let cs = cs_all.as_slice();
     if cs.is_empty() {
         ctx.data_mut(|d| d.remove_temp::<KMenu>(Id::new("gts-kmenu")));
         return;
@@ -892,6 +926,9 @@ fn knob_menu(ui: &mut Ui, c: &dyn Ctl, mv: &MView) {
             }
             ("all", _) => {
                 ed.remove_all_for_target(&menu.id);
+                if is_pitch_knob(&menu.id) {
+                    ed.remove_all_for_target("pitch_all");
+                }
                 close = true;
             }
             _ => {}
@@ -905,37 +942,44 @@ fn knob_menu(ui: &mut Ui, c: &dyn Ctl, mv: &MView) {
 // ---- MATRIX page -------------------------------------------------------------------------------
 
 /// Section of a target for the picker, in panel order.
-const SECTIONS: [&str; 21] = [
-    "Output", "Osc A", "Osc B", "Sub", "Mod A", "Mod B", "Filter A", "Filter B", "Filter Env", "Shaper", "Voice", "Wheel", "Velocity", "Distortion", "Multiband", "EQ", "Chorus", "Dimension", "Delay", "Reverb",
-    "Limiter",
+const SECTIONS: [&str; 26] = [
+    "Output", "Osc A", "Osc B", "Sub", "Mod A", "Mod B", "Mod C", "Mod D", "Mod Env", "Filter A", "Filter B", "Filter Env", "Shaper", "Voice", "Wheel", "Velocity", "Distortion", "Multiband", "EQ", "Chorus", "Phaser",
+    "Flanger", "Dimension", "Delay", "Reverb", "Limiter",
 ];
 
-/// Which [`SECTIONS`] entry holds target `id` (the last one, Limiter, is also the fallback).
+/// Which [`SECTIONS`] entry holds target `id` (the last one, Limiter, is also the fallback). Pitch All
+/// is under Voice, the osc pitches under their oscillators.
 pub fn section_of(id: &str) -> usize {
     let pre = |p: &str| id.starts_with(p);
+    let at = |name: &str| SECTIONS.iter().position(|s| *s == name).unwrap_or(SECTIONS.len() - 1);
     match id {
-        "volume" | "spread" => 0,
-        "mono_xover" => 3,
-        "porta" | "bend_range" => 10,
-        _ if pre("osca_") => 1,
-        _ if pre("oscb_") => 2,
-        _ if pre("sub_") || pre("noise_") => 3, // Track 7: noise shares the Sub section
-        _ if pre("moda_") => 4,
-        _ if pre("modb_") => 5,
-        _ if pre("filta_") => 6,
-        _ if pre("filtb_") => 7,
-        _ if pre("fenv_") => 8,
-        _ if pre("shaper_") => 9,
-        _ if pre("wheel_") => 11,
-        _ if pre("vel_") => 12,
-        _ if pre("dist_") => 13,
-        _ if pre("mb_") => 14,
-        _ if pre("eq_") => 15,
-        _ if pre("cho_") => 16,
-        _ if pre("dim_") => 17,
-        _ if pre("dly_") => 18,
-        _ if pre("rev_") => 19,
-        _ => 20,
+        "volume" | "spread" => at("Output"),
+        "mono_xover" => at("Sub"),
+        "porta" | "bend_range" | "pitch_all" => at("Voice"),
+        _ if pre("osca_") => at("Osc A"),
+        _ if pre("oscb_") => at("Osc B"),
+        _ if pre("sub_") || pre("noise_") => at("Sub"), // Track 7: noise shares the Sub section
+        _ if pre("moda_") => at("Mod A"),
+        _ if pre("modb_") => at("Mod B"),
+        _ if pre("modc_") => at("Mod C"),
+        _ if pre("modd_") => at("Mod D"),
+        _ if pre("menv_") => at("Mod Env"),
+        _ if pre("filta_") => at("Filter A"),
+        _ if pre("filtb_") => at("Filter B"),
+        _ if pre("fenv_") => at("Filter Env"),
+        _ if pre("shaper_") => at("Shaper"),
+        _ if pre("wheel_") => at("Wheel"),
+        _ if pre("vel_") => at("Velocity"),
+        _ if pre("dist_") => at("Distortion"),
+        _ if pre("mb_") => at("Multiband"),
+        _ if pre("eq_") => at("EQ"),
+        _ if pre("cho_") => at("Chorus"),
+        _ if pre("phs_") => at("Phaser"),
+        _ if pre("flg_") => at("Flanger"),
+        _ if pre("dim_") => at("Dimension"),
+        _ if pre("dly_") => at("Delay"),
+        _ if pre("rev_") => at("Reverb"),
+        _ => at("Limiter"),
     }
 }
 
@@ -1094,7 +1138,14 @@ pub(super) fn matrix_body(ui: &mut Ui, c: &dyn Ctl, at: &dyn Fn(f32, f32, f32, f
     };
     let ed = MatrixEditor { shared, ctl: c };
     // ---- built-in routes
-    group_at(ui, at(44.0, 80.0, 912.0, 226.0), "Built-in routes", |ui| caption(ui, "Their amounts are the matching knobs on the SYNTH page and the PATCH popover"), |ui| {
+    // The Mod A and Mod B targets (A, B or both) left the SYNTH page with their route knobs: they are set here.
+    group_at(ui, at(44.0, 80.0, 912.0, 226.0), "Built-in routes", |ui| {
+        cb::<Target>(ui, c, "modb_target", "");
+        caption(ui, "Mod B moves");
+        ui.add_space(12.0);
+        cb::<Target>(ui, c, "moda_target", "");
+        caption(ui, "Mod A moves");
+    }, |ui| {
         ui.spacing_mut().item_spacing = vec2(24.0, 0.0);
         ui.horizontal_top(|ui| {
             for col in 0..3 {
@@ -1292,9 +1343,7 @@ mod tests {
         let mut seen = vec![];
         for id in matrix::target_ids() {
             let s = section_of(id);
-            // Track 7 engine wave: Mod C / D, Mod Env and Pitch All have no section yet (UI wave binds it).
-            let pending = ["modc_", "modd_", "menv_", "pitch_all", "phs_", "flg_"].iter().any(|p| id.starts_with(p));
-            assert!(s < 20 || id.starts_with("lim_") || pending, "{id} fell through to {}", section_name(s));
+            assert!(s < SECTIONS.len() - 1 || id.starts_with("lim_"), "{id} fell through to {}", section_name(s));
             seen.push(id);
         }
         let listed: Vec<&str> = pick_rows().iter().filter_map(|r| if let PickRow::Item(id, _) = r { Some(*id) } else { None }).collect();
@@ -1324,9 +1373,7 @@ mod tests {
     fn every_source_is_reachable_from_the_strip_and_every_chip_has_help() {
         let mut all: Vec<Source> = PRIMARY.iter().chain(MORE.iter()).chain(MACROS.iter()).copied().collect();
         all.sort_by_key(|s| *s as usize);
-        // Track 7 engine wave: Mod C / Mod D / Mod Env chips are not placed yet (UI wave binds it).
-        let placed: Vec<Source> = Source::ALL.into_iter().filter(|s| !matches!(s, Source::ModC | Source::ModD | Source::ModEnv)).collect();
-        assert_eq!(all, placed, "PRIMARY + MORE + MACROS cover every source once");
+        assert_eq!(all, Source::ALL.to_vec(), "PRIMARY + MORE + MACROS cover every source once");
         for s in Source::ALL {
             assert!(crate::help::ui_help(&format!("src:{}", s.name())).is_some(), "no chip help for {}", s.name());
         }

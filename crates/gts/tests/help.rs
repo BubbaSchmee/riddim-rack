@@ -81,3 +81,31 @@ fn every_source_chip_and_matrix_control_has_a_line() {
         assert!(help(&format!("macro{k}")).is_some_and(|l| l.contains("handle") && l.contains("routed")), "macro{k}");
     }
 }
+
+/// Every `ui_help("key")` the editor sources ask for has a line (a control without help would show a
+/// blank help bar), and the dynamic families (one warp line per mode) are all there.
+#[test]
+fn every_help_key_the_editor_uses_has_a_line() {
+    let sources = [
+        include_str!("../src/editor.rs"),
+        include_str!("../src/editor/modulator.rs"),
+        include_str!("../src/editor/sub.rs"),
+        include_str!("../src/editor/chain.rs"),
+        include_str!("../src/editor/patching.rs"),
+        include_str!("../src/editor/browser.rs"),
+    ];
+    let mut checked = 0;
+    for src in sources {
+        let mut rest = src;
+        while let Some(i) = rest.find("ui_help(\"") {
+            rest = &rest[i + "ui_help(\"".len()..];
+            let key = &rest[..rest.find('"').unwrap()];
+            assert!(ui_help(key).is_some(), "the editor asks for help `{key}`, which has no line");
+            checked += 1;
+        }
+    }
+    assert!(checked > 25, "only {checked} help keys found: the scan is broken");
+    for mode in 0..6 {
+        assert!(ui_help(&format!("warp:{mode}")).is_some(), "no help for warp mode {mode}");
+    }
+}

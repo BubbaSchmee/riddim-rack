@@ -62,7 +62,18 @@
 //! ([`MatrixShared::host_moved`]) and a background task restores that rev's snapshot
 //! ([`MatrixShared::restore`]); an unknown rev leaves the matrix as it is. The history is
 //! session-only: a state load clears it and adopts the loaded rev.
+//!
+//! Track 7: the same `matrix_rev` covers the custom LFO shapes (`params.lfo_shapes`) and the FX
+//! chain order (`params.fx_order`), which are state, not parameters, like the matrix. History
+//! snapshots are whole documents ([`Doc`]: matrix, shapes, order), so one undo step restores all
+//! three. The GUI edits shapes through [`MatrixShared::edit_shapes`] (which calls
+//! `ShapesShared::edit`) and the order through [`MatrixShared::set_fx_order`]; both need the
+//! params link ([`MatrixShared::link`], made when the plugin or an editor table is built) and
+//! otherwise leave shapes and order out of the snapshots. A drag is one undo step however many
+//! edits it makes ([`MatrixShared::begin_gesture`] / [`MatrixShared::end_gesture`]).
 
+use crate::dsp::fx::FxOrder;
+use crate::dsp::shape::LfoShapes;
 use crate::dsp::{Patch, MAX_VOICES};
 use crate::editor::Ctl;
 use crate::params::{CvTarget, GtsParams};
@@ -71,8 +82,8 @@ use nih_plug::prelude::{Enum, FloatRange, GuiContext, IntParam, IntRange, ParamP
 use rr_ui::snap::Snap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicI32, Ordering::SeqCst};
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::atomic::{AtomicI32, AtomicU32, Ordering::SeqCst};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
 pub const MAX_SLOTS: usize = 32;
@@ -632,18 +643,35 @@ pub const REV_MAX: i32 = 65535;
 const ADOPT: i32 = -1;
 const NONE: i32 = -2;
 
-/// Rev -> matrix snapshots, newest last.
+/// One undo snapshot: the matrix and, when the matrix is linked to its params, the custom LFO
+/// shapes and the FX chain order (`None`: not known, a restore leaves it alone).
+#[derive(Clone, Debug, PartialEq)]
+struct Doc {
+    matrix: Matrix,
+    shapes: Option<LfoShapes>,
+    order: Option<FxOrder>,
+}
+
+/// The last edit: its rev, when, the slot whose amount alone it changed, and the gesture it was part of.
+#[derive(Clone, Copy)]
+struct Last {
+    rev: i32,
+    at: Instant,
+    slot: Option<usize>,
+    gesture: u32,
+}
+
+/// Rev -> document snapshots, newest last.
 #[derive(Default)]
 struct Undo {
-    snaps: VecDeque<(i32, Matrix)>,
+    snaps: VecDeque<(i32, Doc)>,
     /// Last rev handed out.
     next: i32,
-    /// The last edit: its rev, when, and the slot whose amount alone it changed.
-    last: Option<(i32, Instant, Option<usize>)>,
+    last: Option<Last>,
 }
 
 impl Undo {
-    fn put(&mut self, rev: i32, m: Matrix) {
+    fn put(&mut self, rev: i32, m: Doc) {
         self.snaps.retain(|(r, _)| *r != rev);
         self.snaps.push_back((rev, m));
         while self.snaps.len() > HISTORY {
@@ -653,7 +681,11 @@ impl Undo {
 }
 
 /// The one slot whose amount alone differs between `a` and `b`.
-fn amount_change(a: &Matrix, b: &Matrix) -> Option<usize> {
+fn amount_change(a: &Doc, b: &Doc) -> Option<usize> {
+    if a.shapes != b.shapes || a.order != b.order {
+        return None;
+    }
+    let (a, b) = (&a.matrix, &b.matrix);
     if a.macros != b.macros || a.slots.len() != b.slots.len() {
         return None;
     }
@@ -677,6 +709,11 @@ pub struct MatrixShared {
     pending: AtomicI32,
     /// The open editor's host context (GUI edits set `rev` through it).
     host: Mutex<Option<Arc<dyn GuiContext>>>,
+    /// The params this matrix belongs to: where the shapes and the order live (module docs).
+    link: Mutex<Weak<GtsParams>>,
+    /// Id of the gesture in progress (0 = none) and the last id handed out.
+    gesture: AtomicU32,
+    gesture_seq: AtomicU32,
 }
 
 impl Default for MatrixShared {
@@ -692,6 +729,9 @@ impl Default for MatrixShared {
             applied: AtomicI32::new(0),
             pending: AtomicI32::new(NONE),
             host: Mutex::new(None),
+            link: Mutex::new(Weak::new()),
+            gesture: AtomicU32::new(0),
+            gesture_seq: AtomicU32::new(0),
         }
     }
 }
@@ -708,6 +748,87 @@ impl MatrixShared {
     /// GUI: a copy of the matrix.
     pub fn get(&self) -> Matrix {
         self.lock().clone()
+    }
+
+    /// Ties this matrix to its params, so undo snapshots cover the custom LFO shapes and the FX
+    /// order too (module docs). Called when the plugin and an editor's param table are built.
+    pub fn link(&self, params: Weak<GtsParams>) {
+        *self.link.lock().unwrap_or_else(PoisonError::into_inner) = params;
+    }
+
+    fn params(&self) -> Option<Arc<GtsParams>> {
+        self.link.lock().unwrap_or_else(PoisonError::into_inner).upgrade()
+    }
+
+    /// The whole document as it is now.
+    fn doc(&self, m: Matrix) -> Doc {
+        let p = self.params();
+        Doc { matrix: m, shapes: p.as_ref().map(|p| p.lfo_shapes.get()), order: p.as_ref().map(|p| p.fx_order.get()) }
+    }
+
+    /// GUI: the custom shape of LFO `k` (0 = Mod A .. 3 = Mod D), when this matrix is linked to its params.
+    pub fn shape(&self, k: usize) -> Option<crate::dsp::shape::ShapeDef> {
+        self.params().and_then(|p| p.lfo_shapes.get().0.get(k).cloned())
+    }
+
+    /// GUI: the FX chain order, when this matrix is linked to its params.
+    pub fn fx_order(&self) -> Option<FxOrder> {
+        self.params().map(|p| p.fx_order.get())
+    }
+
+    /// GUI: a drag begins. Every edit until [`MatrixShared::end_gesture`] is one host undo step.
+    pub fn begin_gesture(&self) {
+        let id = self.gesture_seq.fetch_add(1, SeqCst).wrapping_add(1).max(1);
+        self.gesture.store(id, SeqCst);
+    }
+
+    pub fn end_gesture(&self) {
+        self.gesture.store(0, SeqCst);
+    }
+
+    /// GUI: edits the custom LFO shapes in place through `ShapesShared::edit` (sanitized, published
+    /// to the audio thread) and records the change like a matrix edit: `matrix_rev` moves (the
+    /// host marks the project modified) and the history gets an undo step (one per gesture).
+    /// `None` when this matrix has no params link (nothing is edited then).
+    pub fn edit_shapes<R>(&self, f: impl FnOnce(&mut LfoShapes) -> R) -> Option<R> {
+        let p = self.params()?;
+        let before = self.doc(self.get());
+        let r = p.lfo_shapes.edit(f);
+        let after = self.doc(self.get());
+        if after != before {
+            self.record(before, after);
+        }
+        Some(r)
+    }
+
+    /// GUI: sets the FX chain order (see [`MatrixShared::edit_shapes`]).
+    pub fn set_fx_order(&self, order: FxOrder) {
+        let Some(p) = self.params() else { return };
+        let before = self.doc(self.get());
+        p.fx_order.replace(order);
+        let after = self.doc(self.get());
+        if after != before {
+            self.record(before, after);
+        }
+    }
+
+    /// GUI (preset load): the matrix, the shapes and the order as one change, one host undo step.
+    pub fn replace_doc(&self, mut m: Matrix, shapes: LfoShapes, order: FxOrder) {
+        m.sanitize();
+        let before = self.doc(self.get());
+        if let Some(p) = self.params() {
+            p.lfo_shapes.replace(shapes);
+            p.fx_order.replace(order);
+        }
+        {
+            let mut g = self.lock();
+            *g = m;
+            self.snap.write(&g.encode());
+        }
+        let after = self.doc(self.get());
+        if after != before {
+            self.record(before, after);
+        }
     }
 
     /// GUI (preset load) / initialize: replaces the matrix (sanitized) and publishes it; one host
@@ -727,7 +848,9 @@ impl MatrixShared {
             self.snap.write(&g.encode());
             let after = g.clone();
             drop(g);
-            self.record(before, after);
+            // Shapes and order did not change: both documents carry the current ones.
+            let (b, a) = (self.doc(before), self.doc(after));
+            self.record(b, a);
         }
         r
     }
@@ -746,19 +869,22 @@ impl MatrixShared {
     }
 
     /// History + host gesture for one GUI change `before` -> `after`.
-    fn record(&self, before: Matrix, after: Matrix) {
+    fn record(&self, before: Doc, after: Doc) {
         let Some(ctx) = self.host.lock().unwrap_or_else(PoisonError::into_inner).clone() else { return };
         let old = match self.applied.load(SeqCst) {
             ADOPT => self.rev.value(),
             a => a,
         };
         let slot = amount_change(&before, &after);
+        let gesture = self.gesture.load(SeqCst);
         let mut u = self.undo();
-        if let (Some(i), Some((r, t, Some(j)))) = (slot, u.last) {
-            if i == j && r == old && t.elapsed() < COALESCE {
-                // Same drag: the host already holds this rev; its snapshot follows the drag.
-                u.put(r, after);
-                u.last = Some((r, Instant::now(), slot));
+        if let Some(l) = u.last {
+            // Same drag: the host already holds this rev; its snapshot follows the drag. Either the
+            // editor's explicit gesture, or (ring drags) amount edits of one slot in quick succession.
+            let same = l.rev == old && ((gesture != 0 && l.gesture == gesture) || (gesture == 0 && l.gesture == 0 && slot.is_some() && slot == l.slot && l.at.elapsed() < COALESCE));
+            if same {
+                u.put(l.rev, after);
+                u.last = Some(Last { at: Instant::now(), ..l });
                 return;
             }
         }
@@ -769,7 +895,7 @@ impl MatrixShared {
         }
         u.next = new;
         u.put(new, after);
-        u.last = Some((new, Instant::now(), slot));
+        u.last = Some(Last { rev: new, at: Instant::now(), slot, gesture });
         drop(u);
         self.pending.store(old, SeqCst);
         self.applied.store(new, SeqCst);
@@ -801,8 +927,18 @@ impl MatrixShared {
     /// unchanged, when the history has no such rev (older than [`HISTORY`] edits, or from
     /// another session).
     pub fn restore(&self, rev: i32) -> bool {
-        let m = self.undo().snaps.iter().find(|(r, _)| *r == rev).map(|(_, m)| m.clone());
-        m.map(|m| self.publish(m)).is_some()
+        let d = self.undo().snaps.iter().find(|(r, _)| *r == rev).map(|(_, d)| d.clone());
+        let Some(d) = d else { return false };
+        if let Some(p) = self.params() {
+            if let Some(s) = d.shapes {
+                p.lfo_shapes.replace(s);
+            }
+            if let Some(o) = d.order {
+                p.fx_order.replace(o);
+            }
+        }
+        self.publish(d.matrix);
+        true
     }
 
     /// Audio thread, once per block: when a newer matrix was published than `seen`, copies its

@@ -1,6 +1,6 @@
 # GTS visual and motion spec (v2 panel)
 
-Status: built and approved; chip drag-and-drop patching and the Macro chips came with the modulation matrix (SPEC v2 Track 5, sections 2.1, 2.3, 5.2, 5.6, 5.11 to 5.14 below); OS-default Reduced motion and 15 Hz data snapshots are still deferred; the hero stack also carries a translucent per-frame surface fill (0.20 at the front to 0.10 at the back, a stronger lit-frame wash), measured at 0.29 ms GPU. Companion to `DESIGN.md` (the static contract) and
+Status: built and approved; the Track 7 UI wave (the MODULATOR module with its shape editor, the oscillator Pitch and Warp rows, SUB | NOISE, the FX chain bar with the phaser and flanger strips) is built from `MOTION-addendum-track7.md`, which overrides the rows below it names (2.1, 2.2, 3, 5.6, 5.12, 10); chip drag-and-drop patching and the Macro chips came with the modulation matrix (SPEC v2 Track 5, sections 2.1, 2.3, 5.2, 5.6, 5.11 to 5.14 below); OS-default Reduced motion and 15 Hz data snapshots are still deferred; the hero stack also carries a translucent per-frame surface fill (0.20 at the front to 0.10 at the back, a stronger lit-frame wash), measured at 0.29 ms GPU. Companion to `DESIGN.md` (the static contract) and
 `motion-feasibility.md` (what the stack can carry). The running reference is
 `prototype-v2.html`; the stills are `prototype-v2-1.png` to `prototype-v2-5.png`.
 
@@ -70,13 +70,12 @@ Filter Env, Shaper, Voice, Wheel, Velocity, header Volume and Spread, FX EQ), **
 | Meter | 780, 16 | 14 x 56 | stereo, peak hold |
 | Output | 802, 16 | 154 x 56 | Volume, Spread (S knobs) |
 | **Hero** | 44, 80 | **568 x 208** | wavetable, A / B tabs, table name, index readout, 2D / 3D. 208 is the 25 % of the window height the acceptance table asks for: the strip below took the 24 px the hero gave up (it was 232) |
-| Sources strip, row 1 | 44, 296 | 568 x 20 | SOURCES: chips Mod A, Mod B, Filt Env, Amp A, Amp B with a live activity bar; draggable (5.6) |
+| Sources strip, row 1 | 44, 296 | 568 x 20 | SOURCES: chips Mod A, Mod B, Mod C, Mod D, Mod Env with a live activity bar (18 px); draggable (5.6). The Filter Env and the amp envelopes are in MORE (Track 7) |
 | Sources strip, row 2 | 44, 320 | 568 x 20 | MACROS: four macro pills (handle, editable label, knob) and the MORE chip (nine more sources, 5.12) |
-| Mod A | 620, 80 | 336 x 126 | Curve combo; Sync, Div, 1-shot, Target; shape display; Rate, Pitch, Index, Shift |
-| Mod B | 620, 214 | 336 x 126 | same strip; shape display; Rate, Motion, Vol, Cutoff, Mod A |
-| Osc A | 44, 348 | 404 x 222 | Table combo + On; Oct Semi Cent Index(L) Motion Shift Vol; Att Dec Sus Rel Curve + amp display; Unison Detune D.Crv Blend Width Rand + Reset |
+| MODULATOR | 620, 80 | 336 x 260 | Track 7: tabs LFO A to D and MOD ENV, toolbar, shape editor (312 x 130 glass), controls row (addendum 2). Replaces the Mod A and Mod B groups; their route knobs are MATRIX rows |
+| Osc A | 44, 348 | 404 x 222 | Table combo + On + Reset; Oct Semi Cent Pitch Index(L) Motion Shift Vol; Att Dec Sus Rel Curve + amp display; Unison Detune D.Crv Blend Width Rand + Warp and Amt (addendum 4) |
 | Osc B | 456, 348 | 404 x 222 | same; body dims to 45 % while Osc B is off |
-| Sub | 868, 348 | 88 x 222 | On; Level, Oct, Xover |
+| SUB \| NOISE | 868, 348 | 88 x 222 | Tabs; sub: shape, Oct, Phase, Drive, Level, Xover, On; noise: type, Level, Tone, slope display (addendum 5) |
 | Filter A | 44, 578 | 262 x 102 | Type combo + Env; Freq(L) Res Kbd; response display |
 | Filter B | 314, 578 | 262 x 102 | same |
 | Filter Env | 584, 578 | 372 x 102 | Inv; Att Dec Sus Rel Amt Curve (S); envelope display |
@@ -97,6 +96,10 @@ display's slot, the settings column and the PATCH strip are gone; the hero takes
 band's height and more.
 
 ### 2.2 FX page (window and header unchanged, body swaps)
+
+Track 7 replaced the grid below: a 20 px chain bar at y 80, then the nine modules in three rows at y 108 (h 262), 378
+and 550 (h 164), the Limiter as a 56 px strip at y 722; positions, the grips, order badges and the drag are in
+`MOTION-addendum-track7.md` 6. The table is kept for the module contents that did not change.
 
 | Row | y, h | Groups (x, w) and displays |
 |---|---|---|
@@ -141,6 +144,7 @@ Colour (all existing tokens unchanged; new rows marked +).
 | + Source Note | `src_note` | #c6e25f | Velocity, Keytrack, Random, Poly Aftertouch |
 | + Source Ctrl | `src_ctrl` | #4fd3e6 | Mod Wheel, Channel Aftertouch |
 | + Source Bus | `src_bus` | #cfd8de | Bus CV 1 to 3 |
+| + Source C / D / Env (Track 7) | `src_c` `src_d` `src_n` | #ff8cd9 / #ffd900 / #ff8254 | Mod C, Mod D, Mod Env (the Mod Env coral is lifted from the mock's #ff7f50, which measured 6.97:1 on the inset) |
 
 Colour is reserved by meaning: mint is state of the instrument, a source colour is "this value
 is being moved by that source". No other hue exists on the panel. Sources beyond the first four are
@@ -309,8 +313,8 @@ audio-side ring and atomics only.
 ### 5.6 Source chips
 
 20 px high pill, `inset` fill, 1 px stroke of the source colour at 35 % (80 % on hover), glyph
-disc 14 px in the source colour with a dark letter, name in 11 px caps, 22 x 4 px activity bar
-(Mod A, Mod B, Filter Env, Amp A, Amp B; none on the MORE tiles, which show a route count). Hover lights
+disc 14 px in the source colour with a dark letter, name in 11 px caps, 18 x 4 px activity bar
+(Mod A, Mod B, Mod C, Mod D, Mod Env; none on the MORE tiles, which show a route count). Hover lights
 the knobs the source moves now (its slots and its built-in routes with a non-zero amount) and
 drops the rest to 50 % (section 4).
 
@@ -378,8 +382,8 @@ begins at the same x as the first row's chips.
 ### 5.12 MORE popover
 
 The MORE chip (right end of row 2) lists up to three dots in the colours of the hidden families that
-have routings. It opens a 3 x 3 grid of chips (Velocity, Keytrack, Random, Poly AT, Wheel, Chan AT,
-Bus 1 to 3, each with its routing count) in a layer above the strip: 150 ms fade, 6 px rise, Esc or a
+have routings. It opens a 3 x 4 grid of chips (Filt Env, Amp A, Amp B, Velocity, Keytrack, Random, Poly AT,
+Wheel, Chan AT, Bus 1 to 3, each with its routing count) in a layer above the strip: 150 ms fade, 6 px rise, Esc or a
 click elsewhere closes, picking a chip up for a drag closes it so the knobs show.
 
 ### 5.13 Knob menu (right-click on a modulated knob)
@@ -503,6 +507,16 @@ medians of three runs, `frame_bench`): SYNTH 1.7 ms mean / 3.0 p99 and 66k verti
 MATRIX 1.2 / 1.9 and 45k; SYNTH with a patch drag in progress 2.1 / 3.5 and 77k. `plugin_loop -- gts notes`
 on each page: 61 to 62 fps mean, p99 interval at most 31.2 ms, 2.8 to 4.9 % of frames over 20 ms,
 none over 50 ms; hero GPU 0.24 ms; `frame_gpu`: all egui draws 0.85 ms mean.
+
+Track 7 (UI wave), measured on the shared development machine (other jobs ran alongside, so the absolute numbers are higher than on a quiet one; the old column is the previous commit measured in the same minutes; `frame_bench` at real-time priority, medians of three runs, release, 1000 x 832, ppp 1, eight voices sounding, all four LFOs on custom shapes, the Mod Env patched, 13 routings; the engine plays the riddim pattern plus a held chord). Old = the previous commit on the same machine at the same time (pattern only, no Track 7 content):
+
+| Page | Old UI + tess mean / p99 | Track 7 mean / p99 | Vertices (old / new) |
+|---|---|---|---|
+| SYNTH | 2.16 / 4.07 ms | 2.23 / 4.11 ms | 66846 / 66195 |
+| FX | 1.85 / 3.95 ms | 2.27 / 4.13 ms | 62406 / 77665 |
+| MATRIX | 1.70 / 3.01 ms | 1.91 / 3.36 ms | 47426 / 53253 |
+
+The shape editor (input, glass, playheads; not the controls row) costs 0.045 ms mean CPU and 844 vertices with the default shape; with 32 points, 11 curved segments and eight playheads 0.053 ms and 2088 vertices (gate 0.3 ms, 3.5k). `plugin_loop -- gts notes` per page: SYNTH 61.70 fps mean, p99 interval 30.86 ms, 4.40 % of frames over 20 ms (runs 4.40 / 4.40 / 3.90), frames over 50 ms in the three runs: 0 / 0 / 0; FX 62.00 fps mean, p99 interval 30.78 ms, 3.90 % of frames over 20 ms (runs 3.90 / 3.90 / 3.30), frames over 50 ms in the three runs: 0 / 0 / 0; MATRIX 62.20 fps mean, p99 interval 30.61 ms, 3.50 % of frames over 20 ms (runs 3.50 / 3.20 / 3.70), frames over 50 ms in the three runs: 0 / 0 / 0 (the runs were taken with no other compile or benchmark job on the machine; two earlier sets taken while another job was compiling showed 5 to 7 % of frames over 20 ms and the occasional 50 ms hitch from that job, not from the editor: update() takes 1.1 ms on SYNTH, 1.1 ms on FX and 0.8 ms on MATRIX)
 
 ## 11. Acceptance criteria (measurable in the real plugin)
 

@@ -148,6 +148,13 @@ impl H {
         chip_rects(&self.ctx).into_iter().find(|k| k.0 == s).unwrap_or_else(|| panic!("chip {s:?} was not drawn")).1
     }
 
+    /// A chip that lives in the MORE popover (the envelopes moved there in Track 7): opens it first.
+    fn more_chip(&mut self, s: Source) -> Rect {
+        self.bv.more_open = true;
+        self.frames(12);
+        self.chip(s)
+    }
+
     fn matrix(&self) -> Matrix {
         self.ctl.table.matrix().get()
     }
@@ -187,7 +194,8 @@ fn a_different_source_adds_a_slot_and_the_same_source_edits_it() {
     let m = h.matrix();
     assert_eq!((m.slots.len(), m.slots[0].amount), (1, -0.3), "{:?}", m.slots);
     // Another source on the same knob: a second slot with its own source.
-    h.drag(h.chip(Source::AmpEnvA).center(), knob);
+    let amp = h.more_chip(Source::AmpEnvA).center();
+    h.drag(amp, knob);
     let m = h.matrix();
     assert_eq!(m.slots.len(), 2);
     assert_eq!((m.slots[1].source, m.slots[1].target.as_str(), m.slots[1].amount), (Source::AmpEnvA, "shaper_amt", 0.5));
@@ -271,7 +279,8 @@ fn right_click_menu_toggles_polarity_inverts_bypasses_and_removes() {
     let mut h = H::new();
     let knob = h.knob("shaper_amt").center();
     h.drag(h.chip(Source::ModB).center(), knob);
-    h.drag(h.chip(Source::AmpEnvA).center(), knob);
+    let amp = h.more_chip(Source::AmpEnvA).center();
+    h.drag(amp, knob);
     h.frames(2);
     assert_eq!(h.matrix().slots.len(), 2);
     h.click(h.dial("shaper_amt", 32.0), PointerButton::Secondary);
@@ -296,7 +305,8 @@ fn right_click_remove_all_clears_the_knob() {
     let mut h = H::new();
     let knob = h.knob("shaper_amt").center();
     h.drag(h.chip(Source::ModB).center(), knob);
-    h.drag(h.chip(Source::AmpEnvA).center(), knob);
+    let amp = h.more_chip(Source::AmpEnvA).center();
+    h.drag(amp, knob);
     h.drag(h.chip(Source::ModB).center(), h.knob("filta_res").center());
     h.frames(2);
     assert_eq!(h.matrix().slots.len(), 3);
@@ -443,4 +453,47 @@ fn the_sources_strip_stays_inside_the_hero_width() {
         assert!(r.left() >= 44.0 && r.right() <= 612.0, "{s:?} spans {}..{}", r.left(), r.right());
         assert!(r.top() >= 296.0 && r.bottom() <= 344.0, "{s:?} spans y {}..{}", r.top(), r.bottom());
     }
+}
+
+/// Track 7 (MOTION-addendum-track7.md 8): the first row holds the five modulators, the MORE popover the
+/// other twelve sources (the envelopes moved there).
+#[test]
+fn the_strip_holds_the_five_modulators_and_more_the_other_twelve() {
+    let mut h = H::new();
+    let strip = Rect::from_min_max(pos2(44.0, 296.0), pos2(612.0, 316.0));
+    for s in [Source::ModA, Source::ModB, Source::ModC, Source::ModD, Source::ModEnv] {
+        let r = h.chip(s);
+        assert!(strip.contains_rect(r), "{s:?} chip {r:?} is outside the strip");
+    }
+    h.bv.more_open = true;
+    h.frames(12);
+    let others = [
+        Source::FilterEnv, Source::AmpEnvA, Source::AmpEnvB, Source::Velocity, Source::Keytrack, Source::Random, Source::PolyAftertouch, Source::ModWheel, Source::ChannelAftertouch, Source::BusCv1,
+        Source::BusCv2, Source::BusCv3,
+    ];
+    for s in others {
+        let r = h.chip(s);
+        assert!(!strip.intersects(r), "{s:?} tile {r:?} is not in the popover");
+    }
+    // A MORE chip picked up for a drag closes the popover and patches like any other.
+    let knob = h.knob("shaper_amt").center();
+    let c = h.chip(Source::FilterEnv).center();
+    h.drag(c, knob);
+    assert_eq!(h.matrix().slots.len(), 1);
+    assert_eq!(h.matrix().slots[0].source, Source::FilterEnv);
+    assert!(!h.bv.more_open);
+}
+
+/// Pitch All has no knob: its routing rings on Osc A Pitch (and the other pitch knobs), listed and
+/// removable from that knob's menu.
+#[test]
+fn pitch_all_rings_on_the_pitch_knobs_and_the_menu_lists_it() {
+    let mut h = H::new();
+    MatrixEditor { shared: h.ctl.table.matrix(), ctl: &h.ctl }.add_or_edit(Source::ModEnv, "pitch_all", 0.5).unwrap();
+    h.frames(3);
+    h.click(h.dial("osca_pitch", 40.0), PointerButton::Secondary);
+    h.frames(1);
+    assert!(!menu_rects(&h.ctx).is_empty(), "the menu of Osc A Pitch lists the Pitch All routing");
+    menu_click(&mut h, "remove", 0);
+    assert!(h.matrix().slots.is_empty());
 }

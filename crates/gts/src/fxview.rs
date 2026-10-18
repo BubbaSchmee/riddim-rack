@@ -370,7 +370,13 @@ pub fn delay_display(p: &Painter, r: Rect, feedback: f32, mix: f32, flash: &dyn 
 /// relative to the tail's peak.
 pub fn reverb_display(p: &Painter, r: Rect, decay_s: f32, predelay_s: f32, age: f32, level_db: Option<f32>) {
     small_glass(p, r);
-    let inner = Rect::from_min_max(pos2(r.left() + 32.0, r.top() + 10.0), pos2(r.right() - 12.0, r.bottom() - 20.0));
+    // The small one of the FX page's third row (100 x 50): the curve and the playhead, no axis labels.
+    let compact = r.height() < 70.0;
+    let inner = if compact {
+        r.shrink2(vec2(7.0, 6.0))
+    } else {
+        Rect::from_min_max(pos2(r.left() + 32.0, r.top() + 10.0), pos2(r.right() - 12.0, r.bottom() - 20.0))
+    };
     let decay = decay_s.max(0.05);
     let span = (decay * 1.15).max(predelay_s + 0.4);
     let x_of = |t: f32| inner.left() + inner.width() * (t / span).clamp(0.0, 1.0);
@@ -379,7 +385,9 @@ pub fn reverb_display(p: &Painter, r: Rect, decay_s: f32, predelay_s: f32, age: 
     // dB grid and labels.
     for d in [0.0f32, -20.0, -40.0, -60.0] {
         p.hline(inner.x_range(), snap(p, y_of(d)), faint(p, if d == -60.0 { 0.14 } else { 0.05 }));
-        label(pos2(inner.left() - 6.0, y_of(d)), Align2::RIGHT_CENTER, &format!("{d:.0}"));
+        if !compact {
+            label(pos2(inner.left() - 6.0, y_of(d)), Align2::RIGHT_CENTER, &format!("{d:.0}"));
+        }
     }
     // Time grid and labels: a step that gives three to six ticks.
     let step = [0.1f32, 0.2, 0.5, 1.0, 2.0, 5.0].into_iter().find(|s| span / s <= 6.0).unwrap_or(5.0);
@@ -388,11 +396,15 @@ pub fn reverb_display(p: &Painter, r: Rect, decay_s: f32, predelay_s: f32, age: 
         let x = snap(p, x_of(t));
         p.vline(x, inner.y_range(), faint(p, 0.05));
         let s = if step < 1.0 { format!("{t:.1}") } else { format!("{t:.0}") };
-        label(pos2(x, inner.bottom() + 9.0), if t == 0.0 { Align2::LEFT_CENTER } else { Align2::CENTER_CENTER }, &s);
+        if !compact {
+            label(pos2(x, inner.bottom() + 9.0), if t == 0.0 { Align2::LEFT_CENTER } else { Align2::CENTER_CENTER }, &s);
+        }
         t += step;
     }
-    label(pos2(r.right() - 6.0, r.bottom() - 7.0), Align2::RIGHT_CENTER, "s");
-    label(pos2(r.left() + 6.0, r.top() + 8.0), Align2::LEFT_CENTER, "dB");
+    if !compact {
+        label(pos2(r.right() - 6.0, r.bottom() - 7.0), Align2::RIGHT_CENTER, "s");
+        label(pos2(r.left() + 6.0, r.top() + 8.0), Align2::LEFT_CENTER, "dB");
+    }
     // Curve: flat at 0 dB through the pre-delay, then down to -60 dB at the decay time (and the floor).
     let t0 = predelay_s.min(span * 0.9);
     let t_end = (t0 + decay).min(span);
@@ -414,6 +426,14 @@ pub fn reverb_display(p: &Painter, r: Rect, decay_s: f32, predelay_s: f32, age: 
 /// Limiter output spectrum glass with decade ticks and a caption.
 pub fn limiter_spectrum(p: &Painter, r: Rect, spec: &[f32], peak: &[f32]) {
     small_glass(p, r);
+    // The 260 x 44 strip display: the curve alone (the header SPEC tab is the full spectrum).
+    if r.height() < 70.0 {
+        let inner = r.shrink2(vec2(6.0, 5.0));
+        if spec.len() > 1 {
+            spectrum(p, inner, spec, peak, 1.0);
+        }
+        return;
+    }
     let inner = Rect::from_min_max(pos2(r.left() + 10.0, r.top() + 20.0), pos2(r.right() - 10.0, r.bottom() - 16.0));
     for d in [0.25f32, 0.5, 0.75] {
         p.hline(inner.x_range(), snap(p, inner.bottom() - inner.height() * d), faint(p, 0.04));
@@ -425,5 +445,87 @@ pub fn limiter_spectrum(p: &Painter, r: Rect, spec: &[f32], peak: &[f32]) {
     for (hz, s) in [(100.0f32, "100"), (1000.0, "1k"), (10000.0, "10k")] {
         let x = inner.left() + inner.width() * (hz / 30.0).ln() / (20000f32 / 30.0).ln();
         p.text(pos2(x, r.bottom() - 8.0), Align2::CENTER_CENTER, s, font::mono(10.0), T.disp_caption);
+    }
+}
+
+// ---- Track 7: phaser and flanger -------------------------------------------------------------
+
+/// Where the sweep is in its cycle, 0..1: free-running at `rate_hz`, or locked to `beats` quarter
+/// notes at `tempo` BPM. Time-based (the displays are data, never frame-counted).
+pub fn sweep_phase(now: f64, sync: bool, rate_hz: f32, beats: f64, tempo: f32) -> f32 {
+    let hz = if sync { tempo.max(20.0) as f64 / 60.0 / beats.max(0.01) } else { rate_hz as f64 };
+    (now * hz).rem_euclid(1.0) as f32
+}
+
+/// Magnitude (dB) of the phaser at `f` Hz with its notches at break frequency `fb`: `stages` first-order
+/// all-passes, the wet path fed back by `fb_amt` and mixed with the dry by `mix`.
+pub fn phaser_db(stages: usize, fb: f32, fb_amt: f32, mix: f32, f: f32) -> f32 {
+    let phi = -(stages as f32) * 2.0 * (f / fb.max(1.0)).atan();
+    let (ar, ai) = (phi.cos(), phi.sin());
+    // wet = A / (1 - g A)
+    let (dr, di) = (1.0 - fb_amt * ar, -fb_amt * ai);
+    let den = (dr * dr + di * di).max(1e-6);
+    let (wr, wi) = ((ar * dr + ai * di) / den, (ai * dr - ar * di) / den);
+    let (yr, yi) = ((1.0 - mix) + mix * wr, mix * wi);
+    20.0 * (yr * yr + yi * yi).sqrt().max(1e-4).log10()
+}
+
+/// Phaser notch display (54 x 52): the response over 20 Hz to 20 kHz with the notches sweeping around
+/// `centre_hz` by up to two octaves either side (`depth`), at `phase` of its cycle.
+pub fn phaser_display(p: &Painter, r: Rect, stages: usize, centre_hz: f32, depth: f32, feedback: f32, mix: f32, phase: f32, live: bool) {
+    small_glass(p, r);
+    let inner = r.shrink2(vec2(5.0, 6.0));
+    let fb = centre_hz * 2f32.powf(2.0 * depth.clamp(0.0, 1.0) * (std::f32::consts::TAU * phase).sin());
+    p.hline(inner.x_range(), snap(p, inner.center().y), faint(p, 0.10));
+    let n = (inner.width() as usize * 2).max(48);
+    let y_of = |db: f32| inner.bottom() - inner.height() * ((db + 24.0) / 36.0).clamp(0.0, 1.0);
+    let pts: Vec<Pos2> = (0..=n)
+        .map(|i| {
+            let f = 20.0 * 1000f32.powf(i as f32 / n as f32);
+            pos2(inner.left() + inner.width() * i as f32 / n as f32, y_of(phaser_db(stages.clamp(4, 12), fb, feedback, mix, f)))
+        })
+        .collect();
+    glow_line(&p.with_clip_rect(r), pts, 1.5, if live { T.accent } else { T.accent.gamma_multiply(0.5) });
+}
+
+/// Flanger sweep display (56 x 50): the delay time over one cycle (a sine from the top of the sweep
+/// down by `depth`), a dot at `phase` and the top delay as a caption.
+pub fn flanger_display(p: &Painter, r: Rect, delay_ms: f32, depth: f32, phase: f32, live: bool) {
+    small_glass(p, r);
+    let inner = Rect::from_min_max(pos2(r.left() + 6.0, r.top() + 6.0), pos2(r.right() - 6.0, r.bottom() - 15.0));
+    let y_at = |ph: f32| inner.top() + inner.height() * depth.clamp(0.0, 1.0) * (0.5 + 0.5 * (std::f32::consts::TAU * ph).sin());
+    p.hline(inner.x_range(), snap(p, inner.top()), faint(p, 0.10));
+    let n = 48;
+    let pts: Vec<Pos2> = (0..=n).map(|i| pos2(inner.left() + inner.width() * i as f32 / n as f32, y_at(i as f32 / n as f32))).collect();
+    glow_line(p, pts, 1.5, if live { T.accent } else { T.accent.gamma_multiply(0.5) });
+    let q = pos2(inner.left() + inner.width() * phase, y_at(phase));
+    if live {
+        dot(p, q, T.accent, 1.0);
+    }
+    p.text(pos2(r.center().x, r.bottom() - 7.0), Align2::CENTER_CENTER, format!("{delay_ms:.1} ms"), font::mono(10.0), T.disp_caption);
+}
+
+#[cfg(test)]
+mod track7_tests {
+    use super::*;
+
+    /// More stages, more notches; no feedback and a 50 % mix give a deep notch; a dry mix is flat.
+    #[test]
+    fn the_phaser_response_has_one_notch_per_pair_of_stages() {
+        let count = |stages: usize| {
+            let db: Vec<f32> = (0..400).map(|i| phaser_db(stages, 800.0, 0.0, 0.5, 20.0 * 1000f32.powf(i as f32 / 399.0))).collect();
+            (1..399).filter(|&i| db[i] < db[i - 1] && db[i] < db[i + 1] && db[i] < -12.0).count()
+        };
+        assert_eq!(count(4), 2);
+        assert_eq!(count(8), 4);
+        assert!(phaser_db(8, 800.0, 0.0, 0.0, 1000.0).abs() < 1e-3, "a dry mix is flat");
+        assert!(phaser_db(8, 800.0, 0.0, 0.5, 20.0) > -1.0, "low frequencies pass");
+    }
+
+    #[test]
+    fn the_sweep_phase_is_time_based() {
+        assert!((sweep_phase(1.0, false, 0.25, 4.0, 120.0) - 0.25).abs() < 1e-5);
+        // 1 bar (4 beats) at 120 BPM is 2 s.
+        assert!((sweep_phase(0.5, true, 0.0, 4.0, 120.0) - 0.25).abs() < 1e-5);
     }
 }

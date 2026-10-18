@@ -22,6 +22,12 @@
 //!           bank (writes preview-gts-editor-browser.png); `search=<text>` types into the search box,
 //!           `cat=All|Bass|...` picks the category, `loaded=<Name>` the loaded preset
 //!   saveas  the Save As dialog open over the browser (writes preview-gts-editor-saveas.png)
+//!   plain   skip the Track 7 demo (custom shapes, Mod Env dive, noise, warp) and show the preset as it is
+//!   lfo=a|b|c|d|env   the MODULATOR on that tab (c = the step pattern; env writes preview-gts-editor-mod-env.png,
+//!           c writes preview-gts-editor-mod-steps.png)
+//!   lib     the stock-shape library open (writes preview-gts-editor-lib.png)
+//!   noise   the NOISE tab of SUB | NOISE (writes preview-gts-editor-noise.png)
+//!   chain=<module 0..8>  a chain drag of that module held at the pointer (pair with at=x,y; writes preview-gts-editor-chain.png)
 
 use eframe::egui::{self, vec2, Context, ViewportCommand};
 use gts::dsp::tables::Tables;
@@ -47,6 +53,12 @@ struct App {
     saveas: bool,
     /// `dialog=delete|rename|save`: that dialog over the loaded user preset.
     dialog: Option<String>,
+    /// A chain drag of this module held (see `chain=`).
+    chain: Option<usize>,
+    /// MODULATOR tab, library open, NOISE tab.
+    lfo: Option<usize>,
+    lib: bool,
+    noise: bool,
 }
 
 impl eframe::App for App {
@@ -70,6 +82,22 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(w, h) / native));
         }
         self.frame += 1;
+        if self.frame == 1 {
+            if let Some(t) = self.lfo {
+                gts::editor::modulator::select_tab(ctx, t);
+            }
+            if self.noise {
+                gts::editor::sub::select_tab(ctx, 1);
+            }
+        }
+        if let Some(m) = self.chain {
+            if self.frame >= 4 {
+                gts::editor::chain::debug_hold_drag(ctx, m);
+            }
+        }
+        if self.lib && self.frame == 6 {
+            gts::editor::modulator::open_library(ctx, true);
+        }
         if self.saveas && self.frame == 12 {
             self.live.browser.open_save_as(&self.ctl);
         }
@@ -156,6 +184,9 @@ fn main() -> eframe::Result {
         if has("fx") {
             demo::fx_on(&ctl, &mut patch); // the FX shot shows the modules working
         }
+        if !has("plain") {
+            demo::track7_demo(&ctl, &mut patch);
+        }
         let mut feed = demo::Feed::new(patch);
         feed.attach(ctl.table.params().clone());
         // Pre-roll into the pattern: a note was just struck when the shot is taken.
@@ -196,9 +227,10 @@ fn main() -> eframe::Result {
             b.set_open(true);
             live.browser = b;
         }
-        let name = if has("saveas") { "preview-gts-editor-saveas.png" } else if has("browser") { "preview-gts-editor-browser.png" } else if let Some((_, _, n)) = tab { n } else if has("matrix") { "preview-gts-editor-matrix.png" } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
+        let lfo = arg("lfo=").and_then(|t| ["a", "b", "c", "d", "env"].iter().position(|x| *x == t));
+        let name = if has("lib") { "preview-gts-editor-lib.png" } else if has("noise") { "preview-gts-editor-noise.png" } else if lfo == Some(4) { "preview-gts-editor-mod-env.png" } else if lfo == Some(2) { "preview-gts-editor-mod-steps.png" } else if arg("chain=").is_some() { "preview-gts-editor-chain.png" } else if has("saveas") { "preview-gts-editor-saveas.png" } else if has("browser") { "preview-gts-editor-browser.png" } else if let Some((_, _, n)) = tab { n } else if has("matrix") { "preview-gts-editor-matrix.png" } else if has("fx") { "preview-gts-editor-fx.png" } else if has("cpu") { "preview-gts-editor-cpu.png" } else if has("2d") { "preview-gts-editor-2d.png" } else { "preview-gts-editor.png" };
         let pointer = std::env::args().find_map(|a| a.strip_prefix("at=").and_then(|v| v.split_once(',').map(|(x, y)| egui::pos2(x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0)))));
         let drag = std::env::args().find_map(|a| a.strip_prefix("drag=").and_then(gts::matrix::Source::from_name));
-        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer, drag, menu: has("menu"), click: has("click"), saveas: has("saveas"), dialog: arg("dialog=") }))
+        Ok(Box::new(App { ctl, tables, feed, live, keep_open: has("live"), frame: 0, asked: false, bus, name, pointer, drag, menu: has("menu"), click: has("click"), saveas: has("saveas"), dialog: arg("dialog="), lfo, lib: has("lib"), noise: has("noise"), chain: arg("chain=").and_then(|m| m.parse().ok()) }))
     }))
 }

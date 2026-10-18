@@ -41,7 +41,9 @@ pub mod gf {
     pub const TABLE_B: usize = 5;
     /// Smoothed mod wheel 0..1.
     pub const WHEEL: usize = 6;
-    pub const N: usize = 7;
+    /// Host tempo in BPM (the editor's cycle lengths of synced LFOs).
+    pub const TEMPO: usize = 7;
+    pub const N: usize = 8;
 }
 
 /// Per-voice fields (`VoiceViz`).
@@ -67,7 +69,14 @@ pub mod vf {
     pub const OUT_B: usize = 13;
     /// 1 while the voice renders (sounding or ringing out).
     pub const ACTIVE: usize = 14;
-    pub const N: usize = 15;
+    /// Track 7: Mod C / Mod D phase (cycles, as PH_A) and output (-1..1), the mod envelope level and its stage (as STAGE_A).
+    pub const PH_C: usize = 15;
+    pub const PH_D: usize = 16;
+    pub const OUT_C: usize = 17;
+    pub const OUT_D: usize = 18;
+    pub const MENV: usize = 19;
+    pub const MENV_STAGE: usize = 20;
+    pub const N: usize = 21;
 }
 
 /// `ModLive`: the fixed-route targets whose post-modulation value is always published, first.
@@ -294,11 +303,18 @@ impl VizWriter {
             f[vf::OUT_A] = v.lfo_out[0];
             f[vf::OUT_B] = v.lfo_out[1];
             f[vf::ACTIVE] = v.is_active() as u8 as f32;
+            f[vf::PH_C] = v.lfo_phase(2);
+            f[vf::PH_D] = v.lfo_phase(3);
+            f[vf::OUT_C] = v.lfo_out[2];
+            f[vf::OUT_D] = v.lfo_out[3];
+            f[vf::MENV] = v.mod_env().level();
+            f[vf::MENV_STAGE] = stage(v.mod_env().stage());
         }
         let wheel = engine.wheel();
         rec[gf::SR] = sr;
         rec[gf::NEWEST] = newest.map_or(-1.0, |n| n as f32);
         rec[gf::WHEEL] = wheel;
+        rec[gf::TEMPO] = engine.transport.tempo as f32;
         for o in 0..2 {
             rec[gf::TABLE_A + o] = patch.osc[o].table as usize as f32;
             rec[gf::INDEX_A + o] = match newest {

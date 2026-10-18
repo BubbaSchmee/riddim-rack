@@ -12,6 +12,9 @@
 //!            time and publishes through the plugin's own VizWriter / Meters, so every live display moves;
 //!            also reports the hero's own GPU time (timer query)
 //!   browser  open the preset browser over a 200-preset fixture library (SPEC v2 Track 6 frame gate)
+//!   plain    skip the Track 7 demo (all four LFOs on custom shapes, the Mod Env patched, noise, warp)
+//!   voices=N with `notes`: a held chord makes N voices sound with the pattern (default 8; MOTION-addendum-track7.md 10.1)
+//!   lfo=a|b|c|d|env  the MODULATOR tab (c is a step pattern); noise = the NOISE tab; lib = the library popover open
 //!   page=fx  show the FX page (page=matrix: the MATRIX page)
 //!   cpu      force the hero's CPU fallback
 //!   fxtex    also draw generated-texture effects (drop shadows, additive glow sprites, brushed noise) over the panel
@@ -126,8 +129,20 @@ fn main() {
     if val("page").as_deref() == Some("fx") {
         demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
     }
+    demo::demo_routes(&ctl, &mut patch); // eight routings, so rings, live dots and the MATRIX rows are measured
+    if !has("plain") {
+        demo::track7_demo(&ctl, &mut patch); // all four LFOs custom, the Mod Env patched
+    }
+    patch.poly = 8;
     let mut feed = demo::Feed::new(patch);
     feed.attach(ctl.table.params().clone());
+    let voices: usize = val("voices").and_then(|v| v.parse().ok()).unwrap_or(8);
+    if has("notes") && voices > 1 {
+        let chord = [36u8, 43, 48, 52, 55, 60, 64];
+        feed.hold_chord(&chord[..(voices - 1).min(chord.len())]);
+    }
+    let lfo_tab = val("lfo").and_then(|t| ["a", "b", "c", "d", "env"].iter().position(|x| *x == t));
+    let (noise_tab, lib_open) = (has("noise"), has("lib"));
     let (meters, viz, ring) = (feed.meters.clone(), feed.viz.clone(), feed.ring.clone());
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let audio = has("notes").then(|| {
@@ -213,7 +228,18 @@ fn main() {
         },
         GraphicsConfig::default(),
         state,
-        |ctx, _q, _s| rr_ui::theme::apply(ctx),
+        move |ctx, _q, _s| {
+            rr_ui::theme::apply(ctx);
+            if let Some(t) = lfo_tab {
+                gts::editor::modulator::select_tab(ctx, t);
+            }
+            if noise_tab {
+                gts::editor::sub::select_tab(ctx, 1);
+            }
+            if lib_open {
+                gts::editor::modulator::open_library(ctx, true);
+            }
+        },
         move |ctx, queue, st: &mut State| {
             let t0 = Instant::now();
             #[cfg(feature = "zoom-patch")]

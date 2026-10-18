@@ -72,8 +72,15 @@ pub const SRC_AMP: Color32 = Color32::from_rgb(0xff, 0xc9, 0xb0);
 pub const SRC_NOTE: Color32 = Color32::from_rgb(0xc6, 0xe2, 0x5f);
 pub const SRC_CTRL: Color32 = Color32::from_rgb(0x4f, 0xd3, 0xe6);
 pub const SRC_BUS: Color32 = Color32::from_rgb(0xcf, 0xd8, 0xde);
+/// Track 7 modulators (docs/design/MOTION-addendum-track7.md 2): Mod C pink, Mod D yellow and the
+/// Mod Env coral. Colour is never the only channel: the chip carries the glyph C, D and M.
+pub const SRC_C: Color32 = Color32::from_rgb(0xff, 0x8c, 0xd9);
+pub const SRC_D: Color32 = Color32::from_rgb(0xff, 0xd9, 0x00);
+pub const SRC_N: Color32 = Color32::from_rgb(0xff, 0x82, 0x54);
+/// The five modulator colours of the MODULATOR module's tabs: Mod A, B, C, D and Mod Env.
+pub const SRC_MOD: [Color32; 5] = [SRC_A, SRC_B, SRC_C, SRC_D, SRC_N];
 /// Every source colour, one per family.
-pub const SRC_ALL: [Color32; 8] = [SRC_A, SRC_B, SRC_E, SRC_M, SRC_AMP, SRC_NOTE, SRC_CTRL, SRC_BUS];
+pub const SRC_ALL: [Color32; 11] = [SRC_A, SRC_B, SRC_E, SRC_M, SRC_AMP, SRC_NOTE, SRC_CTRL, SRC_BUS, SRC_C, SRC_D, SRC_N];
 
 impl Theme {
     /// Accent at alpha `a` (0..=1).
@@ -248,6 +255,27 @@ mod tests {
             for j in 0..i {
                 let d = delta_e(SRC_ALL[i], SRC_ALL[j]);
                 assert!(d >= 25.0, "families {i} and {j} are only {d:.1} apart");
+            }
+        }
+    }
+
+    /// The five modulator colours (Mod A to D, Mod Env) clear 7:1 on the well, the display and the
+    /// inset, sit at least 25 from every other family and 40 from the accent
+    /// (docs/design/MOTION-addendum-track7.md 2 and 10.5).
+    #[test]
+    fn modulator_colours_meet_the_addendum_gates() {
+        for (i, c) in SRC_MOD.into_iter().enumerate() {
+            for (name, bg) in [("well", T.well), ("display", T.disp_bottom), ("inset", T.inset)] {
+                assert!(contrast(c, bg) >= 7.0, "modulator {i} on {name} is {:.2}:1", contrast(c, bg));
+            }
+            assert!(delta_e(c, T.accent) >= 40.0, "modulator {i} is {:.1} from the accent", delta_e(c, T.accent));
+            for o in SRC_ALL {
+                assert!(o == c || delta_e(c, o) >= 25.0, "modulator {i} is {:.1} from another family", delta_e(c, o));
+            }
+        }
+        for i in 0..SRC_MOD.len() {
+            for j in 0..i {
+                assert!(delta_e(SRC_MOD[i], SRC_MOD[j]) >= 25.0, "modulators {i} and {j} are too close");
             }
         }
     }

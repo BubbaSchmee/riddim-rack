@@ -104,7 +104,7 @@ the plugin. Delete the plugin log first for a clean session.
       `GTS hero: GPU (<renderer> | GL 3.x ...)` per window open; `CPU fallback (<reason>)` means GL was refused.
     - Rings and popups: Osc A Index shows an amber ring while Mod A moves it; dragging any knob shows a
       value popup; the label turns into the value on hover.
-    - Source chips (Mod A, Mod B, Filter Env, Amp Env A / B, MORE popover): hover lights the knobs each
+    - Source chips (Mod A to Mod D, Mod Env; MORE popover with the Filter Env, Amp Env A / B and the rest): hover lights the knobs each
       drives. Drag a chip or a macro handle onto a knob: dashed rings show every valid target, release
       patches at +50 %, Esc cancels; dropping the same source again resets the amount.
     - Rings: drag a ring band up / down to set depth (Shift fine, double-click zero). Right-click a
@@ -124,7 +124,21 @@ the plugin. Delete the plugin log first for a clean session.
       the project remembers the loaded preset after save + reopen. Report which keys Live took first.
     - Keyboard: click a knob and nudge it with the arrow keys. Live may take some keys first, so this is
       best-effort; drag, wheel and double-click are the reliable ways.
-27. Close the editor in the middle of a knob drag (hold the mouse on a knob, close the plugin window
+27. Track 7 editor (modulator, warp, sub and noise, FX chain), with a note playing:
+    - MODULATOR: LFO A tab, double-click the plot to add points, drag points and a segment's diamond; the
+      sound follows while you drag. Close the Set: it must prompt to save. Edit > Undo must show "Matrix Edit"
+      and take back the whole drag (one step per drag, not per frame); Redo returns it. STEP: paint bars,
+      raise Glide; the LIB popover loads a stock shape and the LFO's Curve turns Custom. Save the Set and
+      reopen it: the drawn shapes, the step patterns and the Mod C / Mod D / Mod Env settings are back.
+    - MOD ENV tab: drag the peak, the decay corner (up = sustain) and the release end; patch the chip onto
+      Pitch All via MATRIX for a dive. Drag a tab's dot onto a knob: patches at +50 %.
+    - Oscillators: Pitch has a detent at 0 and shows one decimal; Warp FM / Sync / Bend / PWM with Amt;
+      SUB | NOISE tabs; the new filter types (HP12, Notch, LP24, Formant) draw their curves.
+    - FX page: drag a chip on the chain bar and a module's grip: ghost, dashed gap, new numbers; the
+      sound changes without a click on release; Esc cancels. Edit > Undo takes the reorder back. Phaser and
+      Flanger strips: the notch display and the sweep move; "Fdbk -" flips the feedback sign.
+    - Frame rate with eight voices sounding and all four LFOs on custom shapes: no hitching while dragging a point.
+28. Close the editor in the middle of a knob drag (hold the mouse on a knob, close the plugin window
     from Live's title bar). The host must not keep the parameter in a touched state: Live's automation
     "latch" / parameter lane shows no stuck highlight and the knob moves normally on reopen.
 
@@ -170,3 +184,19 @@ cargo test -p gts --release --test matrix --test modulation --test track7_sound 
 ```
 
 Budgets: full 32-slot matrix ≤ +5 % of a core; extra modulators and warp ≤ +8 % of a core (SPEC Tracks 5 and 7).
+
+## Editor frame gates (run on a quiet machine, medians of three)
+
+The gates of `docs/design/MOTION.md` 11 and `MOTION-addendum-track7.md` 10, with eight voices sounding (a held
+chord plus the riddim pattern), all four LFOs on custom shapes and the Mod Env patched (the examples' default; `-- plain`
+turns the Track 7 content off, `-- voices=1` plays the pattern alone):
+
+```
+cargo run -p gts --release --example frame_bench              # SYNTH; also `-- fx`, `-- matrix`, `-- lfo=env`, `-- shape32`
+cargo run -p gts --release --example plugin_loop -- gts notes tbp [page=fx|page=matrix] [lfo=c]
+```
+
+Pass when: `plugin_loop` shows >= 60 fps mean, p99 interval <= 32 ms, <= 5 % of frames above 20 ms, none above 50 ms;
+`frame_bench` UI + tessellation <= 4.0 ms mean and 8.0 ms p99 and <= 98.6k vertices; the shape editor line of
+`frame_bench` <= 0.3 ms and its glass <= 3.5k vertices. Another job compiling or benchmarking in parallel (or a screensaver)
+spoils `plugin_loop` (vsync stutter, 60 % of frames over 20 ms, or a window that never closes): rerun when the machine is idle.

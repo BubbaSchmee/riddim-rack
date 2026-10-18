@@ -147,3 +147,31 @@ fn filter_curves_have_the_expected_shapes() {
     // AM: flat; res 0 is a clean pass.
     assert!(filter_db(4, 100.0, 1000.0, 0.0).abs() < 1e-3 && filter_db(4, 5000.0, 1000.0, 0.0).abs() < 1e-3);
 }
+
+/// The Track 7 types: HP12, Notch, LP24 and Formant are drawn from the DSP's own laws.
+#[test]
+fn track7_filter_curves_have_the_expected_shapes() {
+    // HP12: the mirror of LP12: nothing below, unity above, a peak with res at the cutoff.
+    assert!(filter_db(5, 20.0, 1000.0, 0.0) < -30.0);
+    assert!(filter_db(5, 20000.0, 1000.0, 0.0).abs() < 0.2);
+    assert!(filter_db(5, 1000.0, 1000.0, 0.8) > 6.0);
+    // Notch: unity either side, a deep notch at the cutoff that deepens as res falls.
+    assert!(filter_db(6, 20.0, 1000.0, 0.5).abs() < 0.5 && filter_db(6, 20000.0, 1000.0, 0.5).abs() < 0.5);
+    assert!(filter_db(6, 1000.0, 1000.0, 0.5) < -20.0);
+    // LP24: a 4th-order Butterworth at res 0 (-3 dB at the cutoff, 24 dB per octave), a peak with res up.
+    assert!(filter_db(7, 20.0, 1000.0, 0.0).abs() < 0.1);
+    assert!((filter_db(7, 1000.0, 1000.0, 0.0) + 3.0).abs() < 0.3, "{}", filter_db(7, 1000.0, 1000.0, 0.0));
+    let (a, b) = (filter_db(7, 2000.0, 1000.0, 0.0), filter_db(7, 4000.0, 1000.0, 0.0));
+    assert!(a - b > 20.0 && a - b < 26.0, "an octave costs about 24 dB: {}", a - b);
+    assert!(filter_db(7, 1000.0, 1000.0, 0.8) > filter_db(7, 1000.0, 1000.0, 0.0) + 6.0);
+    // Formant: the cutoff picks the vowel; the response peaks at the vowel's formants (the first one at
+    // twice its table amplitude, +6 dB) and falls between them.
+    let f1 = gts::dsp::filter::formants(gts::dsp::filter::formant_pos(20.0))[0] as f32;
+    let peak = filter_db(8, f1, 20.0, 0.5);
+    assert!((peak - 6.0).abs() < 1.5, "the first formant peaks near +6 dB: {peak}");
+    assert!(peak > filter_db(8, f1 * 0.4, 20.0, 0.5) + 10.0 && peak > filter_db(8, 20000.0, 20.0, 0.5) + 20.0);
+    // A different cutoff, a different vowel: the peak moves.
+    let f1u = gts::dsp::filter::formants(gts::dsp::filter::formant_pos(20000.0))[0] as f32;
+    assert!((f1 - f1u).abs() > 50.0);
+    assert!(filter_db(8, f1u, 20000.0, 0.5) > filter_db(8, f1, 20000.0, 0.5) + 6.0);
+}

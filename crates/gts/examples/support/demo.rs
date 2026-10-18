@@ -76,7 +76,8 @@ impl Ctl for MapCtl {
     }
     fn current_preset(&self) -> Option<Preset> {
         let m = self.table.matrix().get();
-        Some(Preset { patch: self.base.get(), matrix: m.slots.clone(), macros: m.macros.to_vec(), ..Preset::default() })
+        let p = self.table.params();
+        Some(Preset { patch: self.base.get(), matrix: m.slots.clone(), macros: m.macros.to_vec(), lfo_shapes: p.lfo_shapes.get(), fx_order: p.fx_order.get(), ..Preset::default() })
     }
 }
 
@@ -99,16 +100,76 @@ pub fn fixture_library(user: usize) -> gts::library::Library {
     lib
 }
 
-/// The FX page shots and benchmarks show the chain working: Distortion, Multiband, EQ, Dimension,
-/// Delay and Reverb on, in the real engine's patch and on the toggles.
+/// The FX page shots and benchmarks show the chain working: Distortion, Multiband, EQ, Phaser,
+/// Flanger, Dimension, Delay and Reverb on, in the real engine's patch and on the toggles.
 pub fn fx_on(ctl: &MapCtl, patch: &mut Patch) {
     let f = &mut patch.fx;
-    for b in [&mut f.dist.on, &mut f.mb.on, &mut f.eq.on, &mut f.dim.on, &mut f.dly.on, &mut f.rev.on] {
+    for b in [&mut f.dist.on, &mut f.mb.on, &mut f.eq.on, &mut f.phs.on, &mut f.flg.on, &mut f.dim.on, &mut f.dly.on, &mut f.rev.on] {
         *b = true;
     }
-    for id in ["dist_on", "mb_on", "eq_on", "dim_on", "dly_on", "rev_on"] {
+    for id in ["dist_on", "mb_on", "eq_on", "phs_on", "flg_on", "dim_on", "dly_on", "rev_on"] {
         ctl.vals.borrow_mut().insert(id.to_string(), 1.0);
     }
+}
+
+/// A plain value on the knob (the editor's side only; the engine reads the `Patch`).
+pub fn set(ctl: &MapCtl, id: &str, plain: f32) {
+    let v = ctl.table.norm(id, plain);
+    ctl.vals.borrow_mut().insert(id.to_string(), v);
+}
+
+/// Track 7 on show: all four LFOs on custom shapes (stock shapes, a step pattern on Mod C), the mod
+/// envelope shaped and patched to Pitch All for a dive, Mod C and Mod D patched too, the noise layer
+/// and the sub triangle on, Osc A on FM warp: the editor shots and the frame gates show the new
+/// modulators, displays and rings working. The shapes reach the engine through `Feed::attach`.
+pub fn track7_demo(ctl: &MapCtl, patch: &mut Patch) {
+    use gts::dsp::shape::library;
+    use gts::matrix::Source::*;
+    use gts::params::{Curve, SubShape, WarpMode};
+    let lib = library();
+    let pick = |n: &str| lib.iter().find(|(m, _)| *m == n).map(|(_, d)| d.clone()).expect("stock shape");
+    ctl.table.matrix().edit_shapes(|s| {
+        s.0[0] = pick("Call and Response");
+        s.0[1] = pick("Pump");
+        s.0[2] = pick("Riddim Gate 2");
+        s.0[3] = pick("Bounce");
+    });
+    for (i, id) in ["moda_curve", "modb_curve", "modc_curve", "modd_curve"].into_iter().enumerate() {
+        ctl.vals.borrow_mut().insert(id.to_string(), 1.0);
+        let m = match i {
+            0 => &mut patch.moda,
+            1 => &mut patch.modb,
+            2 => &mut patch.modc,
+            _ => &mut patch.modd,
+        };
+        m.curve = Curve::Custom;
+    }
+    patch.modc.sync = true;
+    patch.modd.sync = true;
+    for id in ["modc_sync", "modd_sync"] {
+        ctl.vals.borrow_mut().insert(id.to_string(), 1.0);
+    }
+    (patch.menv_att, patch.menv_dec, patch.menv_sus, patch.menv_rel) = (0.012, 0.26, 0.55, 0.38);
+    for (id, v) in [("menv_att", 0.012), ("menv_dec", 0.26), ("menv_sus", 0.55), ("menv_rel", 0.38)] {
+        set(ctl, id, v);
+    }
+    patch.noise_level_db = -24.0;
+    patch.noise_type = gts::params::NoiseType::Pink;
+    set(ctl, "noise_level", -24.0);
+    ctl.vals.borrow_mut().insert("noise_type".into(), 0.5);
+    patch.sub_shape = SubShape::Triangle;
+    ctl.vals.borrow_mut().insert("sub_shape".into(), 1.0);
+    patch.osc[0].warp = WarpMode::Fm;
+    patch.osc[0].warp_amt = 0.35;
+    ctl.vals.borrow_mut().insert("osca_warp_mode".into(), 1.0 / 5.0);
+    set(ctl, "osca_warp_amt", 0.35);
+    ctl.table.matrix().edit(|m| {
+        for (s, t, a) in [(ModEnv, "pitch_all", 0.15), (ModEnv, "osca_pitch", 0.1), (ModC, "filta_freq", 0.3), (ModD, "dist_drive", 0.25), (ModA, "oscb_vol", 0.2)] {
+            if m.find(s, t).is_none() && m.slots.len() < gts::matrix::MAX_SLOTS {
+                m.slots.push(gts::matrix::Slot::new(s, t, a));
+            }
+        }
+    });
 }
 
 /// Eight routings on top of whatever the preset has, on varied sources and targets, and two macros
@@ -159,10 +220,13 @@ pub struct Feed {
     sr: f32,
     clock: u64,
     held: Option<u8>,
-    /// The params whose matrix the engine follows (see [`Feed::attach`]), and the version seen.
+    /// The params whose matrix, custom shapes and FX order the engine follows (see [`Feed::attach`]),
+    /// and the versions seen.
     matrix: Option<Arc<GtsParams>>,
     seen: u32,
     rec: [f32; ENC_LEN],
+    shapes_seen: u32,
+    shapes_rec: [f32; gts::dsp::shape::SHAPES_ENC],
 }
 
 impl Feed {
@@ -171,7 +235,7 @@ impl Feed {
         engine.initialize(44100.0);
         engine.set_patch(&patch);
         let (writer, viz, ring) = VizWriter::new();
-        Self { engine, params: GtsParams::default(), patch, writer, meters: Arc::new(Meters::default()), viz, ring, sr: 44100.0, clock: 0, held: None, matrix: None, seen: u32::MAX, rec: [0.0; ENC_LEN] }
+        Self { engine, params: GtsParams::default(), patch, writer, meters: Arc::new(Meters::default()), viz, ring, sr: 44100.0, clock: 0, held: None, matrix: None, seen: u32::MAX, rec: [0.0; ENC_LEN], shapes_seen: u32::MAX, shapes_rec: [0.0; gts::dsp::shape::SHAPES_ENC] }
     }
 
     /// Plays through the matrix of `params` (the editor's `ParamTable::params`): a preset load or a
@@ -186,6 +250,10 @@ impl Feed {
             if p.matrix.poll(&mut self.seen, &mut self.rec) {
                 self.engine.set_matrix(&self.rec);
             }
+            if p.lfo_shapes.poll(&mut self.shapes_seen, &mut self.shapes_rec) {
+                self.engine.set_lfo_shapes(&self.shapes_rec);
+            }
+            self.engine.set_fx_order(p.fx_order.get());
         }
         let step_len = (STEP_S * self.sr as f64) as u64;
         let gate_len = step_len * 7 / 10;
@@ -216,6 +284,14 @@ impl Feed {
             self.writer.publish(&self.engine, &self.params, &self.patch, self.sr, &fx);
             self.clock += block as u64;
             n -= block;
+        }
+    }
+
+    /// Holds a chord of `notes` (velocity 0.8) for the rest of the run: with the riddim pattern on top,
+    /// the frame gates measure eight voices sounding.
+    pub fn hold_chord(&mut self, notes: &[u8]) {
+        for &n in notes {
+            self.engine.note_on(n, 0.8);
         }
     }
 

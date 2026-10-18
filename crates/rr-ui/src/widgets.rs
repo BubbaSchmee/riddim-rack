@@ -22,16 +22,54 @@ pub fn group<R>(ui: &mut Ui, title: &str, body: impl FnOnce(&mut Ui) -> R) -> R 
 /// hairline fills the space between the title and the header controls.
 pub fn group_ext<R>(ui: &mut Ui, size: Vec2, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
     let y = ui.cursor().min.y;
-    crate::motion::with_page_fx(ui, y, |ui| group_impl(ui, size, title, GROUP_HEADER_GAP, header, body))
+    crate::motion::with_page_fx(ui, y, |ui| group_impl(ui, size, title, 0.0, GROUP_HEADER_GAP, header, body))
 }
 
 /// v2 panel group (MOTION.md 2): exactly `rect`, title row 24 at y + 8, body from y + 34.
 pub fn group_at<R>(ui: &mut Ui, rect: Rect, title: &str, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
     let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)));
-    crate::motion::with_page_fx(&mut child, rect.top(), |ui| group_impl(ui, rect.size(), title, 2.0, header, body))
+    crate::motion::with_page_fx(&mut child, rect.top(), |ui| group_impl(ui, rect.size(), title, 0.0, 2.0, header, body))
 }
 
-fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
+/// [`group_at`] whose engraved title starts `indent` px further right: room for a drag grip and an
+/// order badge the caller paints in the title row (the FX modules, MOTION-addendum-track7.md 6).
+pub fn group_at_indent<R>(ui: &mut Ui, rect: Rect, title: &str, indent: f32, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
+    let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)));
+    crate::motion::with_page_fx(&mut child, rect.top(), |ui| group_impl(ui, rect.size(), title, indent, 2.0, header, body))
+}
+
+/// A bare well of exactly `rect` (the group's depth, light and shadow, no title row): for modules
+/// that draw their own header, like the MODULATOR with its tab strip. `add` paints and lays out
+/// inside it (it gets the well's rect).
+pub fn well_at<R>(ui: &mut Ui, rect: Rect, add: impl FnOnce(&mut Ui, Rect) -> R) -> R {
+    let mut child = ui.new_child(UiBuilder::new().max_rect(rect).layout(Layout::top_down(Align::Min)));
+    crate::motion::with_page_fx(&mut child, rect.top(), |ui| {
+        let p = ui.painter().clone();
+        let hi_idx = p.add(Shape::Noop);
+        let bg_idx = p.add(Shape::Noop);
+        let out = add(ui, rect);
+        finish_well(ui, &p, rect, hi_idx, bg_idx);
+        out
+    })
+}
+
+fn finish_well(ui: &mut Ui, p: &egui::Painter, rect: Rect, hi_idx: egui::layers::ShapeIdx, bg_idx: egui::layers::ShapeIdx) {
+    let (_, page_dy) = crate::motion::page_fx(ui.ctx(), rect.top());
+    crate::fx::add_shadow(ui.ctx(), rect.translate(vec2(0.0, page_dy)), ui.opacity());
+    p.set(hi_idx, Shape::rect_filled(rect.translate(vec2(0.0, 1.0)), GROUP_R, T.hi()));
+    p.set(
+        bg_idx,
+        Shape::Vec(vec![
+            Shape::rect_filled(rect, GROUP_R, T.well),
+            // Light from above: white 2.2 % fading out over the top 36 % (MOTION.md 6.3).
+            paint::vgradient_shape(Rect::from_min_size(rect.min + vec2(1.0, 1.0), vec2(rect.width() - 2.0, rect.height() * 0.36)), Color32::WHITE.gamma_multiply(0.022), Color32::TRANSPARENT),
+            Shape::line_segment([rect.left_top() + vec2(GROUP_R, 0.5), rect.right_top() + vec2(-GROUP_R, 0.5)], paint::hair(p, T.lo())),
+        ]),
+    );
+    ui.allocate_rect(rect, Sense::hover());
+}
+
+fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, indent: f32, header_gap: f32, header: impl FnOnce(&mut Ui), body: impl FnOnce(&mut Ui) -> R) -> R {
     let w = if size.x > 0.0 { size.x } else { ui.available_width() };
     let origin = ui.cursor().min;
     let p = ui.painter().clone();
@@ -45,7 +83,7 @@ fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: 
     // Engraved title: shadow above, highlight below, then the title colour.
     let title_up = title.to_uppercase();
     let f = font::strong(11.0);
-    let at = header_rect.left_center();
+    let at = header_rect.left_center() + vec2(indent, 0.0);
     paint::tracked(&p, at + vec2(0.0, -1.0), Align2::LEFT_CENTER, &title_up, f.clone(), Color32::BLACK.gamma_multiply(0.4), 1.4);
     paint::tracked(&p, at + vec2(0.0, 1.0), Align2::LEFT_CENTER, &title_up, f.clone(), T.hi(), 1.4);
     let title_rect = paint::tracked(&p, at, Align2::LEFT_CENTER, &title_up, f, T.title, 1.4);
@@ -79,19 +117,7 @@ fn group_impl<R>(ui: &mut Ui, size: Vec2, title: &str, header_gap: f32, header: 
         });
     }
 
-    let (_, page_dy) = crate::motion::page_fx(ui.ctx(), origin.y);
-    crate::fx::add_shadow(ui.ctx(), rect.translate(vec2(0.0, page_dy)), ui.opacity());
-    p.set(hi_idx, Shape::rect_filled(rect.translate(vec2(0.0, 1.0)), GROUP_R, T.hi()));
-    p.set(
-        bg_idx,
-        Shape::Vec(vec![
-            Shape::rect_filled(rect, GROUP_R, T.well),
-            // Light from above: white 2.2 % fading out over the top 36 % (MOTION.md 6.3).
-            paint::vgradient_shape(Rect::from_min_size(rect.min + vec2(1.0, 1.0), vec2(rect.width() - 2.0, rect.height() * 0.36)), Color32::WHITE.gamma_multiply(0.022), Color32::TRANSPARENT),
-            Shape::line_segment([rect.left_top() + vec2(GROUP_R, 0.5), rect.right_top() + vec2(-GROUP_R, 0.5)], paint::hair(&p, T.lo())),
-        ]),
-    );
-    ui.allocate_rect(rect, Sense::hover());
+    finish_well(ui, &p, rect, hi_idx, bg_idx);
     out
 }
 
@@ -399,7 +425,7 @@ pub fn knob_fn(ui: &mut Ui, label: &str, value01: f32, default01: f32, readout: 
 
 /// Value popup (MOTION.md 5.7): a pill above the knob, `#0b0f11` with an accent hairline, 12 px
 /// mono, a notch pointing at the dial. Drawn in its own foreground layer so nothing covers it.
-fn value_popup(ctx: &egui::Context, top_of_dial: egui::Pos2, text: &str, k: f32) {
+pub fn value_popup(ctx: &egui::Context, top_of_dial: egui::Pos2, text: &str, k: f32) {
     let lp = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("rr-knob-popup")));
     let f = font::mono(12.0);
     let (w, h) = (paint::text_width(&lp, &f, text, 0.0) + 18.0, 20.0);
@@ -502,11 +528,15 @@ fn ring_band(centre: egui::Pos2, d: f32, n: usize, p: egui::Pos2) -> Option<usiz
     (k < n || (k == n && dist < first + n as f32 * RING_PITCH + 1.5)).then_some(k.min(n - 1))
 }
 
+/// Activity bar of a source chip: gap after the name and width (five modulator chips share a 568 px row).
+const CHIP_BAR_GAP: f32 = 6.0;
+const CHIP_BAR_W: f32 = 18.0;
+
 /// Width of a [`source_chip`] whose name is `name`: glyph disc, caps name and, with `bar`, the
 /// 22 px activity bar.
 pub fn chip_width(p: &egui::Painter, name: &str, bar: bool) -> f32 {
     let tw = paint::text_width(p, &font::strong(11.0), &name.to_uppercase(), 0.5);
-    (10.0 + 12.0 + tw + 7.0 + if bar { 8.0 + 22.0 } else { 0.0 }).ceil()
+    (10.0 + 12.0 + tw + 7.0 + if bar { CHIP_BAR_GAP + CHIP_BAR_W } else { 0.0 }).ceil()
 }
 
 /// Source chip (MOTION.md 5.6): 20 px pill, `inset` fill, 1 px stroke of the source colour at 35 %
@@ -537,9 +567,9 @@ pub fn paint_chip(p: &egui::Painter, rect: Rect, glyph: &str, name: &str, color:
     p.text(gc, Align2::CENTER_CENTER, glyph, font::strong(10.0), Color32::from_rgb(0x10, 0x14, 0x16));
     let tr = paint::tracked(p, pos2(gc.x + 12.0, rect.center().y), Align2::LEFT_CENTER, &name.to_uppercase(), font::strong(11.0), T.text, 0.5);
     if let Some(a) = activity01 {
-        let bar = Rect::from_min_size(pos2(tr.right() + 8.0, rect.center().y - 2.0), vec2(22.0, 4.0));
+        let bar = Rect::from_min_size(pos2(tr.right() + CHIP_BAR_GAP, rect.center().y - 2.0), vec2(CHIP_BAR_W, 4.0));
         p.rect_filled(bar, 2.0, Color32::BLACK.gamma_multiply(0.5));
-        let w = 22.0 * a.clamp(0.0, 1.0);
+        let w = CHIP_BAR_W * a.clamp(0.0, 1.0);
         if w > 0.5 {
             p.rect_filled(Rect::from_min_size(bar.min, vec2(w, 4.0)), 2.0, color);
         }

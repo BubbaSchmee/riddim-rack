@@ -1,8 +1,9 @@
 # GTS visual and motion addendum: Track 7 (modulator, warp, sub and noise, FX chain)
 
-Status: design proposal, not built. Extends `MOTION.md` and `DESIGN.md` for `docs/SPEC-v2-quality.md`
+Status: built (SPEC v2 Track 7, UI wave); section 12 lists what the build adds or changes against this proposal. Extends `MOTION.md` and `DESIGN.md` for `docs/SPEC-v2-quality.md`
 Track 7. Everything not named here is unchanged: window 1000 x 832, tokens, durations, easing,
 knob sizes, group padding, painter-only drawing, glow rule, line rule, help bar, reduced motion.
+The built panel is shown by `preview-gts-editor.png` (SYNTH, LFO A), `-mod-steps.png` (LFO C), `-mod-env.png`, `-lib.png`, `-noise.png`, `-fx.png` and `-chain.png` (a chain drag), rendered by `editor_preview` with the engine playing.
 Running reference: `mock-track7.html` (self-contained; `?s=lfoa|lfoc|env|lib|fx|drag`, add `&still=1`
 to freeze). Stills: `mock-track7-1.png` SYNTH with LFO A (riddim gate, playheads), `-2.png` MOD ENV
 tab plus the NOISE tab, `-3.png` FX page with the chain bar, `-4.png` LFO C in step mode, `-5.png`
@@ -338,3 +339,50 @@ instantly, the ghost does not tilt; Group A keeps running at 15 Hz snapshots.
    prefers a single control, drop the LED and widen Trigger by 42 px.
 6. Pitch All has no knob (matrix target only, ring on Osc A/B Pitch and Sub Oct). Say if a knob is wanted
    in the Voice group (which has room for one S cell).
+
+## 12. As built
+
+Code: `crates/gts/src/editor/modulator.rs` (module, tabs, shape editor, envelope editor, library, segment menu),
+`editor/sub.rs` (SUB | NOISE), `editor/chain.rs` (chain bar, grips, badges, the drag), `fxview.rs` (phaser and
+flanger displays, the compact reverb and limiter displays), `rr-ui` (`SRC_C`, `SRC_D`, `SRC_N`, `well_at`,
+`group_at_indent`). Shape edits go through `MatrixShared::edit_shapes` (which calls `ShapesShared::edit`) and the
+order through `MatrixShared::set_fx_order`: both move `matrix_rev` (the Live Set is marked modified), history
+snapshots are whole documents (matrix, shapes, order) and a drag is one undo step (`begin_gesture` /
+`end_gesture`); a preset load is one step for all three (`replace_doc`). The param id `matrix_rev` is unchanged.
+
+What the build changes against the proposal, with the reason:
+
+1. **Mod Env colour** is #ff8254, not #ff7f50: the mock value measures 6.97:1 on the inset and the gate is 7.0.
+   `rr-ui::theme` tests list all five modulator colours (7:1 on well, display and inset, Delta E 25 from every
+   family, 40 from the accent).
+2. **The LIB popover has a CURVES row** above the stock shapes: the nine built-in curves and Custom as icon
+   buttons (the mock has no way to pick Sine or Saw back). The stock list is the engine's fifteen shapes in two
+   columns of eight 24 px rows, so the popover is 336 x 262. Editing a built-in curve in the plot (a drag, a
+   double-click, STEP) turns the LFO Custom first, from the curve sampled into points (Sine 17 points, Triangle 4, the
+   saws 2, Square 4, Decay and Attack 11); the random curves convert to their display pattern.
+3. **The Mod A and Mod B targets** (A, B, Both) had no place in the module; they are two combos in the header of the
+   MATRIX page's "Built-in routes" group ("Mod A moves", "Mod B moves"). The seven route knobs are MATRIX rows only.
+4. **Phaser and Flanger Spread** (`phs_spread`, `flg_spread`) is a 22 px dial in the title row, left of the On
+   switch: the strips of the proposal have no cell for it. The hover line names it and shows the angle.
+5. **The Pitch knob** has a centre detent (0.75 % of the range, the host receives exactly 0 inside it, the drag keeps its
+   own position so it leaves smoothly) and reads one decimal ("+0.0 st"): `params.rs` formats the three pitch params so.
+6. **Step mode** draws the engine's glide (the last `glide` of a step ramps linearly to the next level), not a smoothstep,
+   and the toolbar is LIB 74, STEP 52, SNAP 52, STEPS 46, GLIDE 64 (the sum of the proposal's widths left 62 px).
+7. **Phaser and flanger displays** sweep on time (the free rate, or the division at the host tempo, which the engine
+   now publishes as `gf::TEMPO`): the chain has no live phase telemetry. They show the response and the sweep, not the
+   audio. The Mod C, Mod D and Mod Env playheads read per-voice records added to `viz` (`vf::PH_C`, `PH_D`, `OUT_C`, `OUT_D`,
+   `MENV`, `MENV_STAGE`).
+8. **The 1-SHOT LED and the Trigger combo** are one state: the LED is lit when the one-shot flag is set or the trigger is
+   Envelope; the combo shows Env in either case; picking a mode clears the flag; the LED sets Envelope.
+9. **Filter curves** for the new types are drawn from the DSP's own laws (HP12 and Notch from the SVF, LP24 from the two
+   Butterworth sections with their global feedback, Formant from the three vowel band-passes at the cutoff's vowel; its
+   dot rides the first formant). `editor::filter_db` is covered by `tests/rings.rs`.
+10. **Not built**: the 1.2 degree tilt of the chain ghost (the ghost is lifted and shadowed, not rotated), the in-editor
+    Ctrl+Z (the host undo covers shape and order edits through `matrix_rev`, one step per gesture), the extension of
+    `motion_gl -- aa` with editor crops (acceptance 4: the grid lines and ticks are snapped to physical pixels by the same
+    helper as the other displays, but no GL coverage test covers them yet) and the 15 Hz data snapshots of Reduced
+    motion (deferred since MOTION.md). Built from the motion list: the tab slide and content cross-fade, the library
+    popover and its morph, point grow-in (100 ms) and fade-out (90 ms), the value pill, the chain slide, gap, settle and
+    cancel, and Reduced motion for all of them.
+
+Measured (acceptance section 10), same machine and method as MOTION.md section 10: UI + tessellation per page and the shape editor as in MOTION.md section 10 (all within 4.0 / 8.0 ms, 98.6k vertices, 0.3 ms and 3.5k); `plugin_loop`: SYNTH 61.70 fps mean, p99 interval 30.86 ms, 4.40 % of frames over 20 ms (runs 4.40 / 4.40 / 3.90), frames over 50 ms in the three runs: 0 / 0 / 0; FX 62.00 fps mean, p99 interval 30.78 ms, 3.90 % of frames over 20 ms (runs 3.90 / 3.90 / 3.30), frames over 50 ms in the three runs: 0 / 0 / 0; MATRIX 62.20 fps mean, p99 interval 30.61 ms, 3.50 % of frames over 20 ms (runs 3.50 / 3.20 / 3.70), frames over 50 ms in the three runs: 0 / 0 / 0 (the runs were taken with no other compile or benchmark job on the machine; two earlier sets taken while another job was compiling showed 5 to 7 % of frames over 20 ms and the occasional 50 ms hitch from that job, not from the editor: update() takes 1.1 ms on SYNTH, 1.1 ms on FX and 0.8 ms on MATRIX).

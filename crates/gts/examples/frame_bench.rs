@@ -12,6 +12,11 @@
 //!          files and the factory bank), the list scrolling under the pointer all the while and
 //!          a search typed and cleared now and then (SPEC v2 Track 6 gate: UI + tessellation <= 4 ms mean)
 //!   idle   no notes (the silent-state cost cap, MOTION.md 11 #13)
+//!   plain  skip the Track 7 demo (custom shapes on all four LFOs, the Mod Env patched, noise, warp)
+//!   voices=N  hold a chord so that N voices sound with the riddim pattern (default 8, the gate of
+//!          MOTION-addendum-track7.md 10; 1 = the pattern alone)
+//!   lfo=a|b|c|d|env  the MODULATOR tab (c is a step pattern); noise = the NOISE tab; shape32 = 32 points in LFO A
+//!   chain=<module>  a chain drag of that module in progress (FX page); lib = the library popover open
 //!   cpu    force the hero's CPU fallback (egui shapes) instead of the GL paint callback
 //!
 //! The hero's GL path is a paint callback (0 egui vertices); its GPU cost is measured by
@@ -43,6 +48,8 @@ fn main() {
     let ppp: f32 = args.iter().find_map(|a| a.strip_prefix("ppp=").and_then(|s| s.parse().ok())).unwrap_or(1.0);
     let n: usize = args.iter().find_map(|a| a.strip_prefix("frames=").and_then(|s| s.parse().ok())).unwrap_or(600);
     let (hover, idle, cpu) = (has("hover"), has("idle"), has("cpu"));
+    let arg = |k: &str| args.iter().find_map(|a| a.strip_prefix(k).map(str::to_string));
+    let voices: usize = arg("voices=").and_then(|v| v.parse().ok()).unwrap_or(8);
     let mut tables = Tables::new();
     tables.generate();
     let (key, preset) = demo::factory("Wobble Shot");
@@ -52,8 +59,19 @@ fn main() {
         demo::fx_on(&ctl, &mut patch); // the FX page is measured with its modules running
     }
     demo::demo_routes(&ctl, &mut patch); // eight routings, so rings, live dots and the MATRIX rows are measured
+    if !has("plain") {
+        demo::track7_demo(&ctl, &mut patch); // all four LFOs custom, the Mod Env patched
+    }
+    if has("shape32") {
+        ctl.table.matrix().edit_shapes(|s| s.0[0].points = (0..32).map(|i| [i as f32 / 31.0, if i % 2 == 0 { 0.6 } else { -0.6 }, if i % 3 == 0 { 0.4 } else { 0.0 }]).collect());
+    }
+    patch.poly = 8;
     let mut feed = demo::Feed::new(patch);
     feed.attach(ctl.table.params().clone());
+    if voices > 1 {
+        let chord = [36u8, 43, 48, 52, 55, 60, 64];
+        feed.hold_chord(&chord[..(voices - 1).min(chord.len())]);
+    }
     let mut live = LiveView::new(feed.viz.clone(), Some(feed.ring.clone()));
     live.hero.force_cpu = cpu;
     live.browser.restore(&key);
@@ -80,12 +98,27 @@ fn main() {
     };
     let ctx = egui::Context::default();
     rr_ui::theme::apply(&ctx);
+    if let Some(t) = arg("lfo=").and_then(|t| ["a", "b", "c", "d", "env"].iter().position(|x| *x == t)) {
+        gts::editor::modulator::select_tab(&ctx, t);
+    }
+    if has("noise") {
+        gts::editor::sub::select_tab(&ctx, 1);
+    }
+    if has("lib") {
+        gts::editor::modulator::open_library(&ctx, true);
+    }
     let (w, h) = (WINDOW.0 as f32, WINDOW.1 as f32);
+    let (mut mod_ms, mut mod_verts, mut audio_ms) = (vec![], vec![], vec![]);
+    let glass = gts::editor::modulator::glass().expand(1.0);
     let (mut ui_ms, mut tess_ms, mut total_ms) = (vec![], vec![], vec![]);
     let (mut verts, mut idx, mut prims) = (vec![], 0usize, 0usize);
     for f in 0..n + 30 {
         if !idle {
+            let t = Instant::now();
             feed.render(735);
+            if f >= 30 {
+                audio_ms.push(t.elapsed().as_secs_f64() * 1e3);
+            }
             live.peaks = feed.take_peaks();
         }
         let mut input = RawInput {
@@ -113,6 +146,11 @@ fn main() {
                 _ => {}
             }
         }
+        if let Some(m) = arg("chain=").and_then(|m| m.parse::<usize>().ok()) {
+            // A chain drag in progress: the ghost, the gap and the renumbering (pointer on the bar).
+            gts::editor::chain::debug_hold_drag(&ctx, m);
+            input.events.push(egui::Event::PointerMoved(Pos2::new(500.0, 92.0)));
+        }
         if hover {
             // Pointer sweeping across the panel so hover/animation paths run.
             let x = 100.0 + (f as f32 * 7.0) % 800.0;
@@ -133,9 +171,13 @@ fn main() {
             tess_ms.push((t2 - t1).as_secs_f64() * 1e3);
             total_ms.push((t2 - t0).as_secs_f64() * 1e3);
             let mut v = 0;
+            let mut gv = 0;
             for c in &clipped {
                 if let egui::epaint::Primitive::Mesh(m) = &c.primitive {
                     v += m.vertices.len();
+                    if glass.contains_rect(c.clip_rect) {
+                        gv += m.vertices.len();
+                    }
                     if f == 30 {
                         idx += m.indices.len();
                     }
@@ -145,6 +187,8 @@ fn main() {
                 prims = clipped.len();
             }
             verts.push(v);
+            mod_verts.push(gv as f64);
+            mod_ms.push(gts::editor::modulator::editor_cost_ms(&ctx) as f64);
         }
     }
     println!(
@@ -161,4 +205,9 @@ fn main() {
     let vmax = verts.iter().max().copied().unwrap_or(0);
     let vmean = verts.iter().sum::<usize>() as f64 / verts.len().max(1) as f64;
     println!("mesh per frame: {prims} clipped primitives (first frame), vertices mean {vmean:.0} max {vmax}, {idx} indices (first frame)");
+    stats("shape editor", mod_ms);
+    if !audio_ms.is_empty() {
+        stats("engine 735 smp", audio_ms); // 16.7 ms of audio per frame: above that the engine is slower than real time
+    }
+    println!("shape editor glass vertices: mean {:.0} max {:.0}", mod_verts.iter().sum::<f64>() / mod_verts.len().max(1) as f64, mod_verts.iter().cloned().fold(0.0, f64::max));
 }

@@ -17,14 +17,13 @@ use nih_plug_egui::{create_egui_editor, egui, EguiState};
 use rr_ui::hero::{Hero, HeroInput, FRAMES, POINTS};
 use rr_ui::ring::RingReader;
 use rr_ui::theme::metrics::*;
-use rr_ui::theme::{font, SRC_A, SRC_B, SRC_E, T};
+use rr_ui::theme::{font, SRC_A, SRC_B, SRC_C, SRC_D, SRC_E, SRC_N, T};
 use rr_ui::widgets::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
 use crate::bus::BusLink;
-use crate::dsp::lfo::Lfo;
 use crate::dsp::fx::eq::EqParams;
 use crate::fxview::{self, FxLive};
 use crate::dsp::shaper::Shaper;
@@ -36,7 +35,10 @@ use crate::viz::{gf, vf, Viz, VizFrame, MOD_IDS};
 use egui::{pos2, vec2, Align2, Color32, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 
 pub mod browser;
+pub mod chain;
+pub mod modulator;
 pub mod patching;
+pub mod sub;
 
 pub use browser::{Browser, Pick};
 
@@ -105,6 +107,8 @@ unsafe impl Sync for ParamTable {}
 
 impl ParamTable {
     pub fn new(params: Arc<GtsParams>) -> Self {
+        // Undo snapshots of the matrix cover the custom LFO shapes and the FX order (matrix.rs, Track 7).
+        params.matrix.link(Arc::downgrade(&params));
         let map: HashMap<String, ParamPtr> = params.param_map().into_iter().map(|(id, ptr, _)| (id, ptr)).collect();
         let mut sound_ids: Vec<String> = map.keys().filter(|k| !k.starts_with("cv")).cloned().collect();
         sound_ids.sort();
@@ -141,6 +145,9 @@ impl ParamTable {
         let m = self.matrix().get();
         v.extend_from_slice(&m.encode());
         v.extend(m.macros.iter().map(|l| (l.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) % 1_000_003) as f32));
+        // Track 7: the drawn shapes and the chain order are part of the sound.
+        v.extend_from_slice(&self._keep.lfo_shapes.get().encode());
+        v.extend(self._keep.fx_order.get().0.iter().map(|&m| m as f32));
         v
     }
     /// The sound as it is now as a preset with empty metadata: every sound param, the matrix slots
@@ -162,6 +169,8 @@ impl ParamTable {
         let m = crate::matrix::Matrix::default();
         v.extend_from_slice(&m.encode());
         v.extend(m.macros.iter().map(|l| (l.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619)) % 1_000_003) as f32));
+        v.extend_from_slice(&crate::dsp::shape::LfoShapes::default().encode());
+        v.extend(crate::dsp::fx::FxOrder::default().0.iter().map(|&m| m as f32));
         v
     }
     /// The params this table reads (editors and previews that run an engine share them).
@@ -179,9 +188,12 @@ impl ParamTable {
 /// only. The RR-BUS CV slots, the instance label and the Quality setting are project routing, not
 /// sound: never touched.
 pub fn apply_preset(table: &ParamTable, c: &dyn Ctl, preset: Option<&Preset>) {
-    table._keep.matrix.replace(preset.map_or_else(Default::default, Preset::matrix_state));
-    table._keep.lfo_shapes.replace(preset.map_or_else(Default::default, |p| p.lfo_shapes.clone())); // Track 7 engine wave
-    table._keep.fx_order.replace(preset.map_or_else(Default::default, |p| p.fx_order)); // Track 7 engine wave
+    // The matrix, the custom LFO shapes and the FX order are one change (one host undo step).
+    table._keep.matrix.replace_doc(
+        preset.map_or_else(Default::default, Preset::matrix_state),
+        preset.map_or_else(Default::default, |p| p.lfo_shapes.clone()),
+        preset.map_or_else(Default::default, |p| p.fx_order),
+    );
     let json = preset.and_then(|p| serde_json::from_str::<serde_json::Value>(&p.to_json()).ok());
     let params = json.as_ref().and_then(|j| j.get("params")).and_then(|p| p.as_object());
     for id in &table.sound_ids {
@@ -288,10 +300,13 @@ fn drive(ui: &Ui, c: &dyn Ctl, id: &str, r: KnobResponse, stepped: bool) {
         ui.data_mut(|d| d.insert_temp(key, c.get01(id)));
     }
     let dragging = ui.data(|d| d.get_temp::<f32>(key)).is_some();
+    let detent = has_detent(id);
     if let Some(n) = r.changed {
         if dragging {
-            c.set01(id, n);
-            if stepped {
+            // A detent at the centre: the host gets exactly 0 inside the window, the drag keeps its own
+            // unsnapped position (like a stepped param) so it can leave the detent smoothly.
+            c.set01(id, if detent && (n - 0.5).abs() < DETENT { 0.5 } else { n });
+            if stepped || detent {
                 ui.data_mut(|d| d.insert_temp(key, n));
             }
         } else {
@@ -331,6 +346,12 @@ fn glyph_of(col: Color32) -> &'static str {
         "A"
     } else if col == SRC_B {
         "B"
+    } else if col == SRC_C {
+        "C"
+    } else if col == SRC_D {
+        "D"
+    } else if col == SRC_N {
+        "M"
     } else {
         "E"
     }
@@ -343,11 +364,18 @@ fn glide_id() -> Id {
 const PRESET_GLIDE: f32 = 0.25;
 const PRESET_GLIDE_WINDOW: f64 = 0.4;
 
+/// The Pitch knobs have a centre detent at 0 st (MOTION-addendum-track7.md 4), 0.75 % of the range wide.
+const DETENT: f32 = 0.0075;
+
+fn has_detent(id: &str) -> bool {
+    matches!(id, "osca_pitch" | "oscb_pitch")
+}
+
 fn kn(ui: &mut Ui, c: &dyn Ctl, id: &str, label: &str, mut style: KnobStyle) {
     let steps = c.steps(id);
     let stepped = steps.is_some();
     style.steps = steps;
-    let shown = if stepped {
+    let shown = if stepped || has_detent(id) {
         ui.data(|d| d.get_temp::<f32>(Id::new(("gts-drag", id)))).unwrap_or_else(|| c.get01(id))
     } else {
         // Preset load: the audio side switches at once (its own smoothers make that click-free),
@@ -1223,38 +1251,6 @@ fn playhead(p: &egui::Painter, inner: Rect, at: Pos2, col: Color32, alpha: f32) 
     p.circle_filled(at, 2.4, Color32::WHITE.gamma_multiply(alpha));
 }
 
-/// Mod A / Mod B shape display (MOTION.md 5.3): the curve in the source colour (one cycle for a
-/// one-shot, else two), one playhead per active voice from its LFO phase.
-fn lfo_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, f: &VizFrame, which: usize) {
-    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-    let p = ui.painter();
-    rr_ui::scope::small_glass(p, rect);
-    let pre = if which == 0 { "moda" } else { "modb" };
-    let col = if which == 0 { SRC_A } else { SRC_B };
-    let curve = Curve::from_index(enum_idx::<Curve>(c, &format!("{pre}_curve")));
-    let oneshot = c.get01(&format!("{pre}_oneshot")) > 0.5;
-    let uni = matches!(curve, Curve::Decay | Curve::Attack);
-    let inner = rect.shrink(8.0);
-    let cycles = if oneshot { 1.0 } else { 2.0 };
-    let y_of = |v: f32| if uni { inner.bottom() - v * inner.height() } else { inner.center().y - v * inner.height() / 2.0 };
-    let px = 1.0 / p.ctx().pixels_per_point();
-    let base = if uni { inner.bottom() } else { inner.center().y };
-    p.hline(inner.x_range(), (base / px).round() * px, Stroke::new(px, Color32::WHITE.gamma_multiply(0.12)));
-    let pts: Vec<Pos2> = (0..=96)
-        .map(|i| {
-            let x = i as f32 / 96.0;
-            pos2(inner.left() + x * inner.width(), y_of(Lfo::curve_at(curve, ((x * cycles) % 1.0 + if x >= 1.0 { 1.0 } else { 0.0 }).min(1.0) as f64)))
-        })
-        .collect();
-    rr_ui::scope::glow_line(p, pts, 1.5, col);
-    for (v, a) in playhead_voices(f) {
-        let ph = f.voice(v, if which == 0 { vf::PH_A } else { vf::PH_B }).max(0.0);
-        let x = if oneshot { ph.min(1.0) } else { (ph % cycles) / cycles };
-        let y = y_of(f.voice(v, if which == 0 { vf::OUT_A } else { vf::OUT_B }));
-        playhead(p, inner, pos2(inner.left() + x * inner.width(), y), col, a);
-    }
-}
-
 /// ADSR display (MOTION.md 5.3): segment widths from sqrt(time + 0.02) (normalized knob values
 /// stand in for time), a notional sustain of half the width, one playhead per active voice.
 fn adsr_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, pre: &str, f: &VizFrame, stage_k: usize, level_k: usize, col: Color32) {
@@ -1296,10 +1292,11 @@ fn adsr_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, pre: &str, f: &VizFrame, s
     }
 }
 
-/// Magnitude in dB of filter type `ty` (index into [`FilterType`]: LP12, BP12, Comb+, Comb-, AM)
-/// at `f` Hz for cutoff `f0` and resonance `res` (0..1), from the same coefficient laws the DSP uses
-/// (`dsp::filter`): the SVF damping `k`, the comb mix / feedback, the AM dry level. Analog-style
-/// magnitudes: no warping near Nyquist, good enough for a 78 px display.
+/// Magnitude in dB of filter type `ty` (index into [`FilterType`]: LP12, BP12, Comb+, Comb-, AM, HP12,
+/// Notch, LP24, Formant) at `f` Hz for cutoff `f0` and resonance `res` (0..1), from the same coefficient
+/// laws the DSP uses (`dsp::filter`): the SVF damping `k`, the comb mix / feedback, the AM dry level,
+/// the two Butterworth sections of the LP24 with their global feedback, the three vowel formants (the
+/// cutoff picks the vowel). Analog-style magnitudes: no warping near Nyquist, good enough for a display.
 pub fn filter_db(ty: usize, f: f32, f0: f32, res: f32) -> f32 {
     let x = f / f0.max(1.0);
     let k = ((std::f32::consts::SQRT_2 + 0.05) * (1.0 - res).powf(1.2) - 0.05).max(0.04);
@@ -1307,6 +1304,42 @@ pub fn filter_db(ty: usize, f: f32, f0: f32, res: f32) -> f32 {
     let mag = match ty {
         0 => 1.0 / den,
         1 => k.max(1.0) * x / den,
+        5 => x * x / den,
+        6 => (1.0 - x * x).abs() / den,
+        7 => {
+            // Two sections 1 / (1 - x^2 + j k x), k = 1.848 and 0.765 (Butterworth-4), the output
+            // fed back by kf = 1.04 sqrt2 res around both: y / x = (1 + kf) H / (1 + kf H).
+            let sec = |k: f32| {
+                let (re, im) = (1.0 - x * x, k * x);
+                let d = (re * re + im * im).max(1e-8);
+                (re / d, -im / d)
+            };
+            let (a, b) = (sec(1.847_759), sec(0.765_367));
+            let h = (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0);
+            let kf = 1.04 * std::f32::consts::SQRT_2 * res;
+            let (nr, ni) = ((1.0 + kf) * h.0, (1.0 + kf) * h.1);
+            let (dr, di) = (1.0 + kf * h.0, kf * h.1);
+            ((nr * nr + ni * ni) / (dr * dr + di * di).max(1e-8)).sqrt()
+        }
+        8 => {
+            // Three unity-peak band-passes on the vowel formants, gains 2 x (1, 0.6, 0.35).
+            use crate::dsp::filter::{formant_bw, formant_pos, formants, FORMANT_GAIN};
+            let fk = formants(formant_pos(f0 as f64));
+            let bw = formant_bw(res as f64);
+            let (mut sr, mut si) = (0.0f32, 0.0f32);
+            for j in 0..3 {
+                let (fc, q) = (fk[j] as f32, (fk[j] / bw[j]) as f32);
+                let xj = f / fc;
+                let (re, im) = (1.0 - xj * xj, xj / q);
+                let d = (re * re + im * im).max(1e-8);
+                // sa * j x / (1 - x^2 + j x / q)  with sa = gain * amp / q
+                let amp = [1.0f32, 0.6, 0.35][j] * FORMANT_GAIN as f32 / q;
+                // j x (re - j im') / d, with im' = x / q: real part xj * im', imag part xj * re
+                sr += amp * xj * im / d;
+                si += amp * xj * re / d;
+            }
+            (sr * sr + si * si).sqrt()
+        }
         2 => {
             let m = res * 0.5;
             ((1.0 - m).powi(2) + m * m + 2.0 * (1.0 - m) * m * (std::f32::consts::TAU * x).cos()).max(0.0).sqrt()
@@ -1346,11 +1379,15 @@ fn filter_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, f: &VizFrame, pre: &str)
     }
     let n = (inner.width() as usize).max(24);
     let comb = matches!(ty, 2 | 3);
+    let formant = ty == 8;
     let curve = |f0: f32| -> Vec<Pos2> {
         (0..=n)
             .map(|i| {
                 let fr = |t: f32| 20.0 * 1000f32.powf(t);
-                let db = if comb {
+                let db = if formant {
+                    // Narrow peaks: the loudest of four samples per column keeps them from aliasing away.
+                    (0..4).map(|s| filter_db(ty, fr((i as f32 - 0.5 + (s as f32 + 0.5) / 4.0) / n as f32), f0, res)).fold(-120.0, f32::max)
+                } else if comb {
                     // Mean power across the column, so dense teeth read as a level instead of aliasing.
                     let m: f32 = (0..4).map(|s| 10f32.powf(filter_db(ty, fr((i as f32 - 0.5 + (s as f32 + 0.5) / 4.0) / n as f32), f0, res) / 10.0)).sum::<f32>() / 4.0;
                     10.0 * m.max(1e-6).log10()
@@ -1385,14 +1422,34 @@ fn filter_display(ui: &mut Ui, size: Vec2, c: &dyn Ctl, f: &VizFrame, pre: &str)
             p.line_segment([pos2(x, inner.bottom()), pos2(x, top)], Stroke::new(1.5_f32, T.accent.gamma_multiply(0.7)));
         }
     }
-    let dot_db = if ty == 4 { 20.0 * (1.0 - res).max(0.03).log10() } else { filter_db(ty, live_hz, live_hz, res) };
-    let dot = pos2(x_of(live_hz), y_of(dot_db));
+    // The dot rides the curve at the cutoff; the formant filter has no cutoff, its dot sits on the first formant.
+    let f1 = |hz: f32| crate::dsp::filter::formants(crate::dsp::filter::formant_pos(hz as f64))[0] as f32;
+    let (dot_hz, base_mark) = if formant { (f1(live_hz), f1(base_hz)) } else { (live_hz, base_hz) };
+    let dot_db = if ty == 4 { 20.0 * (1.0 - res).max(0.03).log10() } else if formant { filter_db(ty, dot_hz, live_hz, res) } else { filter_db(ty, live_hz, live_hz, res) };
+    let dot = pos2(x_of(dot_hz), y_of(dot_db));
     let col = if env_on { SRC_E } else { SRC_B };
     rr_ui::fx::glow(p, dot, 9.0, col, 0.4);
     p.circle_filled(dot, 3.2, Color32::BLACK.gamma_multiply(0.7));
     p.circle_filled(dot, 2.2, col);
-    let tx = snap(x_of(base_hz));
+    let tx = snap(x_of(base_mark));
     p.vline(tx, (rect.bottom() - 6.0)..=(rect.bottom() - 2.0), Stroke::new(px, T.muted));
+}
+
+/// The WARP cell of an oscillator row: label over a 58 x 24 combo (Off, FM, Sync, Bend+, Bend-, PWM);
+/// hovering shows what the selected mode does.
+fn warp_cell(ui: &mut Ui, c: &dyn Ctl, id: &str) {
+    let (cell, _) = ui.allocate_exact_size(vec2(58.0, 56.0), Sense::hover());
+    rr_ui::paint::caps(ui.painter(), pos2(cell.center().x, cell.top() + 7.0), Align2::CENTER_CENTER, "Warp", 11.0, T.muted);
+    let cur = enum_idx::<WarpMode>(c, id);
+    let rows: Vec<modulator::Row> = WarpMode::variants().iter().map(|n| modulator::Row::Item(n)).collect();
+    let r = Rect::from_min_size(cell.min + vec2(0.0, 14.0 + 8.0), vec2(58.0, CONTROL_H));
+    let (pick, hov) = modulator::dropdown(ui, r, id, WarpMode::variants()[cur], modulator::DdStyle::Compact, &rows, Some(cur));
+    if hov {
+        set_hover(ui, &c.name(id).to_uppercase(), WarpMode::variants()[cur], None, crate::help::ui_help(&format!("warp:{cur}")).unwrap_or(""));
+    }
+    if let Some(i) = pick {
+        one_shot(c, id, i as f32 / (WarpMode::variants().len() - 1) as f32);
+    }
 }
 
 fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: &mut BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
@@ -1457,89 +1514,53 @@ fn synth(ui: &mut Ui, c: &dyn Ctl, tables: &Tables, live: &mut LiveView, bv: &mu
     }
     drive(ui, c, &k("index"), hr.index, false);
 
-    // Mod A / Mod B: Curve in the title row; Sync, Div, 1-shot, Target; shape display + knobs.
-    for (i, (title, p, y)) in [("Mod A", "moda", 80.0), ("Mod B", "modb", 214.0)].into_iter().enumerate() {
-        let kk = |s: &str| format!("{p}_{s}");
-        group_at(ui, at(620.0, y, 336.0, 126.0), title, |ui| cb::<Curve>(ui, c, &kk("curve"), ""), |ui| {
-            ui.spacing_mut().item_spacing.y = 4.0;
-            strip(ui, |ui| {
-                tg(ui, c, &kk("sync"), "Sync");
-                dim(ui, is_off(c, &kk("sync")), |ui| cb::<Division>(ui, c, &kk("div"), ""));
-                tg(ui, c, &kk("oneshot"), "1-shot");
-                cb::<Target>(ui, c, &kk("target"), "");
-            });
-            knob_row(ui, |ui| {
-                ui.vertical(|ui| {
-                    ui.add_space(4.0);
-                    lfo_display(ui, vec2(if i == 0 { 96.0 } else { 84.0 }, 50.0), c, &f, i);
-                });
-                ui.add_space(8.0);
-                if i == 0 {
-                    dim(ui, !is_off(c, "moda_sync"), |ui| kn(ui, c, "moda_rate", "Rate", km(52.0)));
-                    kn(ui, c, "moda_pitch", "Pitch", km(52.0).bipolar());
-                    kn(ui, c, "moda_index", "Index", km(52.0).bipolar());
-                    kn(ui, c, "moda_shift", "Shift", km(52.0).bipolar());
-                } else {
-                    dim(ui, !is_off(c, "modb_sync"), |ui| kn(ui, c, "modb_rate", "Rate", km(44.0)));
-                    for (id, l) in [("motion", "Motion"), ("vol", "Vol"), ("cutoff", "Cutoff"), ("moda", "Mod A")] {
-                        kn(ui, c, &kk(id), l, km(44.0).bipolar());
-                    }
-                }
-            });
-        });
-    }
+    // MODULATOR: tabs LFO A to D and MOD ENV, the shape editor and the controls row, in the slot of the
+    // old Mod A and Mod B groups (their route knobs live on the MATRIX page).
+    modulator::modulator(ui, c, &f, ui.input(|i| i.time), at);
 
-    // Oscillators and Sub.
+    // Oscillators: Pitch and Warp, RESET in the title row (MOTION-addendum-track7.md 4).
     for (title, p, x, stage_k, level_k) in [("Osc A", "osca", 44.0, vf::STAGE_A, vf::AMP_A), ("Osc B", "oscb", 456.0, vf::STAGE_B, vf::AMP_B)] {
         let kk = |s: &str| format!("{p}_{s}");
         group_at(ui, at(x, 348.0, 404.0, 222.0), title, |ui| {
             tg(ui, c, &kk("on"), "");
             cb::<Table>(ui, c, &kk("table"), "");
+            tg(ui, c, &kk("phase_reset"), "Reset");
         }, |ui| {
             fade(ui, p == "oscb" && is_off(c, "oscb_on"));
-            ui.spacing_mut().item_spacing.y = 3.0;
+            ui.spacing_mut().item_spacing.y = 2.0;
             knob_row(ui, |ui| {
-                kn(ui, c, &kk("oct"), "Oct", km(54.0).bipolar());
-                kn(ui, c, &kk("semi"), "Semi", km(54.0));
-                kn(ui, c, &kk("cent"), "Cent", km(54.0).bipolar());
-                kn(ui, c, &kk("index"), "Index", kl(56.0));
-                kn(ui, c, &kk("motion"), "Motion", km(54.0).bipolar());
-                kn(ui, c, &kk("shift"), "Shift", km(54.0).bipolar());
-                kn(ui, c, &kk("vol"), "Vol", km(54.0));
+                kn(ui, c, &kk("oct"), "Oct", km(47.5).bipolar());
+                kn(ui, c, &kk("semi"), "Semi", km(47.5));
+                kn(ui, c, &kk("cent"), "Cent", km(47.5).bipolar());
+                kn(ui, c, &kk("pitch"), "Pitch", km(47.5).bipolar());
+                kn(ui, c, &kk("index"), "Index", kl(47.5));
+                kn(ui, c, &kk("motion"), "Motion", km(47.5).bipolar());
+                kn(ui, c, &kk("shift"), "Shift", km(47.5).bipolar());
+                kn(ui, c, &kk("vol"), "Vol", km(47.5));
             });
             knob_row(ui, |ui| {
+                ui.set_min_height(60.0);
                 for (id, l) in [("att", "Att"), ("dec", "Dec"), ("sus", "Sus"), ("rel", "Rel")] {
-                    kn(ui, c, &kk(id), l, km(54.0));
+                    kn(ui, c, &kk(id), l, km(47.5));
                 }
-                kn(ui, c, &kk("curve"), "Curve", km(54.0).bipolar());
-                ui.add_space(8.0);
+                kn(ui, c, &kk("curve"), "Curve", km(47.5).bipolar());
+                ui.add_space(12.5);
                 ui.vertical(|ui| {
-                    ui.add_space(3.0);
-                    adsr_display(ui, vec2(102.0, 50.0), c, p, &f, stage_k, level_k, T.accent);
+                    ui.add_space(6.0);
+                    adsr_display(ui, vec2(130.0, 50.0), c, p, &f, stage_k, level_k, T.accent);
                 });
             });
             knob_row(ui, |ui| {
                 for (id, l) in [("unison", "Unison"), ("detune", "Detune"), ("det_curve", "D.Crv"), ("blend", "Blend"), ("width", "Width"), ("rand_phase", "Rand")] {
-                    kn(ui, c, &kk(id), l, km(50.0));
+                    kn(ui, c, &kk(id), l, km(44.0));
                 }
                 ui.add_space(4.0);
-                ui.vertical(|ui| {
-                    ui.add_space(V2_LABEL_H + (KNOB_D - CONTROL_H) / 2.0);
-                    tg(ui, c, &kk("phase_reset"), "Reset");
-                });
+                warp_cell(ui, c, &kk("warp_mode"));
+                dim(ui, enum_idx::<WarpMode>(c, &kk("warp_mode")) == 0, |ui| kn(ui, c, &kk("warp_amt"), "Amt", km(50.0)));
             });
         });
     }
-    group_at(ui, at(868.0, 348.0, 88.0, 222.0), "Sub", |ui| tg(ui, c, "sub_on", ""), |ui| {
-        ui.spacing_mut().item_spacing.y = 10.0;
-        // Xover is the whole-output mid/side crossover: it stays live with Sub off.
-        ui.scope(|ui| {
-            fade(ui, is_off(c, "sub_on"));
-            kn(ui, c, "sub_level", "Level", km(64.0));
-            kn(ui, c, "sub_oct", "Oct", km(64.0).bipolar());
-        });
-        kn(ui, c, "mono_xover", "Xover", km(64.0));
-    });
+    sub::sub_noise(ui, c, at);
 
     // Filters and the filter envelope.
     for (title, p, x) in [("Filter A", "filta", 44.0), ("Filter B", "filtb", 314.0)] {
@@ -1645,16 +1666,38 @@ fn pv(c: &dyn Ctl, id: &str) -> f32 {
     c.plain(id, c.get01(id))
 }
 
-/// FX page (MOTION.md 2.2): the eight modules in chain order at absolute positions, each with its
-/// on LED in the title bar (the limiter is always on), its compact knobs and a live display.
-/// Rows: y 80 (h 262), 350 (h 164), 522 (h 256), 8 px apart.
+/// The spread dial in the title row of the phaser and the flanger: a small dial (the offset of the right
+/// channel's sweep from the left, 0 to 180 degrees) that shows its value in the help bar.
+fn spread_dial(ui: &mut Ui, c: &dyn Ctl, id: &str) {
+    let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+    let resp = mini_dial(ui, r, id, c.get01(id), c.default01(id), T.accent);
+    if resp.hovered {
+        let value = c.readout_at(id, resp.changed.unwrap_or_else(|| c.get01(id)));
+        ui.data_mut(|d| d.insert_temp(hover_id(), Hover { name: c.name(id).to_uppercase(), id: id.to_string(), value, ..Default::default() }));
+    }
+    drive(ui, c, id, resp, false);
+}
+
+/// A caps label centred over a cell of the FX rows (the 14 px label band of a knob cell).
+fn cell_caption(ui: &Ui, cell: Rect, text: &str) {
+    rr_ui::paint::caps(ui.painter(), pos2(cell.center().x, cell.top() + 7.0), Align2::CENTER_CENTER, text, 11.0, T.muted);
+}
+
+/// FX page (MOTION-addendum-track7.md 6): the chain bar, then the nine reorderable modules at fixed
+/// grid positions (Distortion, Multiband, EQ; Chorus, Phaser, Flanger; Dimension, Delay, Reverb)
+/// with their order badges and grips, then the Limiter strip. Rows: y 80 (bar), 108 (h 262), 378
+/// (h 164), 550 (h 164), 722 (h 56), 8 px apart; the groups end at 778.
 fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
     let f = &live.fx;
     let on = |id: &str| !is_off(c, id);
+    let now = ui.input(|i| i.time);
+    let tempo = live.frame.global(gf::TEMPO);
+    let tempo = if tempo > 1.0 { tempo } else { 120.0 };
+    // The chain bar enters first, as row 0 of the page transition.
+    let v = rr_ui::motion::with_page_fx(ui, 80.0, |ui| chain::bar(ui, c, at));
 
     // ---- Row 1 -------------------------------------------------------------------------------
-    group_at(ui, at(44.0, 80.0, 272.0, 262.0), "Distortion", |ui| tg(ui, c, "dist_on", ""), |ui| {
-        fade(ui, !on("dist_on"));
+    chain::module(ui, c, at, &v, 0, |_| {}, |ui| {
         let o = ui.cursor().min;
         ui.spacing_mut().item_spacing.y = 2.0;
         knob_row(ui, |ui| {
@@ -1680,9 +1723,8 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
         fxview::dist_display(&ui.painter().clone(), r, kind, pv(c, "dist_drive"), pv(c, "dist_bias"), &f.dist_trail, on("dist_on"));
     });
 
-    let g = at(324.0, 80.0, 384.0, 262.0);
-    group_at(ui, g, "Multiband", |ui| tg(ui, c, "mb_on", ""), |ui| {
-        fade(ui, !on("mb_on"));
+    let g = chain::rect_at(at, 1);
+    chain::module(ui, c, at, &v, 1, |_| {}, |ui| {
         let o = ui.cursor().min;
         ui.spacing_mut().item_spacing.y = 14.0;
         let w = km(60.0);
@@ -1710,8 +1752,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
         rr_ui::paint::tracked(&p, pos2(g.center().x, g.bottom() - 14.0), Align2::CENTER_CENTER, "THRESHOLDS PER BAND  \u{b7}  GAIN TRIM  \u{b7}  CROSSOVERS", font::label(11.0), T.muted, 0.8);
     });
 
-    group_at(ui, at(716.0, 80.0, 240.0, 262.0), "EQ", |ui| tg(ui, c, "eq_on", ""), |ui| {
-        fade(ui, !on("eq_on"));
+    chain::module(ui, c, at, &v, 2, |_| {}, |ui| {
         ui.spacing_mut().item_spacing.y = 4.0;
         let ep = EqParams {
             on: true,
@@ -1748,8 +1789,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
     });
 
     // ---- Row 2 -------------------------------------------------------------------------------
-    group_at(ui, at(44.0, 350.0, 340.0, 164.0), "Chorus", |ui| tg(ui, c, "cho_on", ""), |ui| {
-        fade(ui, !on("cho_on"));
+    chain::module(ui, c, at, &v, 4, |_| {}, |ui| {
         let o = ui.cursor().min;
         knob_row(ui, |ui| {
             kn(ui, c, "cho_mix", "Mix", km(52.0));
@@ -1765,11 +1805,73 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
             kn(ui, c, "cho_lpf", "LPF", km(60.0));
             kn(ui, c, "cho_wet_lowcut", "Low Cut", km(60.0));
         });
-        let r = Rect::from_min_size(o + vec2(262.0, 0.0), vec2(54.0, 54.0));
+        let r = Rect::from_min_size(o + vec2(266.0, 2.0), vec2(52.0, 48.0));
         fxview::chorus_display(&ui.painter().clone(), r, pv(c, "cho_voices").round() as usize, f.cho_phase, pv(c, "cho_depth"));
     });
-    group_at(ui, at(392.0, 350.0, 204.0, 164.0), "Dimension", |ui| tg(ui, c, "dim_on", ""), |ui| {
-        fade(ui, !on("dim_on"));
+
+    chain::module(ui, c, at, &v, 3, |ui| spread_dial(ui, c, "phs_spread"), |ui| {
+        let o = ui.cursor().min;
+        knob_row(ui, |ui| {
+            dim(ui, on("phs_sync"), |ui| kn(ui, c, "phs_rate", "Rate", km(50.0)));
+            kn(ui, c, "phs_depth", "Depth", km(50.0));
+            kn(ui, c, "phs_feedback", "Fdbk", km(50.0).bipolar());
+            kn(ui, c, "phs_centre", "Centre", km(50.0));
+            kn(ui, c, "phs_mix", "Mix", km(50.0));
+        });
+        // Row 2: Stages, Sync, Div and the notch display.
+        let y2 = o.y + 60.0;
+        let stages = pv(c, "phs_stages").round().clamp(4.0, 12.0) as usize;
+        let cell = Rect::from_min_size(pos2(o.x, y2), vec2(58.0, 52.0));
+        cell_caption(ui, cell, "Stages");
+        let names: Vec<String> = (4..=12).map(|n| n.to_string()).collect();
+        let rows: Vec<modulator::Row> = names.iter().map(|n| modulator::Row::Item(n)).collect();
+        let (pick, hov) = modulator::dropdown(ui, Rect::from_min_size(cell.min + vec2(0.0, 18.0), vec2(58.0, CONTROL_H)), "phs-stages", &stages.to_string(), modulator::DdStyle::Compact, &rows, Some(stages - 4));
+        if hov {
+            set_hover(ui, &c.name("phs_stages").to_uppercase(), &stages.to_string(), None, crate::help::help("phs_stages").unwrap_or(""));
+        }
+        if let Some(i) = pick {
+            one_shot(c, "phs_stages", c.norm("phs_stages", (i + 4) as f32));
+        }
+        modulator::put(ui, Rect::from_min_size(pos2(o.x + 62.0, y2 + 18.0), vec2(64.0, 24.0)), |ui| tg(ui, c, "phs_sync", "Sync"));
+        let dc = Rect::from_min_size(pos2(o.x + 130.0, y2), vec2(58.0, 52.0));
+        cell_caption(ui, dc, "Div");
+        dim(ui, !on("phs_sync"), |ui| modulator::div_combo(ui, c, "phs_div", Rect::from_min_size(dc.min + vec2(0.0, 18.0), vec2(58.0, CONTROL_H))));
+        let phase = fxview::sweep_phase(now, on("phs_sync"), pv(c, "phs_rate"), crate::dsp::lfo::beats(Division::from_index(enum_idx::<Division>(c, "phs_div"))), tempo);
+        let r = Rect::from_min_size(pos2(o.x + 252.0 - 54.0, y2), vec2(54.0, 52.0));
+        fxview::phaser_display(&ui.painter().clone(), r, stages, pv(c, "phs_centre"), pv(c, "phs_depth"), pv(c, "phs_feedback"), pv(c, "phs_mix"), phase, on("phs_on"));
+    });
+
+    chain::module(ui, c, at, &v, 5, |ui| spread_dial(ui, c, "flg_spread"), |ui| {
+        let o = ui.cursor().min;
+        knob_row(ui, |ui| {
+            dim(ui, on("flg_sync"), |ui| kn(ui, c, "flg_rate", "Rate", km(50.0)));
+            kn(ui, c, "flg_depth", "Depth", km(50.0));
+            kn(ui, c, "flg_delay", "Delay", km(50.0));
+            kn(ui, c, "flg_feedback", "Fdbk", km(50.0).bipolar());
+            kn(ui, c, "flg_mix", "Mix", km(50.0));
+        });
+        let y2 = o.y + 60.0;
+        modulator::put(ui, Rect::from_min_size(pos2(o.x, y2 + 18.0), vec2(64.0, 24.0)), |ui| tg(ui, c, "flg_sync", "Sync"));
+        let dc = Rect::from_min_size(pos2(o.x + 68.0, y2), vec2(58.0, 52.0));
+        cell_caption(ui, dc, "Div");
+        dim(ui, !on("flg_sync"), |ui| modulator::div_combo(ui, c, "flg_div", Rect::from_min_size(dc.min + vec2(0.0, 18.0), vec2(58.0, CONTROL_H))));
+        // "Fdbk -": flips the sign of the feedback (a hollower, flanging comb).
+        let neg = pv(c, "flg_feedback") < 0.0;
+        let tr = Rect::from_min_size(pos2(o.x + 130.0, y2 + 18.0), vec2(62.0, 24.0));
+        let (clicked, hov) = modulator::toggle_at(ui, tr, "flg-fdbk-neg", "Fdbk \u{2212}", neg);
+        if hov {
+            set_hover(ui, "FEEDBACK SIGN", if neg { "negative" } else { "positive" }, None, crate::help::ui_help("flg:fdbkneg").unwrap_or(""));
+        }
+        if clicked {
+            one_shot(c, "flg_feedback", c.norm("flg_feedback", -pv(c, "flg_feedback")).clamp(0.0, 1.0));
+        }
+        let phase = fxview::sweep_phase(now, on("flg_sync"), pv(c, "flg_rate"), crate::dsp::lfo::beats(Division::from_index(enum_idx::<Division>(c, "flg_div"))), tempo);
+        let r = Rect::from_min_size(pos2(o.x + 252.0 - 56.0, y2 + 1.0), vec2(56.0, 50.0));
+        fxview::flanger_display(&ui.painter().clone(), r, pv(c, "flg_delay"), pv(c, "flg_depth"), phase, on("flg_on"));
+    });
+
+    // ---- Row 3 -------------------------------------------------------------------------------
+    chain::module(ui, c, at, &v, 6, |_| {}, |ui| {
         knob_row(ui, |ui| {
             kn(ui, c, "dim_mix", "Mix", km(60.0));
             kn(ui, c, "dim_size", "Size", km(60.0));
@@ -1778,8 +1880,7 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
         let (r, _) = ui.allocate_exact_size(vec2(180.0, 58.0), Sense::hover());
         fxview::dim_display(&ui.painter().clone(), r, &f.dim_l, &f.dim_r);
     });
-    group_at(ui, at(604.0, 350.0, 352.0, 164.0), "Delay", |ui| tg(ui, c, "dly_on", ""), |ui| {
-        fade(ui, !on("dly_on"));
+    chain::module(ui, c, at, &v, 7, |_| {}, |ui| {
         let o = ui.cursor().min;
         knob_row(ui, |ui| {
             kn(ui, c, "dly_mix", "Mix", km(48.0));
@@ -1801,49 +1902,72 @@ fn fx_body(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(
         let flash = |k: usize| f.dly_flash(k as f32 * t);
         fxview::delay_display(&ui.painter().clone(), r, pv(c, "dly_feedback"), pv(c, "dly_mix"), &flash, f.dly_wet_db);
     });
-
-    // ---- Row 3 -------------------------------------------------------------------------------
-    group_at(ui, at(44.0, 522.0, 312.0, 256.0), "Reverb", |ui| tg(ui, c, "rev_on", ""), |ui| {
-        fade(ui, !on("rev_on"));
+    chain::module(ui, c, at, &v, 8, |_| {}, |ui| {
+        let o = ui.cursor().min;
         knob_row(ui, |ui| {
             kn(ui, c, "rev_mix", "Mix", km(52.0));
-            cbv::<ReverbType>(ui, c, "rev_type", "Type");
             kn(ui, c, "rev_size", "Size", km(52.0));
             kn(ui, c, "rev_decay", "Decay", km(52.0));
             kn(ui, c, "rev_damp", "Damp", km(52.0));
+            cbv::<ReverbType>(ui, c, "rev_type", "Type");
         });
         knob_row(ui, |ui| {
-            kn(ui, c, "rev_predelay", "Pre-Dly", km(68.0));
-            kn(ui, c, "rev_lowcut", "Low Cut", km(72.0));
-            kn(ui, c, "rev_hicut", "Hi Cut", km(72.0));
-            kn(ui, c, "rev_width", "Width", km(76.0));
+            kn(ui, c, "rev_predelay", "Pre-Dly", km(52.0));
+            kn(ui, c, "rev_lowcut", "Low Cut", km(52.0));
+            kn(ui, c, "rev_hicut", "Hi Cut", km(52.0));
+            kn(ui, c, "rev_width", "Width", km(52.0));
         });
-        let (r, _) = ui.allocate_exact_size(vec2(288.0, 98.0), Sense::hover());
+        // The decay curve in the empty cell of the second row, 100 x 50.
+        let r = Rect::from_min_size(pos2(o.x + 4.0 * 52.0 + 8.0, o.y + 62.0 + 2.0), vec2(100.0, 50.0));
         let lvl = (on("rev_on") && f.rev_db > -70.0).then_some(f.rev_db - f.rev_ref);
         fxview::reverb_display(&ui.painter().clone(), r, pv(c, "rev_decay"), pv(c, "rev_predelay") * 0.001, f.rev_age, lvl);
     });
-    // The limiter takes the rest of the row: Gain knob, then the gain-reduction meter (0 .. -12 dB)
-    // over the output spectrum.
-    group_at(ui, at(364.0, 522.0, 592.0, 256.0), "Limiter", |_| {}, |ui| {
-        ui.horizontal_top(|ui| {
-            ui.spacing_mut().item_spacing.x = 16.0;
-            kn(ui, c, "lim_gain", "Gain", kl(60.0));
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 8.0;
-                let gr = if bv.gr_db < 0.05 { "0.0 dB".to_string() } else { format!("-{:.1} dB", bv.gr_db) };
-                gr_meter(ui, 492.0, "Gain reduction", bv.gr_db, 12.0, &gr);
-                let (r, _) = ui.allocate_exact_size(vec2(492.0, 117.0), Sense::hover());
-                fxview::limiter_spectrum(&ui.painter().clone(), r, &live.spec, &live.spec_peak);
-                let peak = if bv.peak_db < -90.0 { "-inf dBFS".to_string() } else { format!("{:.1} dBFS", bv.peak_db) };
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("OUTPUT PEAK").font(font::label(11.0)).color(T.muted));
-                    ui.label(egui::RichText::new(peak).font(font::mono(12.0)));
-                });
-            });
-        });
-    });
+    limiter_strip(ui, c, live, bv, at);
 }
 
+/// The Limiter strip (44, 722, 912 x 56): lock and title, Gain, the gain-reduction bar over its 0 to
+/// -12 dB scale, the GR and output-peak readouts, and the output spectrum as a 260 x 44 display.
+fn limiter_strip(ui: &mut Ui, c: &dyn Ctl, live: &LiveView, bv: &BusView, at: &dyn Fn(f32, f32, f32, f32) -> Rect) {
+    let rect = at(44.0, 722.0, 912.0, 56.0);
+    rr_ui::widgets::well_at(ui, rect, |ui, r| {
+        let p = ui.painter().clone();
+        chain::lock(&p, pos2(r.left() + 18.0, r.center().y - 1.0), T.muted);
+        rr_ui::paint::tracked(&p, pos2(r.left() + 30.0, r.center().y), Align2::LEFT_CENTER, "LIMITER", font::strong(11.0), T.title, 1.4);
+        modulator::put(ui, Rect::from_min_size(r.min + vec2(112.0, 4.0), vec2(60.0, 48.0)), |ui| kn(ui, c, "lim_gain", "Gain", ks(60.0)));
+        // Gain-reduction bar: 320 px, instant attack, 0 to -12 dB, a tick and label every 3 dB.
+        let track = Rect::from_min_size(r.min + vec2(190.0, 12.0), vec2(320.0, 18.0));
+        rr_ui::scope::small_glass(&p, track);
+        let inner = track.shrink(3.0);
+        let x_at = |db: f32| inner.left() + inner.width() * (db / 12.0).clamp(0.0, 1.0);
+        let fill_x = x_at(bv.gr_db);
+        if fill_x > inner.left() + 0.5 {
+            rr_ui::paint::hgradient(&p, Rect::from_min_max(inner.min, pos2(fill_x, inner.bottom())), T.accent.gamma_multiply(0.45), T.accent);
+            rr_ui::fx::glow(&p, pos2(fill_x, inner.center().y), 10.0, T.accent, 0.4);
+            p.rect_filled(Rect::from_min_max(pos2(fill_x - 1.0, inner.top()), pos2(fill_x, inner.bottom())), 0.0, Color32::WHITE.gamma_multiply(0.85));
+        }
+        p.text(pos2(track.left(), track.bottom() + 12.0), Align2::LEFT_CENTER, "GR", font::mono(10.0), T.muted);
+        for db in [0.0f32, 3.0, 6.0, 9.0, 12.0] {
+            let x = x_at(db).clamp(track.left() + 1.0, track.right() - 1.0);
+            p.line_segment([pos2(x, track.bottom() + 1.0), pos2(x, track.bottom() + 5.0)], rr_ui::paint::hair(&p, T.muted));
+            if db > 0.0 {
+                p.text(pos2(x, track.bottom() + 12.0), if db >= 12.0 { Align2::RIGHT_CENTER } else { Align2::CENTER_CENTER }, format!("-{db:.0}"), font::mono(10.0), T.muted);
+            }
+        }
+        // Readouts.
+        let gr = if bv.gr_db < 0.05 { "0.0 dB".to_string() } else { format!("-{:.1} dB", bv.gr_db) };
+        let peak = if bv.peak_db < -90.0 { "-inf dBFS".to_string() } else { format!("{:.1} dBFS", bv.peak_db) };
+        for (i, (l, v)) in [("GR", gr), ("PEAK", peak)].into_iter().enumerate() {
+            let y = r.top() + 19.0 + i as f32 * 18.0;
+            rr_ui::paint::tracked(&p, pos2(r.left() + 530.0, y), Align2::LEFT_CENTER, l, font::label(11.0), T.muted, 0.8);
+            p.text(pos2(r.left() + 574.0, y), Align2::LEFT_CENTER, v, font::mono(12.0), T.text);
+        }
+        let sr = Rect::from_min_size(pos2(r.right() - 12.0 - 260.0, r.top() + 6.0), vec2(260.0, 44.0));
+        fxview::limiter_spectrum(&p, sr, &live.spec, &live.spec_peak);
+        if ui.rect_contains_pointer(sr) {
+            set_hover(ui, "OUTPUT", "spectrum", None, crate::help::ui_help("lim:spectrum").unwrap_or(""));
+        }
+    });
+}
 
 fn rd<T: Clone>(l: &RwLock<T>) -> T {
     l.read().unwrap_or_else(PoisonError::into_inner).clone()
@@ -1923,12 +2047,14 @@ pub fn create(params: Arc<GtsParams>, feeds: Feeds, link: Arc<BusLink>, tables: 
     let table = Arc::new(ParamTable::new(params.clone()));
     let open: OpenGestures = Arc::default();
     let (guard_table, guard_open) = (table.clone(), open.clone());
+    let build_params = params.clone();
     let Feeds { meters, viz, scope } = feeds;
     let inner = create_egui_editor(
         EguiState::from_size(WINDOW.0, WINDOW.1),
         EditorState { view: BusView { peak_db: -120.0, ..Default::default() }, live: LiveView::new(viz, Some(scope)), next_refresh: 0.0, snap: vec![], resnap: false, key_seen: String::new(), default_checked: false, gl_logged: false },
-        |ctx, st| {
+        move |ctx, st| {
             rr_ui::theme::apply(ctx);
+            build_params.matrix.end_gesture(); // a shape drag of the last window never outlives it
             st.next_refresh = 0.0; // egui time restarts at 0 on every open
             st.live.reset_clock();
             st.live.browser.set_open(false);
