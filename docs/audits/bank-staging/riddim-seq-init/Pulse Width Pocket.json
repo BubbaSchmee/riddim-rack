@@ -1,0 +1,141 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Pulse Width Pocket",
+  "author": "Riddim Rack",
+  "description": "A swung pulse bass: a hollow pulse whose width narrows and widens in a quarter-note-triplet pocket, with a faster square flicker for bounce, like a wobbling hollow tube over a clean sine sub. Play: long and short F1, G1 and A#1 notes at 140-150 BPM with the transport running; the triplet pocket slides against straight eighths and the pulse stays centred and mono. Macros: Pocket Depth swings the notch and pulse width harder, Hollowness sharpens the notch resonance, Flicker adds an eighth-note square jump and Air opens the top end.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "square",
+    "triplet",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Pocket Depth"
+    },
+    {
+      "label": "Hollowness"
+    },
+    {
+      "label": "Flicker"
+    },
+    {
+      "label": "Air"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "moda_index"
+    },
+    {
+      "amount": 0.20151,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_res"
+    },
+    {
+      "amount": -0.35,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.36,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_warp_amt"
+    }
+  ],
+  "params": {
+    "dim_mix": 0.15,
+    "dim_on": true,
+    "dim_size": 0.2,
+    "dim_wet_lowcut": 200.0,
+    "dist_drive": 6.0,
+    "dist_mix": 1.0,
+    "dist_on": true,
+    "dist_type": "Tube",
+    "eq_cut_freq": 30.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 700.0,
+    "filta_kbd": 0.0,
+    "filta_res": 0.45,
+    "filta_type": "Notch",
+    "filtb_env": false,
+    "filtb_freq": 1200.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "LP12",
+    "legato": true,
+    "macro4": 0.3,
+    "mb_depth": 0.8,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "moda_curve": "Square",
+    "moda_div": "1/8",
+    "moda_index": 0.0,
+    "moda_smooth": 0.2,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Triangle",
+    "modb_cutoff": 0.1,
+    "modb_div": "1/4T",
+    "modb_sync": true,
+    "modb_target": "A",
+    "modc_curve": "Triangle",
+    "modc_div": "1/4T",
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 45.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Square Morph",
+    "osca_vol": 1.0,
+    "osca_warp_amt": 0.6,
+    "osca_warp_mode": "PWM",
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -12.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -4.5,
+    "dist_filter_mode": "Post",
+    "dist_filter_type": "LP",
+    "dist_filter_q": 0.7,
+    "dist_filter_freq": 1400.0,
+    "macro2": 0.0
+  }
+}

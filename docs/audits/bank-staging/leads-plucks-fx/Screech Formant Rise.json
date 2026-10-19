@@ -1,0 +1,154 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Screech Formant Rise",
+  "author": "Riddim Rack",
+  "description": "A vocal screech. A formant filter glides from an oh to an ee on every quarter note while the pitch bends upward, so it screams like a voice instead of a saw. Play short phrases around C3 to C4 and let notes ring. Rise sets how far the vowel travels, Vowel Start moves where it begins, Bend adds pitch glide into each note, Grit drives the distortion.",
+  "category": "Lead",
+  "tags": [
+    "screech",
+    "formant",
+    "lead",
+    "dirty"
+  ],
+  "macros": [
+    {
+      "label": "Rise"
+    },
+    {
+      "label": "Vowel Start"
+    },
+    {
+      "label": "Bend"
+    },
+    {
+      "label": "Grit"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod B",
+      "target": "filta_freq",
+      "amount": -0.197395,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "filta_res",
+      "amount": 0.6,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "filta_freq",
+      "amount": 0.1,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "moda_pitch",
+      "amount": -0.25,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "osca_warp_amt",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "dist_drive",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "dim_mix": 0.5,
+    "dim_on": true,
+    "dim_size": 0.8,
+    "dim_wet_lowcut": 300,
+    "dist_drive": 15.0,
+    "dist_on": true,
+    "dist_type": "Diode",
+    "eq_cut_freq": 220,
+    "eq_cut_on": true,
+    "eq_high_freq": 2000,
+    "eq_high_gain": 12.0,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 3620,
+    "filta_kbd": 0.0,
+    "filta_res": 0.3,
+    "filta_type": "Formant",
+    "filtb_env": false,
+    "filtb_freq": 1200,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": true,
+    "macro1": 0.5,
+    "macro2": 0.5,
+    "macro3": 0.4,
+    "macro4": 0.5,
+    "moda_curve": "Decay",
+    "moda_div": "1/4",
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "modb_curve": "Saw Up",
+    "modb_div": "1/4",
+    "modb_sync": true,
+    "modb_trig": "Retrigger",
+    "osca_att": 0.002,
+    "osca_dec": 0.3,
+    "osca_index": 70,
+    "osca_on": true,
+    "osca_rel": 0.12,
+    "osca_sus": 1.0,
+    "osca_table": "Reed",
+    "osca_unison": 1,
+    "osca_warp_amt": 0.2,
+    "osca_warp_mode": "Bend+",
+    "oscb_att": 0.002,
+    "oscb_cent": 0,
+    "oscb_dec": 0.3,
+    "oscb_index": 64,
+    "oscb_on": true,
+    "oscb_rel": 0.12,
+    "oscb_sus": 1.0,
+    "oscb_table": "Saw Stack",
+    "oscb_unison": 1,
+    "oscb_vol": 0.6,
+    "phs_feedback": 0.0,
+    "phs_mix": 0.25,
+    "phs_on": true,
+    "poly": 1,
+    "porta": 0.05,
+    "rev_lowcut": 300,
+    "rev_mix": 0.08,
+    "rev_on": true,
+    "rev_type": "Hall",
+    "routing": "Parallel",
+    "sub_on": false,
+    "volume": -7.2
+  },
+  "fx_order": [
+    "Phaser",
+    "EQ",
+    "Distortion",
+    "Multiband",
+    "Chorus",
+    "Flanger",
+    "Dimension",
+    "Delay",
+    "Reverb"
+  ]
+}

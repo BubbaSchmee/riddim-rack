@@ -1,0 +1,188 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Pitch Drop Sub Pluck",
+  "author": "Riddim Rack",
+  "description": "A kick-like bass pluck: a sine dives about two octaves within a fraction of a second, then rings out as a clean low tail with a small bright click on top. Play single notes between C1 and C2 to fill the gaps between riddim bars. Drop Extra adds more fall, Length stretches the tail, Click brings in the bright body, Drive saturates the whole hit.",
+  "category": "Pluck",
+  "tags": [
+    "pluck",
+    "sub",
+    "impact",
+    "mono",
+    "qa_dive=24@90",
+    "qa_decay=320"
+  ],
+  "macros": [
+    {
+      "label": "Drop Extra"
+    },
+    {
+      "label": "Length"
+    },
+    {
+      "label": "Click"
+    },
+    {
+      "label": "Drive"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod C",
+      "target": "pitch_all",
+      "amount": 0.3300075490592616,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "moda_pitch",
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "osca_dec",
+      "amount": 0.14,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "oscb_vol",
+      "amount": 0.4850676093140767,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "dist_drive",
+      "amount": 0.6,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "osca_index",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "dist_autogain": false,
+    "dist_drive": -12,
+    "dist_on": true,
+    "dist_type": "Tube",
+    "eq_cut_freq": 25,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 20000,
+    "filta_kbd": 0.0,
+    "filta_res": 0.0,
+    "filta_type": "LP12",
+    "filtb_env": false,
+    "filtb_freq": 20,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": false,
+    "macro1": 0.0,
+    "macro2": 0.5,
+    "macro3": 0.3,
+    "macro4": 0.3360412248445958,
+    "moda_curve": "Custom",
+    "moda_pitch": 0.0,
+    "moda_rate": 8.333,
+    "moda_sync": false,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "modc_curve": "Custom",
+    "modc_rate": 8.333,
+    "modc_sync": false,
+    "modc_trig": "Envelope",
+    "osca_att": 0.001,
+    "osca_curve": -0.2445549097992456,
+    "osca_dec": 0.7042620873322792,
+    "osca_index": 36,
+    "osca_on": true,
+    "osca_rel": 0.06,
+    "osca_sus": 0.0,
+    "osca_table": "Basic",
+    "osca_unison": 1,
+    "oscb_att": 0.001,
+    "oscb_dec": 0.1654696033237729,
+    "oscb_index": 65,
+    "oscb_on": true,
+    "oscb_rel": 0.05,
+    "oscb_sus": 0.0,
+    "oscb_table": "Saw Stack",
+    "oscb_unison": 1,
+    "oscb_vol": 0.5,
+    "poly": 1,
+    "porta": 0.0,
+    "routing": "Series",
+    "sub_level": -20,
+    "sub_oct": 0,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": 0
+  },
+  "lfo_shapes": [
+    {
+      "mode": "points",
+      "points": [
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0.14053369094906468,
+          1,
+          0
+        ],
+        [
+          0.7725544245929539,
+          -1,
+          0
+        ],
+        [
+          1,
+          -1,
+          0
+        ]
+      ]
+    },
+    {},
+    {
+      "mode": "points",
+      "points": [
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0.14053369094906468,
+          1,
+          0
+        ],
+        [
+          0.7725544245929539,
+          -1,
+          0
+        ],
+        [
+          1,
+          -1,
+          0
+        ]
+      ]
+    },
+    {}
+  ]
+}

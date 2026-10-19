@@ -1,0 +1,163 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Four Bar Riser",
+  "author": "Riddim Rack",
+  "description": "A noisy four-bar riser. Pitch and brightness climb across the phrase while the sound opens up wide and the reverb tail swells into the drop. Hold one note (C3 works best) for four bars; the climb locks to the host tempo and restarts on every note. Rise Width sets how wide it ends up, Noise Level the hiss, Pitch Rise how far it climbs, Reverb Tail the wash.",
+  "category": "FX",
+  "tags": [
+    "riser",
+    "sweep",
+    "qa_fxkind=riser"
+  ],
+  "macros": [
+    {
+      "label": "Rise Width"
+    },
+    {
+      "label": "Noise Level"
+    },
+    {
+      "label": "Pitch Rise"
+    },
+    {
+      "label": "Reverb Tail"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod C",
+      "target": "filta_freq",
+      "amount": 0.14433202287990943,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "pitch_all",
+      "amount": 0.08432349431348575,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "volume",
+      "amount": 0.04178404996666756,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "cho_mix",
+      "amount": 0.2,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod D",
+      "target": "rev_mix",
+      "amount": 0.1,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "cho_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "noise_level",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "moda_pitch",
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "osca_width",
+      "amount": 0.3268840766313502,
+      "bipolar": true,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_mix": 0.20531509562302613,
+    "cho_on": true,
+    "eq_cut_freq": 485,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 1450,
+    "filta_kbd": 0.0,
+    "filta_res": 0.6,
+    "filta_type": "LP12",
+    "filtb_env": false,
+    "filtb_freq": 269,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "flg_mix": 0.2,
+    "flg_on": true,
+    "legato": true,
+    "macro1": 0.5,
+    "macro2": 0.5,
+    "macro3": 0.5,
+    "macro4": 0.5,
+    "moda_curve": "Saw Up",
+    "moda_div": "4/1",
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "modc_curve": "Saw Up",
+    "modc_div": "4/1",
+    "modc_sync": true,
+    "modc_trig": "Envelope",
+    "modd_curve": "Saw Up",
+    "modd_div": "4/1",
+    "modd_sync": true,
+    "modd_trig": "Envelope",
+    "noise_level": -29,
+    "noise_tone": 0.18393453526776338,
+    "noise_type": "White",
+    "osca_att": 0.02,
+    "osca_dec": 0.3,
+    "osca_detune": 22,
+    "osca_index": 74,
+    "osca_on": true,
+    "osca_rel": 0.3,
+    "osca_sus": 1.0,
+    "osca_table": "Saw Stack",
+    "osca_unison": 7,
+    "osca_width": 0.8217085760323084,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.0,
+    "rev_decay": 3.0,
+    "rev_mix": 0.17566362106808936,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_on": false,
+    "volume": -6,
+    "rev_lowcut": 500,
+    "cho_wet_lowcut": 500,
+    "mono_xover": 200,
+    "pitch_all": 4
+  }
+}

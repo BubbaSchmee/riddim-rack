@@ -1,0 +1,148 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Square Melody Lead",
+  "author": "Riddim Rack",
+  "description": "A clean, cutting square lead with a slow breath of vibrato and a soft dotted-eighth echo, made for hooks. Play single-note melodies from C3 upward; it is mono and legato. Brightness opens the filter, Vibrato deepens the pitch wobble and adds a filter sway on top of it, Echo brings in the dotted delay, Space adds a little room.",
+  "category": "Lead",
+  "tags": [
+    "lead",
+    "square",
+    "clean",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Brightness"
+    },
+    {
+      "label": "Vibrato"
+    },
+    {
+      "label": "Echo"
+    },
+    {
+      "label": "Space"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod A",
+      "target": "pitch_all",
+      "amount": 0.0016,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "filta_freq",
+      "amount": 0.158266,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "moda_pitch",
+      "amount": 0.0104,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "dly_mix",
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "modb_cutoff",
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_mix": 0.1,
+    "cho_on": true,
+    "cho_wet_lowcut": 200,
+    "dly_div": "1/8",
+    "dly_feedback": 0.15,
+    "dly_feel": "Dotted",
+    "dly_hp": 400,
+    "dly_mix": 0.12,
+    "dly_on": true,
+    "dly_sync": true,
+    "eq_cut_freq": 230,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 4200,
+    "filta_kbd": 0.5,
+    "filta_res": 0.2,
+    "filta_type": "LP24",
+    "filtb_env": false,
+    "filtb_freq": 100,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": true,
+    "macro1": 0.5,
+    "macro2": 0.0,
+    "macro3": 0.5,
+    "macro4": 0.5,
+    "moda_curve": "Sine",
+    "moda_div": "1/4",
+    "moda_fade": 0.3,
+    "moda_index": 0.0,
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "Both",
+    "moda_trig": "Retrigger",
+    "osca_att": 0.004,
+    "osca_dec": 0.2,
+    "osca_detune": 3,
+    "osca_index": 20,
+    "osca_on": true,
+    "osca_rel": 0.12,
+    "osca_shift": 12.0,
+    "osca_sus": 0.8,
+    "osca_table": "Square Morph",
+    "osca_unison": 2,
+    "osca_width": 0.3,
+    "oscb_att": 0.004,
+    "oscb_cent": 3,
+    "oscb_dec": 0.2,
+    "oscb_index": 95,
+    "oscb_on": true,
+    "oscb_rel": 0.12,
+    "oscb_sus": 0.8,
+    "oscb_table": "Basic",
+    "oscb_unison": 1,
+    "oscb_vol": 0.195,
+    "poly": 1,
+    "porta": 0.03,
+    "rev_mix": 0.04,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_on": false,
+    "volume": 4,
+    "osca_vol": 0.55,
+    "osca_rand_phase": 0.5,
+    "rev_decay": 0.6,
+    "cho_depth": 0.15,
+    "rev_width": 0.4,
+    "modb_curve": "Sine",
+    "modb_div": "1/4",
+    "modb_sync": true,
+    "modb_trig": "Retrigger",
+    "modb_fade": 0.3
+  }
+}

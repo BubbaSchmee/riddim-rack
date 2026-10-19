@@ -1,0 +1,110 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Noise Sweep Band",
+  "author": "Riddim Rack",
+  "description": "A slow breathing noise sweep: band-passed noise that rises and falls over two bars, wrapped in phaser and width, for backgrounds and builds. Hold any note and let it run; the sweep locks to the host tempo. Sweep Depth sets how far it travels, Centre where it sits, Noise Colour how dark or bright the hiss is, Width how wide it spreads.",
+  "category": "FX",
+  "tags": [
+    "sweep",
+    "riser",
+    "qa_fxkind=sweep"
+  ],
+  "macros": [
+    {
+      "label": "Sweep Depth"
+    },
+    {
+      "label": "Centre"
+    },
+    {
+      "label": "Noise Colour"
+    },
+    {
+      "label": "Width"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Macro 1",
+      "target": "modb_cutoff",
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "filta_freq",
+      "amount": 0.15,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "noise_tone",
+      "amount": 0.5,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_width",
+      "amount": 0.9,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "dim_mix": 0.3,
+    "dim_on": false,
+    "dim_size": 0.6,
+    "dim_wet_lowcut": 450,
+    "eq_cut_freq": 458,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 2200,
+    "filta_kbd": 0.0,
+    "filta_res": 0.6057532656499689,
+    "filta_type": "BP12",
+    "filtb_env": false,
+    "filtb_freq": 418,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.16412897589827552,
+    "filtb_type": "Formant",
+    "legato": true,
+    "macro1": 0.5,
+    "macro2": 0.5,
+    "macro3": 0.5,
+    "macro4": 0.5,
+    "modb_curve": "Triangle",
+    "modb_cutoff": 0.21877827187276963,
+    "modb_div": "2/1",
+    "modb_sync": true,
+    "modb_target": "Both",
+    "modb_trig": "Retrigger",
+    "noise_level": -3,
+    "noise_tone": 0.18682923668304596,
+    "noise_type": "Pink",
+    "osca_att": 0.01,
+    "osca_dec": 0.3,
+    "osca_on": false,
+    "osca_rel": 0.4,
+    "osca_sus": 1.0,
+    "oscb_on": false,
+    "phs_mix": 0.2696160990039676,
+    "phs_on": true,
+    "poly": 1,
+    "rev_mix": 0.2677601410678752,
+    "rev_on": true,
+    "routing": "Parallel",
+    "sub_on": false,
+    "volume": 6,
+    "rev_lowcut": 499,
+    "mono_xover": 190,
+    "rev_width": 0,
+    "phs_spread": 0,
+    "eq_low_freq": 500,
+    "eq_low_gain": -12
+  }
+}

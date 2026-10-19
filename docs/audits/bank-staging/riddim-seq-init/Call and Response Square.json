@@ -1,0 +1,224 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Call and Response Square",
+  "author": "Riddim Rack",
+  "description": "One bar, two phrases: a bouncing call of several barks, then a thinner answer that leaves a hole before the next downbeat. Play: hold F1, A#1 or G1 for a full bar-long riff from a single key, or stab it against a half-time kick at 140-150 BPM; the pattern restarts on every new note. Macros: Call Depth deepens the spectral jump on every hit, Response Gap fades the answer phrase out, Bite thins the body and Grit pushes the hard clip.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "square",
+    "call-response",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Call Depth"
+    },
+    {
+      "label": "Response Gap"
+    },
+    {
+      "label": "Bite"
+    },
+    {
+      "label": "Grit"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": -0.094,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.17625,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_vol"
+    },
+    {
+      "amount": -0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_shift"
+    },
+    {
+      "amount": -0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "modb_vol"
+    },
+    {
+      "amount": 0.162967,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.375,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filtb_freq"
+    }
+  ],
+  "params": {
+    "dist_autogain": false,
+    "dist_drive": 12.0,
+    "dist_mix": 1.0,
+    "dist_on": true,
+    "dist_type": "Hard Clip",
+    "eq_cut_freq": 30.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 350.0222840509853,
+    "filta_kbd": 0.0,
+    "filta_res": 0.25,
+    "filta_type": "HP12",
+    "filtb_env": false,
+    "filtb_freq": 900.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "LP24",
+    "legato": true,
+    "mb_depth": 1.0,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "moda_curve": "Custom",
+    "moda_div": "1/1",
+    "moda_index": 0.08812500000000001,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Custom",
+    "modb_div": "1/1",
+    "modb_sync": true,
+    "modb_target": "A",
+    "modc_curve": "Custom",
+    "modc_div": "1/1",
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 41.858125,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Square Morph",
+    "osca_vol": 0.72375,
+    "oscb_on": false,
+    "phs_mix": 0.15,
+    "phs_on": true,
+    "phs_rate": 0.2,
+    "phs_spread": 0.0,
+    "phs_stages": 4,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -12.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -7.0,
+    "dist_filter_mode": "Post",
+    "dist_filter_type": "LP",
+    "dist_filter_freq": 2300.0,
+    "dist_filter_q": 0.7
+  },
+  "lfo_shapes": [
+    {
+      "mode": "steps",
+      "steps": [
+        1.0,
+        -0.3617021276595744,
+        1.0,
+        1.0,
+        -0.3617021276595744,
+        1.0,
+        0.14893617021276598,
+        -0.702127659574468,
+        0.4893617021276595,
+        -0.702127659574468,
+        -0.702127659574468,
+        0.4893617021276595,
+        -0.702127659574468,
+        -0.702127659574468,
+        -0.19148936170212763,
+        -0.702127659574468
+      ],
+      "glide": 0.15
+    },
+    {
+      "mode": "steps",
+      "steps": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "glide": 0.1
+    },
+    {
+      "mode": "steps",
+      "steps": [
+        1.0,
+        -0.3617021276595744,
+        1.0,
+        1.0,
+        -0.3617021276595744,
+        1.0,
+        0.14893617021276598,
+        -0.702127659574468,
+        0.4893617021276595,
+        -0.702127659574468,
+        -0.702127659574468,
+        0.4893617021276595,
+        -0.702127659574468,
+        -0.702127659574468,
+        -0.19148936170212763,
+        -0.702127659574468
+      ],
+      "glide": 0.15
+    },
+    {}
+  ],
+  "fx_order": [
+    "Phaser",
+    "Distortion",
+    "Multiband",
+    "EQ",
+    "Chorus",
+    "Flanger",
+    "Dimension",
+    "Delay",
+    "Reverb"
+  ]
+}

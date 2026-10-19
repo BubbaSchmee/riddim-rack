@@ -1,0 +1,35 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Init Square Bass",
+  "author": "Riddim Rack",
+  "description": "The blank sheet: a clean mono square bass with the sub underneath and nothing else switched on. Play: any low note, C1 to C3, then build your own sound from here. Macros are left unassigned on purpose; patch them to whatever you want.",
+  "category": "Init",
+  "tags": [
+    "clean",
+    "square",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Macro 1"
+    },
+    {
+      "label": "Macro 2"
+    },
+    {
+      "label": "Macro 3"
+    },
+    {
+      "label": "Macro 4"
+    }
+  ],
+  "matrix": [],
+  "params": {
+    "filta_env": true,
+    "filta_freq": 3000,
+    "filta_type": "LP12",
+    "osca_index": 76,
+    "sub_level": -16
+  }
+}

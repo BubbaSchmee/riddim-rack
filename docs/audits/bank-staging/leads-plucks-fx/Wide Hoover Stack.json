@@ -1,0 +1,194 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Wide Hoover Stack",
+  "author": "Riddim Rack",
+  "description": "A hoover-style supersaw wall: two stacks of seven detuned saws that drop in pitch at the start of every note, spread wide with chorus and a touch of room. Play held chords or octave leads between C3 and C5; the low end stays clear and the level stays even across the keys. Width opens the chorus and dimension, Brightness opens the filter, Dive sets how far each note falls (and thickens the stack as it does), Chorus Depth adds shimmer.",
+  "category": "Lead",
+  "tags": [
+    "lead",
+    "wide",
+    "hybrid",
+    "qa_dive=5@140"
+  ],
+  "macros": [
+    {
+      "label": "Width"
+    },
+    {
+      "label": "Brightness"
+    },
+    {
+      "label": "Dive"
+    },
+    {
+      "label": "Chorus Depth"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Macro 1",
+      "target": "cho_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "dim_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "filta_freq",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "moda_pitch",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "osca_index",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "cho_depth",
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Keytrack",
+      "target": "volume",
+      "amount": -0.28,
+      "bipolar": true,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_depth": 0.5,
+    "cho_mix": 0.22,
+    "cho_on": true,
+    "cho_rate": 0.1,
+    "cho_voices": 6,
+    "cho_wet_lowcut": 200,
+    "dim_mix": 0.12,
+    "dim_on": true,
+    "dim_size": 0.7,
+    "dim_wet_lowcut": 200,
+    "eq_cut_freq": 225,
+    "eq_cut_on": true,
+    "eq_high_freq": 3985,
+    "eq_high_gain": 1,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 4500,
+    "filta_kbd": 0.5,
+    "filta_res": 0.2,
+    "filta_type": "LP12",
+    "filtb_env": false,
+    "filtb_freq": 215,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": true,
+    "macro1": 0.6,
+    "macro2": 0.5,
+    "macro3": 0.5,
+    "macro4": 0.0,
+    "moda_curve": "Custom",
+    "moda_pitch": 0.0,
+    "moda_rate": 5.0,
+    "moda_sync": false,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "mono_xover": 120,
+    "osca_att": 0.004,
+    "osca_blend": 0.8,
+    "osca_dec": 0.3,
+    "osca_detune": 6,
+    "osca_index": 55,
+    "osca_on": true,
+    "osca_rel": 0.2,
+    "osca_shift": 0,
+    "osca_sus": 1.0,
+    "osca_table": "Saw Stack",
+    "osca_unison": 7,
+    "osca_width": 0.6,
+    "oscb_on": true,
+    "poly": 1,
+    "porta": 0.04,
+    "rev_mix": 0.06,
+    "rev_on": true,
+    "rev_type": "Hall",
+    "routing": "Series",
+    "sub_on": false,
+    "volume": 2,
+    "oscb_table": "Saw Stack",
+    "oscb_index": 55,
+    "oscb_unison": 7,
+    "oscb_detune": 6,
+    "oscb_cent": 2,
+    "oscb_vol": 0.3,
+    "oscb_width": 0.6,
+    "oscb_blend": 0.8,
+    "dist_on": false,
+    "dist_type": "Overdrive",
+    "dist_drive": 6,
+    "rev_decay": 0.8,
+    "osca_vol": 0.5,
+    "osca_rand_phase": 1,
+    "oscb_rand_phase": 1,
+    "osca_phase_reset": false,
+    "oscb_phase_reset": false,
+    "mb_on": true,
+    "mb_depth": 0.3,
+    "mb_time": 1.0,
+    "mb_out": 0,
+    "mb_xover_lo": 150,
+    "mb_xover_hi": 2500,
+    "osca_det_curve": 0.7,
+    "oscb_det_curve": 0.7
+  },
+  "lfo_shapes": [
+    {
+      "mode": "points",
+      "points": [
+        [
+          0,
+          1,
+          0
+        ],
+        [
+          0.075,
+          0.93,
+          0
+        ],
+        [
+          0.525,
+          0.0,
+          0
+        ],
+        [
+          1.0,
+          0.0,
+          0
+        ]
+      ]
+    },
+    {},
+    {},
+    {}
+  ]
+}

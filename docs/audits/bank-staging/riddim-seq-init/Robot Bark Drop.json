@@ -1,0 +1,177 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Robot Bark Drop",
+  "author": "Riddim Rack",
+  "description": "A one-shot robot bark: every note starts with a bright, ring-modulated metallic bite that dives and settles into a hollow growl over a clean sine sub, so stuttered playing becomes a machine-gun of barks. Play: short, separated F1, G1 and A#1 notes at 140-150 BPM, or tap eighths and sixteenths; the bite re-fires on every new key press. Macros: Bite brightens the ring-mod, Dive deepens the pitch drop, Metal adds ring-modulation and Drive pushes the diode distortion.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "metal",
+    "mono",
+    "dirty",
+    "dive",
+    "qa_period=none",
+    "qa_dive=7@150"
+  ],
+  "macros": [
+    {
+      "label": "Bite"
+    },
+    {
+      "label": "Dive"
+    },
+    {
+      "label": "Metal"
+    },
+    {
+      "label": "Drive"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod Env",
+      "target": "pitch_all"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod Env",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod B",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.375,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "moda_pitch"
+    },
+    {
+      "amount": 0.06,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.45,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.65,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_res"
+    }
+  ],
+  "params": {
+    "dist_autogain": false,
+    "dist_drive": 6.0,
+    "dist_mix": 0.7,
+    "dist_on": true,
+    "dist_type": "Diode",
+    "eq_cut_freq": 35.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 4186,
+    "filta_kbd": 1.0,
+    "filta_res": 0.3,
+    "filta_type": "AM",
+    "filtb_env": false,
+    "filtb_freq": 2800.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "LP24",
+    "legato": true,
+    "macro2": 0.0,
+    "mb_depth": 1.0,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "menv_att": 0.001,
+    "menv_curve": 0.0,
+    "menv_dec": 0.16,
+    "menv_rel": 0.05,
+    "menv_sus": 0.0,
+    "moda_curve": "Decay",
+    "moda_div": "1/2",
+    "moda_oneshot": true,
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "A",
+    "moda_trig": "Envelope",
+    "modb_curve": "Square",
+    "modb_div": "1/16",
+    "modb_oneshot": true,
+    "modb_sync": true,
+    "modb_target": "A",
+    "modb_trig": "Envelope",
+    "modc_curve": "Triangle",
+    "modc_div": "1/2",
+    "modc_sync": true,
+    "modc_trig": "Free",
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 55,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Metal",
+    "osca_vol": 1.0,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -4.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -7.0
+  }
+}

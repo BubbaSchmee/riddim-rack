@@ -1,0 +1,138 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Hollow Square Reference",
+  "author": "Riddim Rack",
+  "description": "The dry reference riddim: a hollow, square-edged grunt that barks in tight eighth notes over a clean sine sub, with nothing hidden. Play: hold or stab F1, G1 and A#1 against a half-time kick at 140-150 BPM; the pulse snaps open and shut like a gate. Macros: Bark Depth widens the filter snap on every bark, Tone opens the top end, Grit pushes the hard clip and Chatter adds a sixteenth-note flutter.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "square",
+    "mono",
+    "clean"
+  ],
+  "macros": [
+    {
+      "label": "Bark Depth"
+    },
+    {
+      "label": "Tone"
+    },
+    {
+      "label": "Grit"
+    },
+    {
+      "label": "Chatter"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.244306,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.375,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "moda_index"
+    }
+  ],
+  "params": {
+    "dist_autogain": false,
+    "dist_drive": 6.0,
+    "dist_mix": 0.6,
+    "dist_on": true,
+    "dist_type": "Hard Clip",
+    "eq_cut_freq": 30.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "eq_peak_freq": 320.0,
+    "eq_peak_gain": -3.0,
+    "eq_peak_q": 1.0,
+    "filta_env": false,
+    "filta_freq": 110.0,
+    "filta_kbd": 0.0,
+    "filta_res": 0.25,
+    "filta_type": "HP12",
+    "filtb_env": false,
+    "filtb_freq": 800.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.1,
+    "filtb_type": "LP24",
+    "legato": true,
+    "macro1": 0.0,
+    "macro2": 0.05,
+    "macro3": 0.15,
+    "macro4": 0.0,
+    "mb_depth": 0.6,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "moda_curve": "Square",
+    "moda_div": "1/16",
+    "moda_index": 0.0,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Square",
+    "modb_cutoff": 0.2,
+    "modb_div": "1/8",
+    "modb_smooth": 0.1,
+    "modb_sync": true,
+    "modb_target": "B",
+    "modc_curve": "Square",
+    "modc_div": "1/8",
+    "modc_smooth": 0.1,
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 38.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Square Morph",
+    "osca_vol": 1.0,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -9.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -7.0
+  }
+}

@@ -1,0 +1,210 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Gated Triplet Call",
+  "author": "Riddim Rack",
+  "description": "A held note turned into a triplet bass phrase: twelve gate slots per bar, a call of hits in the first half and a thinner answer in the second, over a clean sine sub that gates with it. Play: hold F1, G1 or A#1 for a full bar of riff at 140-150 BPM; the pattern restarts on every new note. Macros: Gap Fill fills the rests between hits, Pattern Tone opens the filter and the square edge, Answer Fade mutes and darkens the second-half answer, Smear rounds the gate edges.",
+  "category": "Seq",
+  "tags": [
+    "riddim",
+    "call-response",
+    "triplet",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Gap Fill"
+    },
+    {
+      "label": "Pattern Tone"
+    },
+    {
+      "label": "Answer Fade"
+    },
+    {
+      "label": "Smear"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.78,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_vol"
+    },
+    {
+      "amount": 0.45,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "sub_level"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_index"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.8,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "osca_vol"
+    },
+    {
+      "amount": 0.8,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "sub_level"
+    },
+    {
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": -0.5,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "modb_vol"
+    },
+    {
+      "amount": -0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.7,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "modc_smooth"
+    }
+  ],
+  "params": {
+    "dist_autogain": false,
+    "dist_drive": 15.0,
+    "dist_mix": 0.85,
+    "dist_on": true,
+    "dist_type": "Hard Clip",
+    "eq_cut_freq": 30.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "eq_peak_freq": 320.0,
+    "eq_peak_gain": -3.0,
+    "eq_peak_q": 1.0,
+    "filta_env": false,
+    "filta_freq": 120.0,
+    "filta_kbd": 0.0,
+    "filta_res": 0.2,
+    "filta_type": "HP12",
+    "filtb_env": false,
+    "filtb_freq": 900.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.15,
+    "filtb_type": "LP24",
+    "legato": true,
+    "mb_depth": 0.6,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 36.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Square Morph",
+    "osca_vol": 0.22,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -27.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -5.5,
+    "modb_curve": "Custom",
+    "modb_div": "1/1",
+    "modb_sync": true,
+    "modb_target": "A",
+    "modb_vol": 0.0,
+    "modc_curve": "Custom",
+    "modc_div": "1/1",
+    "modc_sync": true,
+    "macro1": 0.0,
+    "macro2": 0.4,
+    "macro3": 0.0,
+    "macro4": 0.0,
+    "dist_filter_mode": "Post",
+    "dist_filter_type": "LP",
+    "dist_filter_freq": 3000.0,
+    "dist_filter_q": 0.7
+  },
+  "lfo_shapes": [
+    {},
+    {
+      "mode": "steps",
+      "steps": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "glide": 0.1
+    },
+    {
+      "mode": "steps",
+      "steps": [
+        1.0,
+        1.0,
+        -1.0,
+        1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        -1.0,
+        -1.0,
+        -1.0,
+        1.0,
+        -1.0
+      ],
+      "glide": 0.1
+    },
+    {}
+  ]
+}

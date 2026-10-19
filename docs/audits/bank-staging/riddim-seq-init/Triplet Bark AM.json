@@ -1,0 +1,148 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Triplet Bark AM",
+  "author": "Riddim Rack",
+  "description": "The robotic bark: a metallic ring-modulated square over a clean sine sub that snaps open and rolls off on every triplet eighth, swinging against straight-eighth drum patterns. Play: short F1, G1 and A#1 stabs or held notes at 140-150 BPM; the ring-mod pitch follows your keys, so melodic lines stay metallic but in tune with the sub. Macros: Bark sets how far the timbre falls on each triplet, Metal deepens the ring modulation, Snap sharpens the notch sweep and Drive pushes the diode distortion.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "metal",
+    "triplet",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Bark"
+    },
+    {
+      "label": "Metal"
+    },
+    {
+      "label": "Snap"
+    },
+    {
+      "label": "Drive"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.25,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "filta_res"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod Env",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.45,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_res"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.375,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.18,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_shift"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_index"
+    }
+  ],
+  "params": {
+    "dist_drive": 9.0,
+    "dist_mix": 0.7,
+    "dist_on": true,
+    "dist_type": "Diode",
+    "eq_cut_freq": 35.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 2093.0048,
+    "filta_kbd": 1.0,
+    "filta_res": 0.45,
+    "filta_type": "AM",
+    "filtb_env": false,
+    "filtb_freq": 1000.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.3,
+    "filtb_type": "LP24",
+    "legato": true,
+    "mb_depth": 1.0,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "menv_att": 0.001,
+    "menv_dec": 0.14,
+    "menv_sus": 0.2,
+    "moda_curve": "Saw Down",
+    "moda_div": "1/8T",
+    "moda_index": 0.15,
+    "moda_shift": 0.1,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Saw Down",
+    "modb_cutoff": 0.3,
+    "modb_div": "1/8T",
+    "modb_sync": true,
+    "modb_target": "B",
+    "modc_curve": "Saw Down",
+    "modc_div": "1/8T",
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 30.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Metal",
+    "osca_vol": 1.0,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -12.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -4.5,
+    "eq_high_freq": 8000.0,
+    "eq_high_gain": 0.0
+  }
+}

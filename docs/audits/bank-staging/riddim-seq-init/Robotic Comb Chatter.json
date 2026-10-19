@@ -1,0 +1,155 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Robotic Comb Chatter",
+  "author": "Riddim Rack",
+  "description": "A tight machine chatter: a pulse-width-warped square through a tuned comb filter that ratchets in sixteenth notes, folded into a harsh but mono bark over a clean sine sub. Play: short F1, G1 and A#1 notes or runs at 140-150 BPM; the comb follows your keys so the metal stays in tune with the sub, and harder hits push the comb resonance. Macros: Chatter deepens the sixteenth-note ratchet, Comb Tone tightens and raises the comb, Fold pushes the wave folder and Square Gate adds an eighth-note spectral jump.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "metal",
+    "dirty",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Chatter"
+    },
+    {
+      "label": "Comb Tone"
+    },
+    {
+      "label": "Fold"
+    },
+    {
+      "label": "Square Gate"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filtb_res"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_res"
+    },
+    {
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.208333,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_drive"
+    },
+    {
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "moda_shift"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": true,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "dist_filter_freq"
+    }
+  ],
+  "params": {
+    "dist_drive": 4.0,
+    "dist_mix": 1.0,
+    "dist_on": true,
+    "dist_type": "Fold Sine",
+    "eq_cut_freq": 35.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 60.0,
+    "filta_kbd": 0.0,
+    "filta_res": 0.5,
+    "filta_type": "HP12",
+    "filtb_env": false,
+    "filtb_freq": 2000.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.55,
+    "filtb_type": "Comb-",
+    "flg_depth": 0.3,
+    "flg_mix": 0.25,
+    "flg_on": true,
+    "flg_rate": 0.1,
+    "flg_spread": 0.0,
+    "legato": true,
+    "mb_depth": 1.0,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "moda_curve": "Square",
+    "moda_div": "1/8",
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Square",
+    "modb_cutoff": 0.4,
+    "modb_div": "1/16",
+    "modb_smooth": 0.2,
+    "modb_sync": true,
+    "modb_target": "A",
+    "modc_curve": "Square",
+    "modc_div": "1/16",
+    "modc_smooth": 0.2,
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 48.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Square Morph",
+    "osca_vol": 1.0,
+    "osca_warp_amt": 0.35,
+    "osca_warp_mode": "PWM",
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -12.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -1.0,
+    "dist_filter_mode": "Post",
+    "dist_filter_type": "LP",
+    "dist_filter_freq": 2500.0,
+    "dist_filter_q": 0.7
+  }
+}

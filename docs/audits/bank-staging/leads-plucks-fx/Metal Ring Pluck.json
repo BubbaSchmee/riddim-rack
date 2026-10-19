@@ -1,0 +1,155 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Metal Ring Pluck",
+  "author": "Riddim Rack",
+  "description": "A short bell-metal pluck, FM-bright with a quick tone decay, for lead-ins and echoing call-and-response fills. Play it around C3. Ring raises the FM amount, Decay lengthens the note, Brightness opens the filter and Echo adds a triplet delay and a touch of room (it is dry until you turn it up).",
+  "category": "Pluck",
+  "tags": [
+    "metal",
+    "pluck",
+    "stab",
+    "qa_decay=180"
+  ],
+  "macros": [
+    {
+      "label": "Ring"
+    },
+    {
+      "label": "Decay"
+    },
+    {
+      "label": "Brightness"
+    },
+    {
+      "label": "Echo"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod Env",
+      "target": "osca_warp_amt",
+      "amount": -0.2655591069627675,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Mod Env",
+      "target": "filta_freq",
+      "amount": 0.43,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "osca_warp_amt",
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "osca_dec",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "oscb_dec",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "filta_freq",
+      "amount": 0.21939,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "dly_mix",
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_mix": 0.15,
+    "cho_on": false,
+    "cho_wet_lowcut": 200,
+    "dly_div": "1/8",
+    "dly_feedback": 0.35,
+    "dly_feel": "Triplet",
+    "dly_mix": 0.0,
+    "dly_on": true,
+    "dly_sync": true,
+    "eq_cut_freq": 120,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 550,
+    "filta_kbd": 0.5,
+    "filta_res": 0.15,
+    "filta_type": "LP24",
+    "filtb_env": false,
+    "filtb_freq": 200,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": false,
+    "macro1": 0.5,
+    "macro2": 0.4,
+    "macro3": 0.5,
+    "macro4": 0.0,
+    "menv_att": 0.001,
+    "menv_curve": 0.0,
+    "menv_dec": 0.08,
+    "menv_sus": 0.0,
+    "mono_xover": 150,
+    "osca_att": 0.001,
+    "osca_dec": 0.27,
+    "osca_detune": 8,
+    "osca_index": 39,
+    "osca_on": true,
+    "osca_rel": 0.1,
+    "osca_sus": 0.0,
+    "osca_table": "Metal",
+    "osca_unison": 2,
+    "osca_warp_amt": 0.5574318809246226,
+    "osca_warp_mode": "FM",
+    "osca_width": 0.5,
+    "oscb_att": 0.001,
+    "oscb_dec": 0.2711911129114296,
+    "oscb_index": 64,
+    "oscb_on": true,
+    "oscb_rel": 0.1,
+    "oscb_semi": 12,
+    "oscb_sus": 0.0,
+    "oscb_table": "FM Morph",
+    "oscb_unison": 1,
+    "oscb_vol": 0.316,
+    "poly": 3,
+    "porta": 0.0,
+    "rev_decay": 1.4,
+    "rev_mix": 0.0,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_on": false,
+    "volume": -7,
+    "osca_curve": 0.4,
+    "oscb_curve": 0.4,
+    "dist_on": true,
+    "dist_type": "Overdrive",
+    "dist_autogain": false,
+    "dist_drive": 14
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Four Bar Downlifter",
+  "author": "Riddim Rack",
+  "description": "The mirror of the riser. After the drop the energy falls away over four bars, getting darker and narrower under a reverb wash. Hold one note (C3 works best) for four bars; the fall locks to the host tempo and restarts on every note. Fall Speed sets how fast it darkens, Noise Level the hiss, Depth how far the pitch falls, Reverb Tail the wash.",
+  "category": "FX",
+  "tags": [
+    "downlifter",
+    "sweep",
+    "qa_fxkind=downlifter"
+  ],
+  "macros": [
+    {
+      "label": "Fall Speed"
+    },
+    {
+      "label": "Noise Level"
+    },
+    {
+      "label": "Depth"
+    },
+    {
+      "label": "Reverb Tail"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod C",
+      "target": "filta_freq",
+      "amount": 0.15,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "pitch_all",
+      "amount": 0.0625,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "volume",
+      "amount": 0.15,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "cho_mix",
+      "amount": 0.15,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "moda_pitch",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "noise_level",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "moda_pitch",
+      "amount": 0.5,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "osca_width",
+      "amount": 0.25,
+      "bipolar": true,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_mix": 0.4,
+    "cho_on": true,
+    "eq_cut_freq": 500,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 3571.48,
+    "filta_kbd": 0.0,
+    "filta_res": 0.2,
+    "filta_type": "LP12",
+    "filtb_env": false,
+    "filtb_freq": 300,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": true,
+    "macro1": 0.5,
+    "macro2": 0.5,
+    "macro3": 0.5,
+    "macro4": 0.5,
+    "moda_curve": "Saw Down",
+    "moda_div": "4/1",
+    "moda_pitch": 0.0,
+    "moda_sync": true,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "modc_curve": "Saw Down",
+    "modc_div": "4/1",
+    "modc_sync": true,
+    "modc_trig": "Envelope",
+    "noise_level": -24,
+    "noise_tone": 0.5,
+    "noise_type": "Pink",
+    "osca_att": 0.002,
+    "osca_dec": 0.3,
+    "osca_detune": 20,
+    "osca_index": 70,
+    "osca_on": true,
+    "osca_rel": 0.3,
+    "osca_sus": 1.0,
+    "osca_table": "Saw Stack",
+    "osca_unison": 6,
+    "osca_width": 0.55,
+    "oscb_on": false,
+    "phs_mix": 0.2,
+    "phs_on": true,
+    "poly": 1,
+    "rev_decay": 2.5,
+    "rev_mix": 0.25,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_on": false,
+    "volume": 0.5,
+    "rev_lowcut": 500,
+    "cho_wet_lowcut": 500,
+    "mono_xover": 200,
+    "pitch_all": 6.0
+  },
+  "fx_order": [
+    "Phaser",
+    "Chorus",
+    "Reverb",
+    "EQ",
+    "Distortion",
+    "Multiband",
+    "Flanger",
+    "Dimension",
+    "Delay"
+  ]
+}

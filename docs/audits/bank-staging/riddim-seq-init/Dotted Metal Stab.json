@@ -1,0 +1,159 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Dotted Metal Stab",
+  "author": "Riddim Rack",
+  "description": "An off-beat pocket riddim: a metallic FM-flavoured square that opens and falls on a dotted-eighth cadence, so across two bars it drifts against the kick and lands back on the downbeat. Mono below, a little wide above. Play: F1, G1 and A#1 stabs or held notes with the transport running at 140-150 BPM, and leave gaps so the dotted pulse speaks. Macros: Stab Depth deepens the sweep on every pulse, FM Mix thickens the metallic FM, Notch Sweep moves the hollow notch and Width opens the chorus above the low end.",
+  "category": "Bass/riddim",
+  "tags": [
+    "riddim",
+    "metal",
+    "hybrid",
+    "mono"
+  ],
+  "macros": [
+    {
+      "label": "Stab Depth"
+    },
+    {
+      "label": "FM Mix"
+    },
+    {
+      "label": "Notch Sweep"
+    },
+    {
+      "label": "Width"
+    }
+  ],
+  "matrix": [
+    {
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod C",
+      "target": "osca_warp_amt"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_index"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "modb_cutoff"
+    },
+    {
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_warp_amt"
+    },
+    {
+      "amount": 0.16,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.332941,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.11075,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filta_freq"
+    },
+    {
+      "amount": 0.25,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 4",
+      "target": "cho_mix"
+    }
+  ],
+  "params": {
+    "cho_depth": 0.5,
+    "cho_mix": 0.15,
+    "cho_on": true,
+    "cho_rate": 0.5,
+    "cho_voices": 4,
+    "cho_wet_lowcut": 200.0,
+    "dist_drive": 4.0,
+    "dist_mix": 1.0,
+    "dist_on": true,
+    "dist_type": "Hard Clip",
+    "eq_cut_freq": 30.0,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "filta_env": false,
+    "filta_freq": 900.0,
+    "filta_kbd": 0.0,
+    "filta_res": 0.2,
+    "filta_type": "LP24",
+    "filtb_env": false,
+    "filtb_freq": 500.0,
+    "filtb_kbd": 0.0,
+    "filtb_res": 0.2,
+    "filtb_type": "Notch",
+    "legato": true,
+    "macro3": 0.35,
+    "mb_depth": 1.0,
+    "mb_on": true,
+    "mb_time": 0.3,
+    "moda_curve": "Saw Down",
+    "moda_div": "1/8D",
+    "moda_index": 0.2,
+    "moda_sync": true,
+    "moda_target": "A",
+    "modb_curve": "Saw Down",
+    "modb_cutoff": 0.2,
+    "modb_div": "1/8D",
+    "modb_sync": true,
+    "modb_target": "A",
+    "modc_curve": "Saw Down",
+    "modc_div": "1/8D",
+    "modc_sync": true,
+    "mono_xover": 120,
+    "osca_att": 0.001,
+    "osca_dec": 0.3,
+    "osca_index": 25.0,
+    "osca_oct": 2,
+    "osca_on": true,
+    "osca_phase_reset": true,
+    "osca_rel": 0.08,
+    "osca_sus": 1.0,
+    "osca_table": "Metal",
+    "osca_vol": 1.0,
+    "osca_warp_amt": 0.3,
+    "osca_warp_mode": "FM",
+    "oscb_att": 0.001,
+    "oscb_index": 50.0,
+    "oscb_oct": 3,
+    "oscb_on": true,
+    "oscb_phase_reset": true,
+    "oscb_rel": 0.08,
+    "oscb_sus": 1.0,
+    "oscb_table": "Square Morph",
+    "oscb_vol": 0.2,
+    "poly": 1,
+    "porta": 0.02,
+    "routing": "Series",
+    "sub_level": -12.0,
+    "sub_oct": -2,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -3.0
+  }
+}

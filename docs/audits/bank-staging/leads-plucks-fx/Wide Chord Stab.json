@@ -1,0 +1,150 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Wide Chord Stab",
+  "author": "Riddim Rack",
+  "description": "A short, bright chord hit with a quick filter close and a wide unison spread, built to answer a bass note on the drop. Play stacked triads on the beat. Snap pushes the filter envelope harder, Decay stretches each hit, Width spreads the stereo image and Space brings in reverb (the stab is dry until you turn it up).",
+  "category": "Pluck",
+  "tags": [
+    "stab",
+    "pluck",
+    "wide",
+    "qa_decay=250"
+  ],
+  "macros": [
+    {
+      "label": "Snap"
+    },
+    {
+      "label": "Decay"
+    },
+    {
+      "label": "Width"
+    },
+    {
+      "label": "Space"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Macro 1",
+      "target": "fenv_amt",
+      "amount": 0.28938816097605563,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "osca_dec",
+      "amount": 0.27279776410525264,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "oscb_dec",
+      "amount": 0.14,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "osca_width",
+      "amount": 0.8,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "oscb_width",
+      "amount": 0.8,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.4977541257691419,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "filta_freq",
+      "amount": 0.0,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "fenv_dec",
+      "amount": 0.054078522339483175,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "cho_mix": 0.12,
+    "cho_on": true,
+    "cho_wet_lowcut": 160,
+    "eq_cut_freq": 91,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "fenv_amt": 0.35,
+    "fenv_att": 0.001,
+    "fenv_dec": 0.1831074230810793,
+    "fenv_rel": 0.1,
+    "fenv_sus": 0.0,
+    "filta_env": true,
+    "filta_freq": 2500,
+    "filta_kbd": 0,
+    "filta_res": 0.011936794849888218,
+    "filta_type": "LP24",
+    "filtb_env": false,
+    "filtb_freq": 250,
+    "filtb_res": 0.0,
+    "filtb_type": "HP12",
+    "legato": false,
+    "macro1": 0.5,
+    "macro2": 0.20780025016922313,
+    "macro3": 0.5,
+    "macro4": 0.0,
+    "mono_xover": 134,
+    "osca_att": 0.001,
+    "osca_curve": 0.3590216379243547,
+    "osca_dec": 0.3,
+    "osca_detune": 4,
+    "osca_index": 68,
+    "osca_on": true,
+    "osca_rel": 0.08,
+    "osca_sus": 0.0,
+    "osca_table": "Saw Stack",
+    "osca_unison": 4,
+    "osca_width": 0.4,
+    "oscb_att": 0.001,
+    "oscb_cent": 0,
+    "oscb_dec": 0.3,
+    "oscb_detune": 4,
+    "oscb_index": 65,
+    "oscb_on": true,
+    "oscb_rel": 0.08,
+    "oscb_sus": 0.0,
+    "oscb_table": "Saw Stack",
+    "oscb_unison": 4,
+    "oscb_vol": 0.8917241972025416,
+    "oscb_width": 0.4,
+    "poly": 8,
+    "porta": 0.0,
+    "rev_decay": 1.0,
+    "rev_mix": 0.0,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_on": false,
+    "volume": -2.9,
+    "dist_drive": 8,
+    "dist_mix": 0.8681977849402011,
+    "dist_on": true,
+    "dist_type": "Tube",
+    "dist_autogain": false
+  }
+}

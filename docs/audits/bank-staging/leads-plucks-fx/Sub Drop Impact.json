@@ -1,0 +1,135 @@
+{
+  "format_version": 1,
+  "product": "GTS",
+  "name": "Sub Drop Impact",
+  "author": "Riddim Rack",
+  "description": "A single big boom for transitions and drop hits: a sine falls three octaves with a burst of noise on top, then a long soft tail. Play one note (C3) on the downbeat. Drop Depth sets how far it falls, Boom Length the length of the body, Noise Burst the crackle on top, Tail the reverb.",
+  "category": "FX",
+  "tags": [
+    "impact",
+    "sub",
+    "clean",
+    "qa_fxkind=impact",
+    "qa_dive=36@450",
+    "qa_frozen_valid=-12..1"
+  ],
+  "macros": [
+    {
+      "label": "Drop Depth"
+    },
+    {
+      "label": "Boom Length"
+    },
+    {
+      "label": "Noise Burst"
+    },
+    {
+      "label": "Tail"
+    }
+  ],
+  "matrix": [
+    {
+      "source": "Mod Env",
+      "target": "pitch_all",
+      "amount": 0.34,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Filter Env",
+      "target": "noise_level",
+      "amount": 0.77,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "moda_pitch",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "osca_dec",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "noise_level",
+      "amount": 0.6,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 4",
+      "target": "rev_mix",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
+    }
+  ],
+  "params": {
+    "dist_drive": 3.0,
+    "dist_on": true,
+    "dist_type": "Tube",
+    "eq_cut_freq": 22,
+    "eq_cut_on": true,
+    "eq_on": true,
+    "fenv_amt": 0.0,
+    "fenv_att": 0.001,
+    "fenv_dec": 0.25,
+    "fenv_rel": 0.05,
+    "fenv_sus": 0.0,
+    "filta_env": false,
+    "filta_freq": 20000,
+    "filta_res": 0.0,
+    "filta_type": "LP12",
+    "filtb_env": false,
+    "filtb_freq": 20000,
+    "filtb_res": 0.0,
+    "filtb_type": "LP12",
+    "legato": false,
+    "macro1": 0.5,
+    "macro2": 0.5,
+    "macro3": 0.5,
+    "macro4": 0.5,
+    "menv_att": 0.001,
+    "menv_curve": 0.7,
+    "menv_dec": 0.45,
+    "menv_sus": 0.0,
+    "moda_curve": "Decay",
+    "moda_pitch": 0.0,
+    "moda_rate": 3.0,
+    "moda_sync": false,
+    "moda_target": "Both",
+    "moda_trig": "Envelope",
+    "noise_level": -50.0,
+    "noise_tone": 0.5,
+    "noise_type": "Brown",
+    "osca_att": 0.001,
+    "osca_dec": 0.9,
+    "osca_index": 0,
+    "osca_oct": -1,
+    "osca_on": true,
+    "osca_rel": 0.3,
+    "osca_sus": 0.0,
+    "osca_table": "Basic",
+    "osca_unison": 1,
+    "oscb_on": false,
+    "poly": 1,
+    "porta": 0.0,
+    "rev_decay": 2.5,
+    "rev_lowcut": 150,
+    "rev_mix": 0.15,
+    "rev_on": true,
+    "routing": "Series",
+    "sub_level": -3.0,
+    "sub_oct": 0,
+    "sub_on": true,
+    "sub_shape": "Sine",
+    "volume": -4
+  }
+}

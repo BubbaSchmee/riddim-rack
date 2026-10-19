@@ -1,0 +1,6027 @@
+{
+  "inputs": [
+    "docs/audits/bank-staging/riddim-seq-init"
+  ],
+  "load_errors": [],
+  "pair_min_db": 3.3,
+  "pairs": [
+    {
+      "a": "Robotic Comb Chatter",
+      "b": "Triplet Bark AM",
+      "distance_db": 2.838605791142567,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Hollow Square Reference",
+      "distance_db": 2.9185989450508214,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Pulse Width Pocket",
+      "distance_db": 3.5627253987928165,
+      "same_family": true
+    },
+    {
+      "a": "Hollow Square Reference",
+      "b": "Pulse Width Pocket",
+      "distance_db": 3.8760620788410027,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Triplet Bark AM",
+      "distance_db": 3.907264456225514,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 4.361235371488279,
+      "same_family": true
+    },
+    {
+      "a": "Init Square Bass",
+      "b": "Robot Bark Drop",
+      "distance_db": 4.6415731473500825,
+      "same_family": false
+    },
+    {
+      "a": "Pulse Width Pocket",
+      "b": "Robot Bark Drop",
+      "distance_db": 4.8930182784901355,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Hollow Square Reference",
+      "distance_db": 4.992710254695503,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Pulse Width Pocket",
+      "distance_db": 5.4079041305439315,
+      "same_family": true
+    },
+    {
+      "a": "Hollow Square Reference",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 5.89298234557505,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Robot Bark Drop",
+      "distance_db": 5.894813223614808,
+      "same_family": true
+    },
+    {
+      "a": "Hollow Square Reference",
+      "b": "Triplet Bark AM",
+      "distance_db": 6.041622144823427,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Dotted Metal Stab",
+      "distance_db": 6.1142286341651335,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Init Square Bass",
+      "distance_db": 6.774524005142355,
+      "same_family": false
+    },
+    {
+      "a": "Init Square Bass",
+      "b": "Pulse Width Pocket",
+      "distance_db": 6.998468108778561,
+      "same_family": false
+    },
+    {
+      "a": "Hollow Square Reference",
+      "b": "Robot Bark Drop",
+      "distance_db": 7.023707817100978,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 7.0361842601895646,
+      "same_family": true
+    },
+    {
+      "a": "Pulse Width Pocket",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 7.085609296154826,
+      "same_family": true
+    },
+    {
+      "a": "Dotted Metal Stab",
+      "b": "Triplet Bark AM",
+      "distance_db": 7.376396200586063,
+      "same_family": true
+    },
+    {
+      "a": "Pulse Width Pocket",
+      "b": "Triplet Bark AM",
+      "distance_db": 7.4896611231981876,
+      "same_family": true
+    },
+    {
+      "a": "Hollow Square Reference",
+      "b": "Init Square Bass",
+      "distance_db": 8.114597660928634,
+      "same_family": false
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Robot Bark Drop",
+      "distance_db": 9.853092860399627,
+      "same_family": true
+    },
+    {
+      "a": "Robot Bark Drop",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 11.33329370298012,
+      "same_family": true
+    },
+    {
+      "a": "Call and Response Square",
+      "b": "Init Square Bass",
+      "distance_db": 11.380624102556189,
+      "same_family": false
+    },
+    {
+      "a": "Robot Bark Drop",
+      "b": "Triplet Bark AM",
+      "distance_db": 11.970233771479537,
+      "same_family": true
+    },
+    {
+      "a": "Init Square Bass",
+      "b": "Robotic Comb Chatter",
+      "distance_db": 12.052030408624558,
+      "same_family": false
+    },
+    {
+      "a": "Init Square Bass",
+      "b": "Triplet Bark AM",
+      "distance_db": 12.731924072068157,
+      "same_family": false
+    }
+  ],
+  "presets": [
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"square\", \"call-response\", \"mono\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 355.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 435.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 2.4647012524709666,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -5.464701252470967
+        },
+        {
+          "detail": "per note: F1 -18.25, G1 -18.17, A#1 -18.06",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.3405475364144124,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -18.159452463585588
+        },
+        {
+          "detail": "per note: F1 -16.43, G1 -16.20, A#1 -15.90",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.6736162811598163,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -16.173616281159816
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 0.39655704210406206,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 12.603442957895938
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.8405475364144124,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.15945246358558762
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 2604.3, G1 2729.7, A#1 2805.0; power-weighted centroid for comparison: F1 576.0, G1 618.8, A#1 651.7",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -1304.9585900425718,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 2804.958590042572
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 1.61, G1 1.48, A#1 1.43",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.8268491717157446,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 1.4268491717157445
+        },
+        {
+          "detail": "F1 0.004, G1 -0.154, A#1 -0.056 (measured 1.5975 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C Custom 1/1 = 1.6000 s (error)",
+          "margin": 4.845817692458216,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": -0.15418230754178364
+        },
+        {
+          "detail": "F1 0.969, G1 0.924, A#1 0.968",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.42412884259468053,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9241288425946805
+        },
+        {
+          "detail": "F1 2.78, G1 2.29, A#1 2.22",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 2.779834104443342
+        },
+        {
+          "detail": "E1 -18.24 dBFS vs -18.16",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.9193091618639997,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.08069083813600031
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 2.3357071878488505,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -5.3357071878488505
+        },
+        {
+          "detail": "per note: F1 -18.23, G1 -18.16, A#1 -18.05",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.3532392363334367,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -18.146760763666563
+        },
+        {
+          "detail": "per note: F1 -16.38, G1 -16.15, A#1 -15.86",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.6255008361218515,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -16.12550083612185
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 0.18894642418228713,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 12.811053575817713
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.8532392363334367,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.14676076366656332
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 2615.4, G1 2728.3, A#1 2813.3; power-weighted centroid for comparison: F1 581.4, G1 624.8, A#1 661.2",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -1313.3242871114367,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 2813.3242871114367
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 1.61, G1 1.49, A#1 1.42",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.819759002063234,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 1.419759002063234
+        },
+        {
+          "detail": "F1 0.028, G1 -0.018, A#1 -0.000 (measured 1.7140 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C Custom 1/1 = 1.7143 s (error)",
+          "margin": 4.971680783323125,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": 0.028319216676875314
+        },
+        {
+          "detail": "F1 0.974, G1 0.959, A#1 0.967",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.4586037825980036,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.9586037825980036
+        },
+        {
+          "detail": "F1 2.76, G1 2.29, A#1 2.37",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 2.760598133903283
+        },
+        {
+          "detail": "E1 -18.23 dBFS vs -18.15",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.919440882797005,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.08055911720299491
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 2.4647012524709666,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -5.464701252470967
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 31.944652903956808,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -81.94465290395681
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -85.65887318637476
+        },
+        {
+          "detail": "frozen -18.28 dBFS, live -18.25 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.970925927679783,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.02907407232021697
+        },
+        {
+          "detail": "C 0.074 oct (min 0.3) [11.35 11.35 11.39 11.40 11.42]; D 0.686 oct (min 0.3) [1.61 1.87 2.06 2.25 2.30]; L 0.609 LU (min 1) [-16.43 -16.52 -16.32 -16.09 -15.91]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Call Depth\" sweep",
+          "margin": 0.38635879887136576,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.6863587988713657
+        },
+        {
+          "detail": "C 0.637 oct (min 0.3) [11.35 11.28 11.25 11.25 10.71]; D 1.73 oct (min 0.3) [1.61 1.60 1.64 1.87 3.33]; L 1.69 LU (min 1) [-16.43 -16.76 -17.20 -17.75 -18.12]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Response Gap\" sweep",
+          "margin": 1.4339522171754957,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 1.7339522171754957
+        },
+        {
+          "detail": "C 0.262 oct (min 0.3) [11.35 11.41 11.46 11.54 11.61]; D 0.581 oct (min 0.3) non-monotonic [1.61 1.85 1.55 1.30 1.27]; L 1.60 LU (min 1) [-16.43 -16.82 -17.27 -17.57 -18.03]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Bite\" sweep",
+          "margin": 0.5996123510339402,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 1.0
+          },
+          "tempo": null,
+          "unit": "L LU",
+          "value": 1.5996123510339402
+        },
+        {
+          "detail": "C 0.838 oct (min 0.3) [11.35 11.71 11.90 12.07 12.18]; D 0.705 oct (min 0.3) [1.61 1.27 1.05 0.976 0.905]; L 3.33 LU (min 1) [-16.43 -15.15 -14.22 -13.52 -13.10]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Grit\" sweep",
+          "margin": 2.3318904289162585,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 1.0
+          },
+          "tempo": null,
+          "unit": "L LU",
+          "value": 3.3318904289162585
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 2.0,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "nearest: Triplet Bark AM",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": 0.6072644562255141,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 3.907264456225514
+        }
+      ],
+      "error": null,
+      "failed_checks": 2,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Call and Response Square.json",
+      "measurements": {
+        "alias_db": -81.94465290395681,
+        "dominant_lfo": {
+          "depth_oct": 1.764549116826883,
+          "lfo": "Mod C Custom 1/1",
+          "period_140": 1.7142857142857142,
+          "period_150": 1.6,
+          "weight": 0.27024999260902405
+        },
+        "fx_reordered": true,
+        "lufs@140": -16.12550083612185,
+        "lufs@150": -16.173616281159816,
+        "rms_db@140": -18.146760763666563,
+        "rms_db@150": -18.159452463585588,
+        "uses_fx": true
+      },
+      "name": "Call and Response Square",
+      "notes": [],
+      "pass": false,
+      "seconds": 42.2158183,
+      "tags": [
+        "riddim",
+        "square",
+        "call-response",
+        "mono"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"metal\", \"hybrid\", \"mono\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 431.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 511.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.992063054922602,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.992063054922602
+        },
+        {
+          "detail": "per note: F1 -19.21, G1 -19.01, A#1 -19.33",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.6833652599597677,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -19.183365259959768
+        },
+        {
+          "detail": "per note: F1 -17.14, G1 -16.83, A#1 -17.03",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.5020795682171517,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -16.99792043178285
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.8086977949628356,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 11.191302205037164
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 0.8166347400402323,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -1.1833652599597677
+        },
+        {
+          "detail": "F1 0.999, G1 0.999, A#1 1.000",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.009337704064311003,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.999337704064311
+        },
+        {
+          "detail": "F1 -34.79, G1 -35.55, A#1 -38.61",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 4.786192728886576,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -34.786192728886576
+        },
+        {
+          "detail": "F1 -0.001, G1 -0.001, A#1 -0.001",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 0.9985575760819193,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.001442423918080696
+        },
+        {
+          "detail": "F1 1599.7, G1 1773.0, A#1 1770.2; power-weighted centroid for comparison: F1 439.4, G1 499.8, A#1 570.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -272.95584547427484,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 1772.9558454742748
+        },
+        {
+          "detail": "F1 0.973, G1 0.967, A#1 0.963",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.027439901179886594,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9725600988201134
+        },
+        {
+          "detail": "F1 0.979, G1 0.719, A#1 0.847",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.11909216155786206,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 0.719092161557862
+        },
+        {
+          "detail": "F1 -0.316, G1 0.088, A#1 -0.075 (measured 0.2991 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C SawDown 1/8D = 0.3000 s (error)",
+          "margin": 4.683594435530587,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": -0.31640556446941304
+        },
+        {
+          "detail": "F1 0.964, G1 0.942, A#1 0.963",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.44245293978320277,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9424529397832028
+        },
+        {
+          "detail": "F1 1.22, G1 1.56, A#1 1.04",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 1.2165866332747406
+        },
+        {
+          "detail": "E1 -19.03 dBFS vs -19.18",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.8507828334566625,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.1492171665433375
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.30949560282974,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -7.30949560282974
+        },
+        {
+          "detail": "per note: F1 -19.22, G1 -19.01, A#1 -19.32",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.6819830060874885,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -19.18198300608749
+        },
+        {
+          "detail": "per note: F1 -17.17, G1 -16.81, A#1 -17.02",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.501222885745449,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -16.99877711425455
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.1275125967422515,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 11.872487403257749
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 0.8180169939125115,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -1.1819830060874885
+        },
+        {
+          "detail": "F1 0.999, G1 0.999, A#1 1.000",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.009383594872815593,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.9993835948728156
+        },
+        {
+          "detail": "F1 -35.10, G1 -35.83, A#1 -38.92",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 5.097752079763758,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -35.09775207976376
+        },
+        {
+          "detail": "F1 -0.001, G1 -0.001, A#1 -0.001",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 0.9986574144386838,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.0013425855613161584
+        },
+        {
+          "detail": "F1 1610.6, G1 1818.5, A#1 1775.5; power-weighted centroid for comparison: F1 440.2, G1 502.6, A#1 569.8",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -318.45875855962277,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 1818.4587585596228
+        },
+        {
+          "detail": "F1 0.970, G1 0.966, A#1 0.964",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.030451485214537,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.969548514785463
+        },
+        {
+          "detail": "F1 0.955, G1 0.738, A#1 0.871",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.13752776342012718,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 0.7375277634201272
+        },
+        {
+          "detail": "F1 -0.249, G1 0.017, A#1 0.024 (measured 0.3206 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C SawDown 1/8D = 0.3214 s (error)",
+          "margin": 4.7506169476193865,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": -0.24938305238061398
+        },
+        {
+          "detail": "F1 0.970, G1 0.947, A#1 0.962",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.4466997711702654,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.9466997711702654
+        },
+        {
+          "detail": "F1 1.08, G1 1.38, A#1 1.17",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 1.0788120850303784
+        },
+        {
+          "detail": "E1 -19.06 dBFS vs -19.18",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.8734315921621523,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.12656840783784773
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 4.992063054922602,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.992063054922602
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 11.61109702514095,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -61.61109702514095
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -84.30149232971863
+        },
+        {
+          "detail": "frozen -18.72 dBFS, live -19.21 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.5141968479145689,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.4858031520854311
+        },
+        {
+          "detail": "C 0.451 oct (min 0.3) [10.64 10.72 10.83 10.96 11.09]; D 1.39 oct (min 0.3) [0.979 1.12 1.46 2.11 2.37]; L 0.067 LU (min 1) [-17.14 -17.16 -17.15 -17.19 -17.21]; W 0.000 corr (min 0.1) [0.973 0.973 0.973 0.973 0.972]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Stab Depth\" sweep",
+          "margin": 1.0909778221567341,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 1.3909778221567342
+        },
+        {
+          "detail": "C 1.03 oct (min 0.3) [10.64 10.85 11.10 11.40 11.68]; D 0.427 oct (min 0.3) non-monotonic [0.979 1.16 0.965 0.737 1.12]; L 1.28 LU (min 1) [-17.14 -17.36 -17.78 -18.18 -18.42]; W 0.001 corr (min 0.1) [0.973 0.972 0.973 0.973 0.973]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"FM Mix\" sweep",
+          "margin": 0.7337123995190697,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "C oct",
+          "value": 1.0337123995190698
+        },
+        {
+          "detail": "C 0.975 oct (min 0.3) [10.16 10.68 10.78 11.00 11.14]; D 1.69 oct (min 0.3) [2.28 1.30 0.720 0.642 0.594]; L 2.42 LU (min 1) [-18.90 -17.34 -16.83 -16.50 -16.47]; W 0.002 corr (min 0.1) [0.974 0.973 0.972 0.972 0.972]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Notch Sweep\" sweep",
+          "margin": 1.3853287542351091,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 1.6853287542351092
+        },
+        {
+          "detail": "C 0.007 oct (min 0.3) [10.64 10.64 10.64 10.64 10.64]; D 0.366 oct (min 0.3) [0.979 1.05 1.14 1.23 1.35]; L 1.76 LU (min 1) [-17.14 -17.68 -18.17 -18.58 -18.90]; W 0.280 corr (min 0.1) [0.973 0.937 0.880 0.798 0.693]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Width\" sweep",
+          "margin": 0.1796349707730933,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.1
+          },
+          "tempo": null,
+          "unit": "W corr",
+          "value": 0.2796349707730933
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 0.9760872036258199,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -1.02391279637418
+        },
+        {
+          "detail": "nearest: Hollow Square Reference",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": -0.3814010549491784,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 2.9185989450508214
+        }
+      ],
+      "error": null,
+      "failed_checks": 5,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Dotted Metal Stab.json",
+      "measurements": {
+        "alias_db": -61.61109702514095,
+        "dominant_lfo": {
+          "depth_oct": 0.6436887454067968,
+          "lfo": "Mod C SawDown 1/8D",
+          "period_140": 0.32142857142857145,
+          "period_150": 0.3,
+          "weight": 0.30000001192092896
+        },
+        "fx_reordered": false,
+        "lufs@140": -16.99877711425455,
+        "lufs@150": -16.99792043178285,
+        "rms_db@140": -19.18198300608749,
+        "rms_db@150": -19.183365259959768,
+        "uses_fx": true
+      },
+      "name": "Dotted Metal Stab",
+      "notes": [],
+      "pass": false,
+      "seconds": 44.5015323,
+      "tags": [
+        "riddim",
+        "metal",
+        "hybrid",
+        "mono"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"square\", \"mono\", \"clean\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 319.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 399.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.048626293781627,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.048626293781627
+        },
+        {
+          "detail": "per note: F1 -17.74, G1 -18.02, A#1 -18.37",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.4672574139394321,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -18.032742586060568
+        },
+        {
+          "detail": "per note: F1 -16.02, G1 -16.28, A#1 -16.49",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.759127729547796,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -16.259127729547796
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 2.015883707721059,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 10.98411629227894
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.967257413939432,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.0327425860605679
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 1878.0, G1 1929.2, A#1 1935.7; power-weighted centroid for comparison: F1 327.8, G1 346.6, A#1 393.4",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -435.7054143777739,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 1935.7054143777739
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 1.30, G1 1.24, A#1 1.10",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.4981658232665179,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 1.098165823266518
+        },
+        {
+          "detail": "F1 0.472, G1 0.559, A#1 0.504 (measured 0.2009 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod B Square 1/8 = 0.2000 s (error)",
+          "margin": 4.44085448935247,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": 0.5591455106475296
+        },
+        {
+          "detail": "F1 0.991, G1 0.993, A#1 0.988",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.48789319301245837,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9878931930124584
+        },
+        {
+          "detail": "F1 0.204, G1 0.334, A#1 0.582",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.20395886019649012
+        },
+        {
+          "detail": "E1 -17.60 dBFS vs -18.03",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.570679887180191,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.4293201128198092
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.071239130655034,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -7.071239130655034
+        },
+        {
+          "detail": "per note: F1 -17.74, G1 -18.01, A#1 -18.36",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.47033236946179,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -18.02966763053821
+        },
+        {
+          "detail": "per note: F1 -16.02, G1 -16.28, A#1 -16.49",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.7577329782019504,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -16.25773297820195
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 2.0415715001168238,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 10.958428499883176
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.97033236946179,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.029667630538209977
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 1874.2, G1 1922.9, A#1 1924.4; power-weighted centroid for comparison: F1 324.4, G1 343.0, A#1 390.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -424.39109456621236,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 1924.3910945662124
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 1.30, G1 1.23, A#1 1.10",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.4989692648412213,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 1.0989692648412213
+        },
+        {
+          "detail": "F1 -0.394, G1 -0.038, A#1 -0.077 (measured 0.2134 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod B Square 1/8 = 0.2143 s (error)",
+          "margin": 4.606216966106642,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": -0.3937830338933579
+        },
+        {
+          "detail": "F1 0.986, G1 0.976, A#1 0.980",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.4763837621517809,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.9763837621517809
+        },
+        {
+          "detail": "F1 0.212, G1 0.310, A#1 0.612",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.21156895057325187
+        },
+        {
+          "detail": "E1 -17.60 dBFS vs -18.03",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.574095798140551,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.4259042018594492
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 4.048626293781627,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.048626293781627
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 34.15250394135654,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -84.15250394135654
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -86.50839074666811
+        },
+        {
+          "detail": "frozen -17.49 dBFS, live -17.74 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.7529367821861612,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.24706321781383878
+        },
+        {
+          "detail": "C 0.566 oct (min 0.3) [10.87 11.03 11.18 11.34 11.44]; D 0.656 oct (min 0.3) [1.30 1.53 1.68 1.83 1.96]; L 0.143 LU (min 1) [-16.02 -16.02 -16.02 -15.95 -15.88]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Bark Depth\" sweep",
+          "margin": 0.35620063835831567,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.6562006383583157
+        },
+        {
+          "detail": "C 0.965 oct (min 0.3) [10.34 10.46 10.87 11.16 11.31]; D 0.800 oct (min 0.3) non-monotonic [1.05 1.26 1.30 0.987 0.503]; L 0.432 LU (min 1) [-16.28 -16.11 -16.02 -15.96 -15.85]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Tone\" sweep",
+          "margin": 0.6649190516096695,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "C oct",
+          "value": 0.9649190516096695
+        },
+        {
+          "detail": "C 1.16 oct (min 0.3) [10.47 10.82 11.07 11.34 11.63]; D 0.252 oct (min 0.3) non-monotonic [1.21 1.33 1.24 1.39 1.46]; L 2.14 LU (min 1) [-17.02 -16.14 -15.67 -15.28 -14.89]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Grit\" sweep",
+          "margin": 0.8589330835782316,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "C oct",
+          "value": 1.1589330835782317
+        },
+        {
+          "detail": "C 0.106 oct (min 0.3) non-monotonic [10.87 10.87 10.79 10.82 10.90]; D 0.868 oct (min 0.3) [1.30 1.47 1.45 1.62 2.17]; L 0.133 LU (min 1) [-16.02 -16.02 -16.05 -16.11 -16.15]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Chatter\" sweep",
+          "margin": 0.5679412398458366,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.8679412398458366
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 1.8732901224749803,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.12670987752501972
+        },
+        {
+          "detail": "nearest: Dotted Metal Stab",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": -0.3814010549491784,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 2.9185989450508214
+        }
+      ],
+      "error": null,
+      "failed_checks": 3,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Hollow Square Reference.json",
+      "measurements": {
+        "alias_db": -84.15250394135654,
+        "dominant_lfo": {
+          "depth_oct": 1.1286760978344992,
+          "lfo": "Mod B Square 1/8",
+          "period_140": 0.21428571428571427,
+          "period_150": 0.2,
+          "weight": 0.20000000298023224
+        },
+        "fx_reordered": false,
+        "lufs@140": -16.25773297820195,
+        "lufs@150": -16.259127729547796,
+        "rms_db@140": -18.02966763053821,
+        "rms_db@150": -18.032742586060568,
+        "uses_fx": true
+      },
+      "name": "Hollow Square Reference",
+      "notes": [],
+      "pass": false,
+      "seconds": 40.1828818,
+      "tags": [
+        "riddim",
+        "square",
+        "mono",
+        "clean"
+      ]
+    },
+    {
+      "category": "Init",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 154.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 234.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "C2 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "C2 654.8; power-weighted centroid for comparison: C2 162.0",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": 345.1986913528108,
+          "status": "pass",
+          "target": {
+            "max": 1000.0,
+            "min": 300.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 654.8013086471892
+        },
+        {
+          "detail": "C2 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.95
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "C2 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "C2 654.8; power-weighted centroid for comparison: C2 162.0",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": 345.1986913528108,
+          "status": "pass",
+          "target": {
+            "max": 1000.0,
+            "min": 300.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 654.8013086471892
+        },
+        {
+          "detail": "C2 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.95
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS (Init band -12..-6)",
+          "margin": 2.4104692896317648,
+          "status": "pass",
+          "target": {
+            "max": -6.0,
+            "min": -12.0
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -9.589530710368235
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 6.589530710368235,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -9.589530710368235
+        },
+        {
+          "detail": "C2 frozen render, grid 32.70 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 15.947809529135696,
+          "status": "pass",
+          "target": {
+            "max": -70.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -85.9478095291357
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -85.9478095291357
+        },
+        {
+          "detail": "frozen -16.85 dBFS, live -16.85 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "init_ceiling",
+          "label": "No sample above 0.95",
+          "margin": 0.6184695184230804,
+          "status": "pass",
+          "target": {
+            "max": 0.95,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.33153048157691956
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "init_click_on",
+          "label": "Note-on step vs 2x steady step",
+          "margin": 0.640988701671547,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.3590112983284531
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "init_click_off",
+          "label": "Note-off step vs 2x steady step",
+          "margin": 0.990036370402568,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.009963629597432074
+        },
+        {
+          "detail": "Init macros are unassigned",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Macro 1\" sweep",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "Init macros are unassigned",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Macro 2\" sweep",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "Init macros are unassigned",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Macro 3\" sweep",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "Init macros are unassigned",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Macro 4\" sweep",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "1 preset(s) in the category, median -16.85 dBFS (Info: needs 3 or more)",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "no other preset of this family in the run",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest preset of the family",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": null
+        }
+      ],
+      "error": null,
+      "failed_checks": 0,
+      "family": "init",
+      "family_source": "category",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Init Square Bass.json",
+      "measurements": {
+        "alias_db": -85.9478095291357,
+        "fx_reordered": false,
+        "lufs@140": -15.876049862262798,
+        "lufs@150": -15.876049862262798,
+        "rms_db@140": -16.8483963123363,
+        "rms_db@150": -16.8483963123363,
+        "uses_fx": false
+      },
+      "name": "Init Square Bass",
+      "notes": [
+        "Init: the bit-identical comparison with the SPEC 1.12 reference render is not implemented (no reference file in the repo)."
+      ],
+      "pass": true,
+      "seconds": 2.8641311,
+      "tags": [
+        "clean",
+        "square",
+        "mono"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"square\", \"triplet\", \"mono\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 455.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 535.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.855970165586031,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.855970165586031
+        },
+        {
+          "detail": "per note: F1 -17.10, G1 -17.33, A#1 -17.72",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 1.1249736335881941,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -17.375026366411806
+        },
+        {
+          "detail": "per note: F1 -14.97, G1 -15.12, A#1 -15.43",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 1.6711089988275116,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -15.171108998827512
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 3.482525508160908,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 9.517474491839092
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.3750263664118059,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.6249736335881941
+        },
+        {
+          "detail": "F1 1.000, G1 0.999, A#1 1.000",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.00921159230220503,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.999211592302205
+        },
+        {
+          "detail": "F1 -37.10, G1 -33.90, A#1 -36.68",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 3.8992940579195547,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -33.899294057919555
+        },
+        {
+          "detail": "F1 -0.001, G1 -0.002, A#1 -0.001",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 0.9982308427168394,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.0017691572831606502
+        },
+        {
+          "detail": "F1 1536.1, G1 1603.5, A#1 1628.1; power-weighted centroid for comparison: F1 337.7, G1 372.6, A#1 411.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -128.05548854204062,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 1628.0554885420406
+        },
+        {
+          "detail": "F1 0.996, G1 0.993, A#1 0.990",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.004041681033839506,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9959583189661605
+        },
+        {
+          "detail": "F1 0.619, G1 0.648, A#1 0.708",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.018826604223649235,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 0.6188266042236492
+        },
+        {
+          "detail": "F1 1.07, G1 -0.096, A#1 0.050 (measured 0.2664 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C Triangle 1/4T = 0.2667 s (error)",
+          "margin": 3.925154757568934,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": 1.0748452424310662
+        },
+        {
+          "detail": "F1 0.969, G1 0.999, A#1 0.993",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.46874981460741283,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.9687498146074128
+        },
+        {
+          "detail": "F1 0.762, G1 0.990, A#1 1.49",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.7616503875021863
+        },
+        {
+          "detail": "E1 -16.91 dBFS vs -17.38",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.5338445094073307,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.46615549059266925
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.867428557628276,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -7.867428557628276
+        },
+        {
+          "detail": "per note: F1 -17.09, G1 -17.33, A#1 -17.71",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 1.1304600794347124,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -17.369539920565288
+        },
+        {
+          "detail": "per note: F1 -14.97, G1 -15.12, A#1 -15.42",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 1.6674335539256422,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -15.167433553925642
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 3.4970034937660994,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 9.4970034937661
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.3695399205652876,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.6304600794347124
+        },
+        {
+          "detail": "F1 1.000, G1 0.999, A#1 1.000",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.009218087371889006,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.999218087371889
+        },
+        {
+          "detail": "F1 -37.13, G1 -33.93, A#1 -36.70",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 3.9344052332348483,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -33.93440523323485
+        },
+        {
+          "detail": "F1 -0.001, G1 -0.002, A#1 -0.001",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 0.9982450851890925,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.0017549148109075405
+        },
+        {
+          "detail": "F1 1536.3, G1 1604.8, A#1 1623.3; power-weighted centroid for comparison: F1 338.1, G1 373.0, A#1 411.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -123.30151045295611,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 1623.301510452956
+        },
+        {
+          "detail": "F1 0.996, G1 0.993, A#1 0.990",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.004004010692523097,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.9959959893074769
+        },
+        {
+          "detail": "F1 0.632, G1 0.633, A#1 0.700",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.03202578407327439,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 0.6320257840732744
+        },
+        {
+          "detail": "F1 -0.444, G1 0.023, A#1 0.206 (measured 0.2844 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod C Triangle 1/4T = 0.2857 s (error)",
+          "margin": 4.5555288628102275,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": -0.4444711371897725
+        },
+        {
+          "detail": "F1 0.953, G1 0.998, A#1 0.995",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.45269913034753995,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.95269913034754
+        },
+        {
+          "detail": "F1 0.831, G1 0.844, A#1 1.53",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.8313864563200646
+        },
+        {
+          "detail": "E1 -16.90 dBFS vs -17.37",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.530431803876926,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.469568196123074
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 4.855970165586031,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.855970165586031
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 36.94054215186803,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -86.94054215186803
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -87.02013497726504
+        },
+        {
+          "detail": "frozen -16.82 dBFS, live -17.10 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.7259848403276159,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.2740151596723841
+        },
+        {
+          "detail": "C 0.052 oct (min 0.3) [10.59 10.59 10.57 10.56 10.54]; D 0.492 oct (min 0.3) [0.619 0.584 0.869 0.872 1.08]; L 0.321 LU (min 1) [-14.97 -14.99 -15.22 -15.29 -15.25]; W 0.001 corr (min 0.1) [0.996 0.996 0.996 0.995 0.995]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Pocket Depth\" sweep",
+          "margin": 0.19184336225507154,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.4918433622550715
+        },
+        {
+          "detail": "C 0.023 oct (min 0.3) [10.59 10.60 10.60 10.59 10.58]; D 0.544 oct (min 0.3) [0.619 0.604 0.977 1.01 1.15]; L 0.753 LU (min 1) [-14.97 -15.00 -15.30 -15.64 -15.72]; W 0.001 corr (min 0.1) [0.996 0.996 0.995 0.995 0.995]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Hollowness\" sweep",
+          "margin": 0.24351536741391194,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.5435153674139119
+        },
+        {
+          "detail": "C 0.039 oct (min 0.3) [10.59 10.58 10.56 10.55 10.55]; D 0.619 oct (min 0.3) [0.619 0.793 0.913 1.08 1.24]; L 0.282 LU (min 1) [-14.97 -15.02 -15.10 -15.19 -15.25]; W 0.000 corr (min 0.1) [0.996 0.996 0.996 0.996 0.996]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Flicker\" sweep",
+          "margin": 0.3189194160912024,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.6189194160912024
+        },
+        {
+          "detail": "C 0.999 oct (min 0.3) [10.26 10.53 10.80 11.05 11.26]; D 0.176 oct (min 0.3) [0.755 0.637 0.582 0.579 0.589]; L 0.465 LU (min 1) [-15.21 -15.01 -14.85 -14.77 -14.74]; W 0.001 corr (min 0.1) [0.996 0.996 0.996 0.996 0.996]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Air\" sweep",
+          "margin": 0.698742220592014,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "C oct",
+          "value": 0.998742220592014
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 1.2155739028262182,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.7844260971737818
+        },
+        {
+          "detail": "nearest: Dotted Metal Stab",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": 0.26272539879281664,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 3.5627253987928165
+        }
+      ],
+      "error": null,
+      "failed_checks": 2,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Pulse Width Pocket.json",
+      "measurements": {
+        "alias_db": -86.94054215186803,
+        "dominant_lfo": {
+          "depth_oct": 0.720984339497317,
+          "lfo": "Mod C Triangle 1/4T",
+          "period_140": 0.2857142857142857,
+          "period_150": 0.26666666666666666,
+          "weight": 0.3100000023841858
+        },
+        "fx_reordered": false,
+        "lufs@140": -15.167433553925642,
+        "lufs@150": -15.171108998827512,
+        "rms_db@140": -17.369539920565288,
+        "rms_db@150": -17.375026366411806,
+        "uses_fx": true
+      },
+      "name": "Pulse Width Pocket",
+      "notes": [],
+      "pass": false,
+      "seconds": 48.4256761,
+      "tags": [
+        "riddim",
+        "square",
+        "triplet",
+        "mono"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"metal\", \"mono\", \"dirty\", \"dive\", \"qa_period=none\", \"qa_dive=7@150\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 388.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 468.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.559636067313932,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.559636067313932
+        },
+        {
+          "detail": "per note: F1 -18.77, G1 -18.64, A#1 -18.52",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.14220927358887536,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -18.642209273588875
+        },
+        {
+          "detail": "per note: F1 -17.59, G1 -17.43, A#1 -17.11",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.129686944441353,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -17.370313055558647
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.9322746855413353,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 11.067725314458665
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.3577907264111246,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.6422092735888754
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 1114.4, G1 1125.2, A#1 1140.2; power-weighted centroid for comparison: F1 297.0, G1 303.4, A#1 317.6",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": 359.7635989855212,
+          "status": "pass",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 1140.2364010144788
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 0.640, G1 0.652, A#1 0.651",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.03998708397657469,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 0.6399870839765747
+        },
+        {
+          "detail": "qa_period=none",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "F1 0.233, G1 0.203, A#1 0.402",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.23309163938094102
+        },
+        {
+          "detail": "E1 -18.96 dBFS vs -18.64",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.6828494766425948,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.31715052335740523
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 4.60347955740667,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -7.60347955740667
+        },
+        {
+          "detail": "per note: F1 -18.78, G1 -18.64, A#1 -18.51",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.1409800767743441,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -18.640980076774344
+        },
+        {
+          "detail": "per note: F1 -17.61, G1 -17.42, A#1 -17.09",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.131612821180614,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -17.368387178819386
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.9624994806323262,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 11.037500519367674
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.359019923225656,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.6409800767743441
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 1105.4, G1 1123.2, A#1 1153.2; power-weighted centroid for comparison: F1 294.9, G1 304.6, A#1 321.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": 346.793880116805,
+          "status": "pass",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 1153.206119883195
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 0.669, G1 0.713, A#1 0.639",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.038879030250274504,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 0.6388790302502745
+        },
+        {
+          "detail": "qa_period=none",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period",
+          "margin": null,
+          "status": "skip",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": null
+        },
+        {
+          "detail": "F1 0.275, G1 0.295, A#1 0.380",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.2747427412767358
+        },
+        {
+          "detail": "E1 -18.95 dBFS vs -18.64",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.6888209658656237,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.3111790341343763
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 4.559636067313932,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -7.559636067313932
+        },
+        {
+          "detail": "F1: 66.3 Hz at 15 ms -> 43.7 Hz at 165 ms; settles at 43.7 Hz (7.2 st total); mean confidence 0.91",
+          "group": "pitch",
+          "id": "dive_st",
+          "label": "Pitch dive over 150 ms (expected 7 st +-1)",
+          "margin": 0.7799588590407565,
+          "status": "pass",
+          "target": {
+            "max": 8.0,
+            "min": 6.0
+          },
+          "tempo": null,
+          "unit": "st",
+          "value": 7.2200411409592435
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 33.96115179159639,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -83.9611517915964
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -84.45737987928999
+        },
+        {
+          "detail": "frozen -18.78 dBFS, live -18.77 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.9918763970693014,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.008123602930698581
+        },
+        {
+          "detail": "C 0.246 oct (min 0.3) non-monotonic [10.12 10.23 10.37 10.27 10.27]; D 0.335 oct (min 0.3) [0.640 0.481 0.360 0.305 0.306]; L 0.252 LU (min 1) [-17.59 -17.42 -17.34 -17.49 -17.49]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Bite\" sweep",
+          "margin": 0.0352154812320194,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.3352154812320194
+        },
+        {
+          "detail": "C 0.268 oct (min 0.3) [10.12 10.19 10.26 10.35 10.39]; D 0.313 oct (min 0.3) [0.640 0.511 0.457 0.327 0.346]; L 0.566 LU (min 1) [-17.59 -17.39 -17.09 -17.02 -17.04]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Dive\" sweep",
+          "margin": 0.012664298086236425,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.3126642980862364
+        },
+        {
+          "detail": "C 0.141 oct (min 0.3) [10.12 10.14 10.17 10.21 10.26]; D 0.469 oct (min 0.3) non-monotonic [0.640 0.902 1.11 1.06 1.01]; L 0.522 LU (min 1) non-monotonic [-17.59 -17.88 -18.10 -18.11 -17.90]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]; no metric is both audible and monotonic",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Metal\" sweep",
+          "margin": 0.1691385774661594,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.4691385774661594
+        },
+        {
+          "detail": "C 1.19 oct (min 0.3) [10.12 10.30 10.55 10.93 11.31]; D 0.483 oct (min 0.3) [0.640 0.756 0.885 1.03 1.12]; L 1.49 LU (min 1) [-17.59 -17.21 -16.85 -16.48 -16.10]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Drive\" sweep",
+          "margin": 0.8927523319222128,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "C oct",
+          "value": 1.1927523319222129
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 1.5172431899967123,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.48275681000328774
+        },
+        {
+          "detail": "nearest: Pulse Width Pocket",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": 1.5930182784901357,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 4.8930182784901355
+        }
+      ],
+      "error": null,
+      "failed_checks": 3,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Robot Bark Drop.json",
+      "measurements": {
+        "alias_db": -83.9611517915964,
+        "dominant_lfo": {
+          "depth_oct": null,
+          "lfo": "Mod C Triangle 1/2",
+          "period_140": 0.8571428571428571,
+          "period_150": 0.8,
+          "weight": 0.05999999865889549
+        },
+        "fx_reordered": false,
+        "lufs@140": -17.368387178819386,
+        "lufs@150": -17.370313055558647,
+        "rms_db@140": -18.640980076774344,
+        "rms_db@150": -18.642209273588875,
+        "uses_fx": true
+      },
+      "name": "Robot Bark Drop",
+      "notes": [],
+      "pass": false,
+      "seconds": 28.867568,
+      "tags": [
+        "riddim",
+        "metal",
+        "mono",
+        "dirty",
+        "dive",
+        "qa_period=none",
+        "qa_dive=7@150"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"metal\", \"dirty\", \"mono\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 428.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 508.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 3.508234290912541,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -6.508234290912541
+        },
+        {
+          "detail": "per note: F1 -19.08, G1 -18.30, A#1 -15.95",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.9360850568980084,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -17.56391494310199
+        },
+        {
+          "detail": "per note: F1 -17.09, G1 -16.25, A#1 -13.71",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 1.9341724517548151,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -15.434172451754815
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.9443193478105485,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 11.055680652189452
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.5639149431019916,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.43608505689800836
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 2718.6, G1 2765.0, A#1 2702.5; power-weighted centroid for comparison: F1 469.9, G1 422.3, A#1 383.3",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -1264.9513284412856,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 2764.9513284412856
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 1.00, G1 0.731, A#1 0.699",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.09944518398095037,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 0.6994451839809503
+        },
+        {
+          "detail": "F1 0.229, G1 0.327, A#1 -0.485 (measured 0.0995 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod B Square 1/16 = 0.1000 s (error)",
+          "margin": 4.514989108059371,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": -0.4850108919406293
+        },
+        {
+          "detail": "F1 0.934, G1 0.776, A#1 0.850",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.27560085749460894,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.7756008574946089
+        },
+        {
+          "detail": "F1 4.68, G1 4.85, A#1 4.67",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 4.678142549439844
+        },
+        {
+          "detail": "E1 -19.40 dBFS vs -17.56",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 1.1621277032284247,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -1.8378722967715753
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 3.2013854182601866,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -6.201385418260187
+        },
+        {
+          "detail": "per note: F1 -19.07, G1 -18.30, A#1 -15.91",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": 0.9550365715973825,
+          "status": "pass",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -17.544963428402617
+        },
+        {
+          "detail": "per note: F1 -17.06, G1 -16.22, A#1 -13.67",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 1.9028561939567492,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -15.40285619395675
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 1.65642198985757,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 11.34357801014243
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.5449634284026175,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.45503657159738253
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 2746.1, G1 2845.5, A#1 2716.1; power-weighted centroid for comparison: F1 469.3, G1 424.7, A#1 381.6",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -1345.544429029304,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 2845.544429029304
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 0.961, G1 0.743, A#1 0.672",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.07188820471775659,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 0.6718882047177566
+        },
+        {
+          "detail": "F1 -0.061, G1 -0.243, A#1 -0.282 (measured 0.1068 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod B Square 1/16 = 0.1071 s (error)",
+          "margin": 4.717656396854004,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": -0.2823436031459958
+        },
+        {
+          "detail": "F1 0.934, G1 0.856, A#1 0.913",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.3556676311414968,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.8556676311414968
+        },
+        {
+          "detail": "F1 4.84, G1 3.73, A#1 3.42",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 4.841670313928297
+        },
+        {
+          "detail": "E1 -19.41 dBFS vs -17.54",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 1.1352944010472683,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -1.8647055989527317
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 3.8219986725464077,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -6.821998672546408
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 36.68546212997006,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -86.68546212997006
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -87.00558836204098
+        },
+        {
+          "detail": "frozen -18.54 dBFS, live -19.08 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.4598344638555716,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.5401655361444284
+        },
+        {
+          "detail": "C 0.033 oct (min 0.3) [11.41 11.42 11.43 11.44 11.44]; D 1.68 oct (min 0.3) [1.00 1.76 2.09 2.44 2.69]; L 1.48 LU (min 1) [-17.09 -17.85 -18.16 -18.41 -18.57]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Chatter\" sweep",
+          "margin": 1.3848577071558619,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 1.684857707155862
+        },
+        {
+          "detail": "C 0.211 oct (min 0.3) [11.41 11.36 11.35 11.27 11.20]; D 0.677 oct (min 0.3) [1.00 0.965 0.966 1.11 1.64]; L 3.56 LU (min 1) [-17.09 -17.52 -18.12 -19.03 -20.64]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Comb Tone\" sweep",
+          "margin": 2.559141120403087,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 1.0
+          },
+          "tempo": null,
+          "unit": "L LU",
+          "value": 3.559141120403087
+        },
+        {
+          "detail": "C 0.128 oct (min 0.3) [11.41 11.45 11.50 11.53 11.54]; D 0.082 oct (min 0.3) [1.00 0.945 0.923 0.931 0.943]; L 1.73 LU (min 1) [-17.09 -17.02 -16.79 -16.21 -15.36]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Fold\" sweep",
+          "margin": 0.7259989167219771,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 1.0
+          },
+          "tempo": null,
+          "unit": "L LU",
+          "value": 1.7259989167219771
+        },
+        {
+          "detail": "C 0.421 oct (min 0.3) non-monotonic [11.41 11.72 11.64 11.80 11.83]; D 0.966 oct (min 0.3) [1.00 1.07 1.71 1.69 1.97]; L 1.74 LU (min 1) [-17.09 -17.33 -17.75 -18.16 -18.83]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Square Gate\" sweep",
+          "margin": 0.6656273725609896,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.9656273725609896
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 1.404462479516404,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.595537520483596
+        },
+        {
+          "detail": "nearest: Triplet Bark AM",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": -0.461394208857433,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 2.838605791142567
+        }
+      ],
+      "error": null,
+      "failed_checks": 3,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Robotic Comb Chatter.json",
+      "measurements": {
+        "alias_db": -86.68546212997006,
+        "dominant_lfo": {
+          "depth_oct": null,
+          "lfo": "Mod B Square 1/16",
+          "period_140": 0.10714285714285714,
+          "period_150": 0.1,
+          "weight": 0.4000000059604645
+        },
+        "fx_reordered": false,
+        "lufs@140": -15.40285619395675,
+        "lufs@150": -15.434172451754815,
+        "rms_db@140": -17.544963428402617,
+        "rms_db@150": -17.56391494310199,
+        "uses_fx": true
+      },
+      "name": "Robotic Comb Chatter",
+      "notes": [],
+      "pass": false,
+      "seconds": 27.7610215,
+      "tags": [
+        "riddim",
+        "metal",
+        "dirty",
+        "mono"
+      ]
+    },
+    {
+      "category": "Bass/riddim",
+      "checks": [
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_load",
+          "label": "Loads without warnings",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "author \"Riddim Rack\"",
+          "group": "metadata",
+          "id": "meta_author",
+          "label": "Author is \"Riddim Rack\"",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_macros",
+          "label": "Four labelled macros that each drive a slot",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "tags [\"riddim\", \"metal\", \"triplet\", \"mono\"]",
+          "group": "metadata",
+          "id": "meta_tags",
+          "label": "A riddim / dubstep family tag (Bass)",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_names",
+          "label": "No artist or product name in name or description",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "meta_description",
+          "label": "Description of at least 80 characters",
+          "margin": 417.0,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 80.0
+          },
+          "tempo": null,
+          "unit": "chars",
+          "value": 497.0
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 5.1968033852105275,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -8.196803385210528
+        },
+        {
+          "detail": "per note: F1 -18.89, G1 -18.94, A#1 -19.10",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.4749385763820868,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -18.974938576382087
+        },
+        {
+          "detail": "per note: F1 -16.74, G1 -16.71, A#1 -16.75",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.7677117454137132,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 150,
+          "unit": "LUFS",
+          "value": -16.732288254586287
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 2.694269878317318,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 10.305730121682682
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.0250614236179132,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.9749385763820868
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 4599.6, G1 4679.6, A#1 4889.8; power-weighted centroid for comparison: F1 510.2, G1 546.2, A#1 615.9",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -3389.804918261103,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 150,
+          "unit": "Hz",
+          "value": 4889.804918261103
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 0.780, G1 0.708, A#1 0.630",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.029505223358856747,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 150,
+          "unit": "oct",
+          "value": 0.6295052233588567
+        },
+        {
+          "detail": "F1 0.138, G1 0.320, A#1 1.06 (measured 0.1335 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod A SawDown 1/8T = 0.1333 s (error)",
+          "margin": 3.9413929205457343,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 150,
+          "unit": "%",
+          "value": 1.0586070794542657
+        },
+        {
+          "detail": "F1 0.973, G1 0.866, A#1 0.878",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.3655129203403603,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 150,
+          "unit": "",
+          "value": 0.8655129203403603
+        },
+        {
+          "detail": "F1 0.818, G1 0.652, A#1 0.662",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.8180203412538596
+        },
+        {
+          "detail": "E1 -18.85 dBFS vs -18.97",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.871795467189422,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.1282045328105781
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "nan",
+          "label": "No NaN or inf in the output",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 0.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.0
+        },
+        {
+          "detail": "holds and the 4-bar pattern, after the limiter",
+          "group": "level",
+          "id": "peak100",
+          "label": "Peak at velocity 100, dBFS",
+          "margin": 5.5821219165455656,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -8.582121916545566
+        },
+        {
+          "detail": "per note: F1 -18.88, G1 -18.93, A#1 -19.09",
+          "group": "level",
+          "id": "rms",
+          "label": "RMS over the hold, dBFS",
+          "margin": -0.4665289205300489,
+          "status": "fail",
+          "target": {
+            "max": -14.5,
+            "min": -18.5
+          },
+          "tempo": 140,
+          "unit": "dBFS",
+          "value": -18.96652892053005
+        },
+        {
+          "detail": "per note: F1 -16.74, G1 -16.70, A#1 -16.74",
+          "group": "level",
+          "id": "lufs",
+          "label": "LUFS-I over the hold",
+          "margin": 2.773826755802464,
+          "status": "pass",
+          "target": {
+            "max": -13.5,
+            "min": -19.5
+          },
+          "tempo": 140,
+          "unit": "LUFS",
+          "value": -16.726173244197536
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "crest",
+          "label": "Crest (peak - RMS)",
+          "margin": 2.6155929960155166,
+          "status": "pass",
+          "target": {
+            "max": 13.0,
+            "min": 6.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 10.384407003984483
+        },
+        {
+          "detail": "category median -18 dBFS",
+          "group": "level",
+          "id": "rms_cat_median",
+          "label": "RMS within 2 dB of the category median",
+          "margin": 1.033471079469951,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -0.9665289205300489
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "low end",
+          "id": "low_corr",
+          "label": "Low-band (<120 Hz) L/R correlation",
+          "margin": 0.010000000000000009,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.99
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 -300.0, G1 -300.0, A#1 -300.0",
+          "group": "low end",
+          "id": "low_sm",
+          "label": "Low-band side/mid, dB",
+          "margin": 270.0,
+          "status": "pass",
+          "target": {
+            "max": -30.0,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "F1 0.000, G1 0.000, A#1 0.000",
+          "group": "low end",
+          "id": "mono_diff",
+          "label": "Mono-sum vs stereo energy below 120 Hz",
+          "margin": 1.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.0
+        },
+        {
+          "detail": "F1 4623.6, G1 4628.5, A#1 4888.9; power-weighted centroid for comparison: F1 511.3, G1 541.8, A#1 616.2",
+          "group": "spectrum",
+          "id": "bright",
+          "label": "Brightness (power centroid)",
+          "margin": -3388.9218545692356,
+          "status": "fail",
+          "target": {
+            "max": 1500.0,
+            "min": 250.0
+          },
+          "tempo": 140,
+          "unit": "Hz",
+          "value": 4888.921854569236
+        },
+        {
+          "detail": "F1 1.00, G1 1.00, A#1 1.00",
+          "group": "stereo",
+          "id": "width",
+          "label": "Width: L/R correlation above 200 Hz",
+          "margin": 0.0,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "detail": "F1 0.743, G1 0.763, A#1 0.614",
+          "group": "movement",
+          "id": "depth",
+          "label": "Move depth (p95-p5 of log2 centroid)",
+          "margin": 0.014044442421644043,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.6
+          },
+          "tempo": 140,
+          "unit": "oct",
+          "value": 0.614044442421644
+        },
+        {
+          "detail": "F1 -0.093, G1 0.141, A#1 -1.79 (measured 0.1403 s)",
+          "group": "movement",
+          "id": "period_err",
+          "label": "Move period vs Mod A SawDown 1/8T = 0.1429 s (error)",
+          "margin": 3.210414397182777,
+          "status": "pass",
+          "target": {
+            "max": 5.0,
+            "min": -5.0
+          },
+          "tempo": 140,
+          "unit": "%",
+          "value": -1.789585602817223
+        },
+        {
+          "detail": "F1 0.973, G1 0.975, A#1 0.846",
+          "group": "movement",
+          "id": "period_peak",
+          "label": "Move period ACF peak height",
+          "margin": 0.3457580267145881,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.5
+          },
+          "tempo": 140,
+          "unit": "",
+          "value": 0.8457580267145881
+        },
+        {
+          "detail": "F1 0.844, G1 0.380, A#1 0.590",
+          "group": "low end",
+          "id": "sub_var",
+          "label": "Sub (<90 Hz) RMS variation over the cycle",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.8439395151738651
+        },
+        {
+          "detail": "E1 -18.88 dBFS vs -18.97",
+          "group": "low end",
+          "id": "e1_floor",
+          "label": "E1 floor: RMS within 3 dB of F1/G1/A#1 (tool-defined)",
+          "margin": 2.9095453676562215,
+          "status": "pass",
+          "target": {
+            "max": 3.0,
+            "min": -3.0
+          },
+          "tempo": 140,
+          "unit": "dB",
+          "value": 0.09045463234377848
+        },
+        {
+          "detail": "",
+          "group": "level",
+          "id": "peak127",
+          "label": "Peak at velocity 127, dBFS",
+          "margin": 5.1968033852105275,
+          "status": "pass",
+          "target": {
+            "max": -3.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dBFS",
+          "value": -8.196803385210528
+        },
+        {
+          "detail": "F1 frozen render, grid 43.65 Hz, spread 0.0 ct",
+          "group": "alias",
+          "id": "alias",
+          "label": "Alias floor (frozen modulation)",
+          "margin": 36.57353264391993,
+          "status": "pass",
+          "target": {
+            "max": -50.0,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -86.57353264391993
+        },
+        {
+          "detail": "oscillators, filters and shaper only",
+          "group": "alias",
+          "id": "alias_dry",
+          "label": "Alias floor, frozen and FX off (Info)",
+          "margin": null,
+          "status": "info",
+          "target": {
+            "max": null,
+            "min": null
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -86.43434826223867
+        },
+        {
+          "detail": "frozen -18.88 dBFS, live -18.89 dBFS",
+          "group": "alias",
+          "id": "frozen_valid",
+          "label": "Frozen render within 1 dB RMS of live",
+          "margin": 0.988664232954303,
+          "status": "pass",
+          "target": {
+            "max": 1.0,
+            "min": -1.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": 0.011335767045697054
+        },
+        {
+          "detail": "C 0.068 oct (min 0.3) [12.17 12.16 12.12 12.12 12.10]; D 0.381 oct (min 0.3) non-monotonic [0.780 0.659 0.708 0.988 1.04]; L 0.139 LU (min 1) [-16.74 -16.74 -16.72 -16.76 -16.86]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]; no metric is both audible and monotonic",
+          "group": "macros",
+          "id": "macro1",
+          "label": "Macro 1 \"Bark\" sweep",
+          "margin": 0.08111363374024166,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.38111363374024165
+        },
+        {
+          "detail": "C 0.135 oct (min 0.3) [12.17 12.03 12.06 12.10 12.11]; D 0.400 oct (min 0.3) non-monotonic [0.780 0.794 0.917 0.745 0.516]; L 1.20 LU (min 1) non-monotonic [-16.74 -17.46 -17.90 -17.94 -17.36]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]; no metric is both audible and monotonic",
+          "group": "macros",
+          "id": "macro2",
+          "label": "Macro 2 \"Metal\" sweep",
+          "margin": 0.10023640509906678,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.40023640509906677
+        },
+        {
+          "detail": "C 0.047 oct (min 0.3) [12.17 12.16 12.16 12.15 12.12]; D 0.762 oct (min 0.3) [0.780 0.799 1.23 1.54 1.54]; L 0.384 LU (min 1) [-16.74 -16.94 -17.12 -16.96 -16.82]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro3",
+          "label": "Macro 3 \"Snap\" sweep",
+          "margin": 0.46155930381526816,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 0.3
+          },
+          "tempo": null,
+          "unit": "D oct",
+          "value": 0.7615593038152682
+        },
+        {
+          "detail": "C 0.227 oct (min 0.3) [12.17 12.10 12.02 11.96 11.94]; D 0.237 oct (min 0.3) [0.780 0.703 0.632 0.589 0.543]; L 1.27 LU (min 1) [-16.74 -16.33 -15.90 -15.59 -15.47]; W 0.000 corr (min 0.1) [1.00 1.00 1.00 1.00 1.00]",
+          "group": "macros",
+          "id": "macro4",
+          "label": "Macro 4 \"Drive\" sweep",
+          "margin": 0.2685174812847375,
+          "status": "pass",
+          "target": {
+            "max": null,
+            "min": 1.0
+          },
+          "tempo": null,
+          "unit": "L LU",
+          "value": 1.2685174812847375
+        },
+        {
+          "detail": "",
+          "group": "metadata",
+          "id": "repeat",
+          "label": "Repeatability: difference of two renders re signal",
+          "margin": 220.0,
+          "status": "pass",
+          "target": {
+            "max": -80.0,
+            "min": null
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": -300.0
+        },
+        {
+          "detail": "7 preset(s) in the category, median -18.16 dBFS",
+          "group": "level",
+          "id": "rms_bank_median",
+          "label": "RMS against the median of its category in this run",
+          "margin": 1.1845138872035008,
+          "status": "pass",
+          "target": {
+            "max": 2.0,
+            "min": -2.0
+          },
+          "tempo": 150,
+          "unit": "dB",
+          "value": -0.8154861127964992
+        },
+        {
+          "detail": "nearest: Robotic Comb Chatter",
+          "group": "distinctiveness",
+          "id": "pair_dist",
+          "label": "Log-mel distance to the nearest riddim preset",
+          "margin": -0.461394208857433,
+          "status": "fail",
+          "target": {
+            "max": null,
+            "min": 3.3
+          },
+          "tempo": null,
+          "unit": "dB",
+          "value": 2.838605791142567
+        }
+      ],
+      "error": null,
+      "failed_checks": 7,
+      "family": "riddim",
+      "family_source": "tags",
+      "file": "docs/audits/bank-staging/riddim-seq-init\\Triplet Bark AM.json",
+      "measurements": {
+        "alias_db": -86.57353264391993,
+        "dominant_lfo": {
+          "depth_oct": 0.5669632739817008,
+          "lfo": "Mod A SawDown 1/8T",
+          "period_140": 0.14285714285714285,
+          "period_150": 0.13333333333333333,
+          "weight": 0.25
+        },
+        "fx_reordered": false,
+        "lufs@140": -16.726173244197536,
+        "lufs@150": -16.732288254586287,
+        "rms_db@140": -18.96652892053005,
+        "rms_db@150": -18.974938576382087,
+        "uses_fx": true
+      },
+      "name": "Triplet Bark AM",
+      "notes": [],
+      "pass": false,
+      "seconds": 40.5706344,
+      "tags": [
+        "riddim",
+        "metal",
+        "triplet",
+        "mono"
+      ]
+    }
+  ],
+  "summary": {
+    "failed_checks": 25,
+    "fx_reordered": 1,
+    "pass": false,
+    "presets": 8,
+    "uses_fx": 7
+  },
+  "tempos": [
+    150,
+    140
+  ],
+  "tool": "bank_qa",
+  "unix_time": 1792304352
+}
