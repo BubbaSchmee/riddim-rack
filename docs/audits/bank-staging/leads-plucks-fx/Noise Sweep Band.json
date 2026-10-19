@@ -65,7 +65,7 @@
     "filta_env": false,
     "filta_freq": 2200,
     "filta_kbd": 0.0,
-    "filta_res": 0.6057532656499689,
+    "filta_res": 0.5,
     "filta_type": "BP12",
     "filtb_env": false,
     "filtb_freq": 418,
@@ -83,8 +83,8 @@
     "modb_sync": true,
     "modb_target": "Both",
     "modb_trig": "Retrigger",
-    "noise_level": -3,
-    "noise_tone": 0.18682923668304596,
+    "noise_level": 0,
+    "noise_tone": 0.12,
     "noise_type": "Pink",
     "osca_att": 0.01,
     "osca_dec": 0.3,
@@ -95,7 +95,7 @@
     "phs_mix": 0.2696160990039676,
     "phs_on": true,
     "poly": 1,
-    "rev_mix": 0.2677601410678752,
+    "rev_mix": 0.42,
     "rev_on": true,
     "routing": "Parallel",
     "sub_on": false,
@@ -105,6 +105,9 @@
     "rev_width": 0,
     "phs_spread": 0,
     "eq_low_freq": 500,
-    "eq_low_gain": -12
+    "eq_low_gain": -12,
+    "lim_gain": 4.95,
+    "eq_high_freq": 3000,
+    "eq_high_gain": -6
   }
 }

@@ -29,8 +29,8 @@
     {
       "source": "Mod B",
       "target": "filta_freq",
-      "amount": -0.197395,
-      "bipolar": false,
+      "amount": -0.0985,
+      "bipolar": true,
       "enabled": true
     },
     {
@@ -38,13 +38,6 @@
       "target": "filta_res",
       "amount": 0.6,
       "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Macro 2",
-      "target": "filta_freq",
-      "amount": 0.1,
-      "bipolar": true,
       "enabled": true
     },
     {
@@ -67,10 +60,24 @@
       "amount": 0.3,
       "bipolar": false,
       "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "filta_freq",
+      "amount": 0.1,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "eq_high_gain",
+      "amount": 0.3,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
-    "dim_mix": 0.5,
+    "dim_mix": 0.75,
     "dim_on": true,
     "dim_size": 0.8,
     "dim_wet_lowcut": 300,
@@ -80,10 +87,10 @@
     "eq_cut_freq": 220,
     "eq_cut_on": true,
     "eq_high_freq": 2000,
-    "eq_high_gain": 12.0,
+    "eq_high_gain": -11,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 3620,
+    "filta_freq": 3000,
     "filta_kbd": 0.0,
     "filta_res": 0.3,
     "filta_type": "Formant",
@@ -138,7 +145,7 @@
     "rev_type": "Hall",
     "routing": "Parallel",
     "sub_on": false,
-    "volume": -7.2
+    "volume": -5.0
   },
   "fx_order": [
     "Phaser",

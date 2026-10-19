@@ -28,36 +28,36 @@
     {
       "source": "Mod C",
       "target": "filta_freq",
-      "amount": 0.14433202287990943,
-      "bipolar": true,
+      "amount": -0.28866404575981885,
+      "bipolar": false,
       "enabled": true
     },
     {
       "source": "Mod C",
       "target": "pitch_all",
-      "amount": 0.08432349431348575,
-      "bipolar": true,
+      "amount": -0.1686469886269715,
+      "bipolar": false,
       "enabled": true
     },
     {
       "source": "Mod C",
       "target": "volume",
-      "amount": 0.04178404996666756,
-      "bipolar": true,
+      "amount": -0.08356809993333512,
+      "bipolar": false,
       "enabled": true
     },
     {
       "source": "Mod C",
       "target": "cho_mix",
-      "amount": 0.2,
-      "bipolar": true,
+      "amount": -0.4,
+      "bipolar": false,
       "enabled": true
     },
     {
       "source": "Mod D",
       "target": "rev_mix",
-      "amount": 0.1,
-      "bipolar": true,
+      "amount": -0.2,
+      "bipolar": false,
       "enabled": true
     },
     {
@@ -70,7 +70,7 @@
     {
       "source": "Macro 2",
       "target": "noise_level",
-      "amount": 0.3,
+      "amount": 0.4,
       "bipolar": false,
       "enabled": true
     },
@@ -91,19 +91,19 @@
     {
       "source": "Mod C",
       "target": "osca_width",
-      "amount": 0.3268840766313502,
-      "bipolar": true,
+      "amount": -0.6537681532627004,
+      "bipolar": false,
       "enabled": true
     }
   ],
   "params": {
-    "cho_mix": 0.20531509562302613,
+    "cho_mix": 0.4053,
     "cho_on": true,
     "eq_cut_freq": 485,
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 1450,
+    "filta_freq": 4621.670105183613,
     "filta_kbd": 0.0,
     "filta_res": 0.6,
     "filta_type": "LP12",
@@ -125,15 +125,15 @@
     "moda_sync": true,
     "moda_target": "Both",
     "moda_trig": "Envelope",
-    "modc_curve": "Saw Up",
+    "modc_curve": "Saw Down",
     "modc_div": "4/1",
     "modc_sync": true,
     "modc_trig": "Envelope",
-    "modd_curve": "Saw Up",
+    "modd_curve": "Saw Down",
     "modd_div": "4/1",
     "modd_sync": true,
     "modd_trig": "Envelope",
-    "noise_level": -29,
+    "noise_level": -24,
     "noise_tone": 0.18393453526776338,
     "noise_type": "White",
     "osca_att": 0.02,
@@ -145,19 +145,23 @@
     "osca_sus": 1.0,
     "osca_table": "Saw Stack",
     "osca_unison": 7,
-    "osca_width": 0.8217085760323084,
+    "osca_width": 1.0,
     "oscb_on": false,
     "poly": 1,
     "porta": 0.0,
     "rev_decay": 3.0,
-    "rev_mix": 0.17566362106808936,
+    "rev_mix": 0.2757,
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -6,
+    "volume": -4.746,
     "rev_lowcut": 500,
     "cho_wet_lowcut": 500,
     "mono_xover": 200,
-    "pitch_all": 4
+    "pitch_all": 12.0928,
+    "osca_vol": 0.3,
+    "lim_gain": 12,
+    "eq_high_freq": 2500,
+    "eq_high_gain": -9
   }
 }

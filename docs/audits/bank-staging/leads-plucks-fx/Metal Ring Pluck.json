@@ -140,7 +140,6 @@
     "poly": 3,
     "porta": 0.0,
     "rev_decay": 1.4,
-    "rev_mix": 0.0,
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
@@ -150,6 +149,7 @@
     "dist_on": true,
     "dist_type": "Overdrive",
     "dist_autogain": false,
-    "dist_drive": 14
+    "dist_drive": 14,
+    "rev_mix": 0.0
   }
 }

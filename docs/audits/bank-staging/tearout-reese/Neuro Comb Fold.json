@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Neuro Comb Fold",
   "author": "Riddim Rack",
-  "description": "A snarling neuro bass: two detuned saw stacks pushed through a comb filter and a notch that sweep together in triplets, then phased and wave-folded. Sharp, futuristic and mono-heavy, with a clean sub under the mess. Play F1 to A#1 as short stabs or held notes at 140 to 150 BPM; the sweep restarts on every note. Neuro Sweep deepens the triplet movement, Fold drives the wave-folder harder, Comb raises the comb ring and shifts its pitch, and Phase pours in the phaser.",
+  "description": "A snarling neuro bass: two detuned saw stacks run through a low-pass and a key-tracked comb filter that sweep together in triplets, then phased and wave-folded. Sharp, futuristic and mono-heavy, with a clean sub under the mess. Play F1 to A#1 as short stabs or held notes at 140 to 150 BPM; the sweep restarts on every note. Neuro Sweep deepens the triplet movement, Fold drives the wave-folder harder and opens the top end, Comb raises the comb ring and shifts its pitch, and Phase pours in the phaser.",
   "category": "Bass/reese",
   "tags": [
     "neuro",
@@ -14,7 +14,7 @@
     "qa_macro2=C:0.4",
     "qa_macro3=C:0.4",
     "qa_macro4=W:0.1",
-    "qa_alias=..-15"
+    "qa_alias=..-21"
   ],
   "macros": [
     {
@@ -177,7 +177,7 @@
     "filta_res": 0.3,
     "filta_type": "LP24",
     "filtb_env": false,
-    "filtb_freq": 523.25,
+    "filtb_freq": 1046.5,
     "filtb_kbd": 1.0,
     "filtb_res": 0.4,
     "filtb_type": "Comb-",
@@ -206,7 +206,7 @@
     "mb_in": 0.0,
     "mb_mix": 1.0,
     "mb_on": true,
-    "mb_out": 1.0,
+    "mb_out": 4.0,
     "mb_time": 0.3,
     "mb_up_hi": -24.0,
     "mb_up_lo": -24.0,
