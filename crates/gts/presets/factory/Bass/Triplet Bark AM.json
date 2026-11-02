@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Triplet Bark AM",
   "author": "Riddim Rack",
-  "description": "The robotic bark: a metal-table tone run through a key-tracked ring-mod filter and a triplet saw-down low-pass, over a clean sine sub, so the timbre snaps open and rolls off on every triplet eighth and swings against straight-eighth drum patterns. Play: short F1, G1 and A#1 stabs or held notes at 140-150 BPM; the ring-mod pitch follows your keys, so melodic lines stay metallic but in tune with the sub. Macros: Bark sets how far the timbre falls on each triplet, Metal deepens the ring modulation, Snap deepens the low-pass sweep on each triplet and Drive pushes the diode distortion.",
+  "description": "The robotic bark: a metallic tone through a keytracked ring-mod filter and a falling triplet low-pass over a clean sub, so the timbre snaps open and rolls off on every triplet and swings against straight-eighth drum patterns. Play short stabs or held notes on F1, G1 and A#1, mono and legato; the ring-mod pitch follows your keys, so melodic lines stay metallic but in tune with the sub, and harder hits play louder and open the bark wider. Macros: Bark sets how far the timbre falls on each triplet; Metal deepens the ring modulation; Snap deepens the low-pass sweep on each triplet; Drive pushes the distortion.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -135,13 +135,16 @@
     "osca_vol": 1.0,
     "oscb_on": false,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -12.0,
     "sub_oct": -2,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -4.5,
+    "vel_mod": 0.5,
+    "vel_vol_a": 0.8,
+    "vel_vol_b": 0.8,
+    "volume": -3.8,
     "eq_high_freq": 8000.0,
     "eq_high_gain": 0.0
   }

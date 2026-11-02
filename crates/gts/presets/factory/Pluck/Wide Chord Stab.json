@@ -3,14 +3,15 @@
   "product": "GTS",
   "name": "Wide Chord Stab",
   "author": "Riddim Rack",
-  "description": "A short, bright chord hit with a quick filter close and a wide unison spread, built to answer a bass note on the drop. Play stacked triads on the beat. Snap pushes the filter envelope harder, Decay stretches each hit, Width spreads the stereo image and Space brings in reverb (the stab is dry until you turn it up).",
+  "description": "A short, bright chord hit with a quick filter close and a wide unison spread, built to answer a bass note on the drop. Play stacked triads on the beat; it is polyphonic, and harder hits play louder and open the filter wider. Macros: Snap pushes the filter snap harder; Decay stretches each hit; Width spreads the stereo image; Space brings in reverb (the stab is dry until you turn it up).",
   "category": "Pluck",
   "tags": [
     "stab",
     "pluck",
     "wide",
     "qa_decay=250",
-    "qa_alias=..-10"
+    "qa_alias=..-10",
+    "qa_macro1=C:0.5"
   ],
   "macros": [
     {
@@ -30,7 +31,7 @@
     {
       "source": "Macro 1",
       "target": "fenv_amt",
-      "amount": 0.28938816097605563,
+      "amount": 0.45,
       "bipolar": false,
       "enabled": true
     },
@@ -71,15 +72,22 @@
     },
     {
       "source": "Macro 1",
-      "target": "filta_freq",
-      "amount": 0.0,
+      "target": "fenv_dec",
+      "amount": 0.054078522339483175,
       "bipolar": false,
       "enabled": true
     },
     {
-      "source": "Macro 1",
-      "target": "fenv_dec",
-      "amount": 0.054078522339483175,
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.06,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "volume",
+      "amount": 0.08,
       "bipolar": false,
       "enabled": true
     }
@@ -97,7 +105,7 @@
     "fenv_rel": 0.1,
     "fenv_sus": 0.0,
     "filta_env": true,
-    "filta_freq": 3000,
+    "filta_freq": 2043.5663028380516,
     "filta_kbd": 0,
     "filta_res": 0.012,
     "filta_type": "LP24",
@@ -141,18 +149,19 @@
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -1.2,
-    "dist_drive": 26,
-    "dist_mix": 1.0,
+    "volume": -2.03,
+    "dist_drive": 6.0,
+    "dist_mix": 0.3,
     "dist_on": true,
     "dist_type": "Tube",
-    "dist_autogain": false,
-    "dist_out": -13,
+    "dist_autogain": true,
+    "dist_out": 0.0,
     "eq_high_freq": 3000,
-    "eq_high_gain": 4,
-    "vel_fenv": 0.3,
-    "vel_vol_a": 0.3,
+    "eq_high_gain": 2.0,
+    "vel_fenv": 1.0,
+    "vel_vol_a": 1.0,
     "osca_rand_phase": 0.5,
-    "oscb_rand_phase": 0.5
+    "oscb_rand_phase": 0.5,
+    "vel_vol_b": 1.0
   }
 }

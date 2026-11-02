@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Call and Response Square",
   "author": "Riddim Rack",
-  "description": "One bar, two phrases: a bouncing call of several barks, then a thinner answer that leaves a hole before the next downbeat. Play: hold F1, A#1 or G1 for a full bar-long riff from a single key, or stab it against a half-time kick at 140-150 BPM; the pattern restarts on every new note. Macros: Call Depth deepens the spectral jump on every hit, Response Gap fades the answer phrase out, Bite thins the body and Grit pushes the hard clip.",
+  "description": "A one-bar riddim riff from a single note: a bouncing call of hard barks, then a thinner answer that leaves a hole before the next downbeat, over a clean sub. Play it mono and legato on F1, G1 or A#1, holding for a full bar or stabbing against a half-time kick; the pattern restarts on every new note. Macros: Call Depth deepens the spectral jump on every hit; Response Gap fades the answer phrase out; Bite thins the body; Grit pushes the hard clip.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -129,7 +129,7 @@
     "phs_spread": 0.0,
     "phs_stages": 4,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -12.0,
     "sub_oct": -2,

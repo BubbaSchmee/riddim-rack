@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Pure Sine Sub",
   "author": "Riddim Rack",
-  "description": "The reference sub: one clean sine at the played pitch with a short soft attack and nothing else, no filter, no distortion, no width. Use it to layer under another bass without adding anything above it, or to check how a system or room handles F1 to A#1. It is mono, and nothing is routed to change the pitch or the tone. Play: long notes in the F1 to A#1 range; below about 40 Hz many speakers give nothing back, so check it on headphones too. Macros: Level trims the output over a 6 dB range (it rests at full), Soft Attack stretches the fade-in from a firm 2 ms to a 40 ms swell, Octave Up blends in a sine one octave above for small speakers, Release stretches the tail from a short 60 ms to about half a second.",
+  "description": "The reference sub: one clean sine at the played pitch with a short soft attack and nothing else, no filter, no distortion, no width. Layer it under another bass without adding anything above it, or use it to check how a system handles the lowest notes. Play long notes on F1-A#1, mono and legato, and check it on headphones too, since small speakers give nothing back down there. Macros: Level trims the output over a small range and rests at full; Soft Attack stretches the fade-in from firm to a gentle swell; Octave Up blends in a sine an octave above for small speakers; Release stretches the tail from short to about half a second.",
   "category": "Bass/sub",
   "tags": [
     "sub",
@@ -268,7 +268,7 @@
     "phs_sync": false,
     "pitch_all": 0,
     "poly": 1,
-    "porta": 0.05,
+    "porta": 0.03,
     "rev_damp": 0.3,
     "rev_decay": 1.5,
     "rev_hicut": 12000,

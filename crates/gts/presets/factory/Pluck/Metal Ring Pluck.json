@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Metal Ring Pluck",
   "author": "Riddim Rack",
-  "description": "A short bell-metal pluck, FM-bright with a quick tone decay, for lead-ins and echoing call-and-response fills. Play it around C3. Ring raises the FM amount, Decay lengthens the note, Brightness opens the filter and Echo adds a triplet delay and a touch of room (it is dry until you turn it up).",
+  "description": "A short bell-metal pluck, bright with a quick tone decay, for lead-ins and echoing call-and-response fills. Play short notes or small chords around C3; it is polyphonic with a few voices, and harder hits play louder and brighter. Macros: Ring raises the metallic bite and brightness; Decay lengthens the note; Brightness opens the filter; Echo adds a triplet delay and a touch of room (it is dry until you turn it up).",
   "category": "Pluck",
   "tags": [
     "metal",
@@ -104,6 +104,13 @@
       "amount": 0.12,
       "bipolar": false,
       "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
@@ -120,7 +127,7 @@
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 900,
+    "filta_freq": 403.0172808845475,
     "filta_kbd": 0.5,
     "filta_res": 0.15,
     "filta_type": "LP24",
@@ -135,10 +142,10 @@
     "macro4": 0.0,
     "menv_att": 0.001,
     "menv_curve": 0.0,
-    "menv_dec": 0.08,
+    "menv_dec": 0.1,
     "menv_sus": 0.0,
     "mono_xover": 150,
-    "osca_att": 0.001,
+    "osca_att": 0.0025,
     "osca_dec": 0.17,
     "osca_detune": 8,
     "osca_index": 39,
@@ -150,7 +157,7 @@
     "osca_warp_amt": 0.29,
     "osca_warp_mode": "FM",
     "osca_width": 0.8,
-    "oscb_att": 0.001,
+    "oscb_att": 0.0025,
     "oscb_dec": 0.17,
     "oscb_index": 64,
     "oscb_on": true,
@@ -166,15 +173,16 @@
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -7.3,
+    "volume": -8.4,
     "osca_curve": 0.4,
     "oscb_curve": 0.4,
     "dist_on": true,
     "dist_type": "Overdrive",
     "dist_autogain": false,
-    "dist_drive": 14,
+    "dist_drive": 17.0,
     "rev_mix": 0.0,
-    "vel_fenv": 0.3,
-    "vel_vol_a": 0.2
+    "vel_fenv": 0.0,
+    "vel_vol_a": 1.0,
+    "vel_vol_b": 1.0
   }
 }

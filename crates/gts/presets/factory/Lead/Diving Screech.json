@@ -1,15 +1,17 @@
 {
   "format_version": 1,
   "product": "GTS",
-  "name": "Screech Dive One",
+  "name": "Diving Screech",
   "author": "Riddim Rack",
-  "description": "A bright, screaming mono lead. Every note dives down from a high pitch in a fraction of a second while a comb filter sweeps upward once per half note. Play melodies from C3 to C5, or hold a long note to hear the sweep. Dive sets how far the note falls, Comb Sweep deepens the filter sweep, Screech adds hard-sync bite, Drive pushes the distortion.",
+  "description": "A bright, screaming lead: every note dives down from a high pitch in a fraction of a second while a comb filter sweeps upward once per half note. Play melodies from C3 to C5, or hold a long note to hear the sweep; it is mono and legato, and harder hits play louder and brighter. Macros: Dive sets how far the note falls; Comb Sweep sharpens the comb ring; Screech adds hard-sync bite; Drive pushes the distortion.",
   "category": "Lead",
   "tags": [
     "screech",
     "lead",
     "mono",
-    "qa_dive=12@90"
+    "qa_dive=12@90",
+    "qa_macro2=D:0.5",
+    "qa_macro3=C:0.4"
   ],
   "macros": [
     {
@@ -26,13 +28,6 @@
     }
   ],
   "matrix": [
-    {
-      "source": "Mod B",
-      "target": "filta_freq",
-      "amount": 0.151633,
-      "bipolar": false,
-      "enabled": true
-    },
     {
       "source": "Macro 1",
       "target": "moda_pitch",
@@ -74,6 +69,27 @@
       "amount": 0.3,
       "bipolar": false,
       "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filtb_freq",
+      "amount": 0.05,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "volume",
+      "amount": 0.07,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 2",
+      "target": "modb_cutoff",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
@@ -82,7 +98,7 @@
     "dim_on": true,
     "dim_size": 1.0,
     "dim_wet_lowcut": 300,
-    "dist_drive": 12,
+    "dist_drive": 13.8,
     "dist_on": true,
     "dist_type": "Hard Clip",
     "eq_cut_freq": 200,
@@ -94,7 +110,7 @@
     "filta_res": 0.0,
     "filta_type": "Comb+",
     "filtb_env": false,
-    "filtb_freq": 5500,
+    "filtb_freq": 4132.398478635423,
     "filtb_kbd": 0.0,
     "filtb_res": 0.0,
     "filtb_type": "LP12",
@@ -121,24 +137,24 @@
     "osca_dec": 0.3,
     "osca_index": 80,
     "osca_on": true,
-    "osca_rel": 0.12,
+    "osca_rel": 0.15,
     "osca_sus": 1.0,
     "osca_table": "Saw Stack",
     "osca_unison": 1,
-    "osca_warp_amt": 0.2,
+    "osca_warp_amt": 0.1,
     "osca_warp_mode": "Sync",
     "oscb_att": 0.002,
     "oscb_cent": 2,
     "oscb_dec": 0.3,
     "oscb_index": 64,
     "oscb_on": true,
-    "oscb_rel": 0.12,
+    "oscb_rel": 0.15,
     "oscb_sus": 1.0,
     "oscb_table": "Metal",
     "oscb_unison": 1,
     "oscb_vol": 0.5,
     "poly": 1,
-    "porta": 0.05,
+    "porta": 0.06,
     "rev_decay": 1.2,
     "rev_lowcut": 300,
     "rev_mix": 0.08,
@@ -146,7 +162,11 @@
     "rev_type": "Hall",
     "routing": "Series",
     "sub_on": false,
-    "volume": -7
+    "volume": -8.79,
+    "vel_vol_a": 0.9,
+    "vel_vol_b": 0.9,
+    "modb_target": "A",
+    "modb_cutoff": 0.2
   },
   "lfo_shapes": [
     {

@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Dotted Metal Stab",
   "author": "Riddim Rack",
-  "description": "An off-beat pocket riddim: a metallic FM-flavoured square that opens and falls on a dotted-eighth cadence, so across two bars it drifts against the kick and lands back on the downbeat. Mono below, a little wide above. Play: F1, G1 and A#1 stabs or held notes with the transport running at 140-150 BPM, and leave gaps so the dotted pulse speaks. Macros: Stab Depth deepens the sweep on every pulse, FM Mix thickens the metallic FM, Notch Sweep moves the hollow notch and Width opens the chorus above the low end.",
+  "description": "An off-beat riddim stab: a metallic square that opens and falls on a dotted cadence, drifting against the kick across two bars and landing back on the downbeat. Play stabs or held notes on F1, G1 and A#1, mono and legato, with the transport running, and leave gaps so the dotted pulse speaks. Macros: Stab Depth deepens the sweep on every pulse; FM Mix thickens the metallic edge; Notch Sweep moves the hollow notch; Width opens the chorus above the low end.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -148,12 +148,12 @@
     "oscb_table": "Square Morph",
     "oscb_vol": 0.2,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -12.0,
     "sub_oct": -2,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -3.0
+    "volume": -3.7
   }
 }

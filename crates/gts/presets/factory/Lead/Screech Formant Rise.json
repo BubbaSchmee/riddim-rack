@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Screech Formant Rise",
   "author": "Riddim Rack",
-  "description": "A vocal screech. A formant filter glides from an oh to an ee on every quarter note while the pitch bends upward, so it screams like a voice instead of a saw. Play short phrases around C3 to C4 and let notes ring. Rise sets how far the vowel travels, Vowel Start moves where it begins, Bend adds pitch glide into each note, Grit drives the distortion.",
+  "description": "A vocal screech: a vowel filter glides from an oh to an ee on every quarter note while the pitch bends upward, so it screams like a voice instead of a saw. Play short phrases around C3-C4 and let notes ring; it is mono and legato, and harder hits play louder and brighter. Macros: Rise sets how far the vowel travels; Vowel Start moves where it begins; Bend adds pitch glide into each note; Grit drives the distortion.",
   "category": "Lead",
   "tags": [
     "screech",
@@ -11,7 +11,9 @@
     "lead",
     "dirty",
     "qa_macro1=D:0.6",
-    "qa_dive=-1.3@80"
+    "qa_dive=-1.3@80",
+    "qa_macro3=C:0.3",
+    "qa_macro4=C:0.4"
   ],
   "macros": [
     {
@@ -38,14 +40,14 @@
     {
       "source": "Macro 3",
       "target": "osca_warp_amt",
-      "amount": 0.3,
+      "amount": 0.5,
       "bipolar": false,
       "enabled": true
     },
     {
       "source": "Macro 4",
       "target": "dist_drive",
-      "amount": 0.3,
+      "amount": 0.5,
       "bipolar": false,
       "enabled": true
     },
@@ -69,6 +71,27 @@
       "amount": -0.2,
       "bipolar": true,
       "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.12,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "filta_freq",
+      "amount": 0.1,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "eq_high_gain",
+      "amount": 0.2,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
@@ -76,16 +99,16 @@
     "dim_on": true,
     "dim_size": 0.8,
     "dim_wet_lowcut": 300,
-    "dist_drive": 15.0,
+    "dist_drive": 10.0,
     "dist_on": true,
     "dist_type": "Diode",
     "eq_cut_freq": 220,
     "eq_cut_on": true,
     "eq_high_freq": 2000,
-    "eq_high_gain": -11,
+    "eq_high_gain": -8.0,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 3000,
+    "filta_freq": 1355.5690405798587,
     "filta_kbd": 0.0,
     "filta_res": 0.6,
     "filta_type": "Formant",
@@ -113,7 +136,7 @@
     "osca_dec": 0.3,
     "osca_index": 70,
     "osca_on": true,
-    "osca_rel": 0.12,
+    "osca_rel": 0.15,
     "osca_sus": 1.0,
     "osca_table": "Reed",
     "osca_unison": 1,
@@ -124,7 +147,7 @@
     "oscb_dec": 0.3,
     "oscb_index": 64,
     "oscb_on": true,
-    "oscb_rel": 0.12,
+    "oscb_rel": 0.15,
     "oscb_sus": 1.0,
     "oscb_table": "Saw Stack",
     "oscb_unison": 1,
@@ -133,15 +156,18 @@
     "phs_mix": 0.25,
     "phs_on": true,
     "poly": 1,
-    "porta": 0.05,
+    "porta": 0.06,
     "rev_lowcut": 300,
     "rev_mix": 0.08,
     "rev_on": true,
     "rev_type": "Hall",
     "routing": "Parallel",
     "sub_on": false,
-    "volume": -5.0,
-    "modb_cutoff": -0.27
+    "volume": -5.7,
+    "modb_cutoff": -0.27,
+    "vel_vol_a": 1.0,
+    "vel_vol_b": 1.0,
+    "dist_autogain": true
   },
   "fx_order": [
     "Phaser",

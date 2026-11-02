@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Square Melody Lead",
   "author": "Riddim Rack",
-  "description": "A clean, cutting square lead with a slow breath of vibrato and a soft dotted-eighth echo, made for hooks. Play single-note melodies from C3 upward; it is mono and legato. Brightness opens the filter, Vibrato deepens the pitch wobble and adds a filter sway on top of it, Echo brings in the dotted delay, Space adds a little room.",
+  "description": "A clean, cutting square lead with a slow breath of vibrato and a soft dotted echo, made for hooks. Play single-note melodies from C3 upward; it is mono and legato, and harder hits play a little louder and brighter. Macros: Brightness opens the filter; Vibrato deepens the pitch wobble and adds a filter sway on top of it; Echo brings in the dotted delay; Space adds a little room.",
   "category": "Lead",
   "tags": [
     "lead",
@@ -67,6 +67,13 @@
       "amount": 0.15,
       "bipolar": false,
       "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.03,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
@@ -84,7 +91,7 @@
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 4200,
+    "filta_freq": 3514.925511997219,
     "filta_kbd": 0.5,
     "filta_res": 0.2,
     "filta_type": "LP24",
@@ -111,7 +118,7 @@
     "osca_detune": 3,
     "osca_index": 20,
     "osca_on": true,
-    "osca_rel": 0.12,
+    "osca_rel": 0.15,
     "osca_shift": 12.0,
     "osca_sus": 0.8,
     "osca_table": "Square Morph",
@@ -122,18 +129,18 @@
     "oscb_dec": 0.2,
     "oscb_index": 95,
     "oscb_on": true,
-    "oscb_rel": 0.12,
+    "oscb_rel": 0.15,
     "oscb_sus": 0.8,
     "oscb_table": "Basic",
     "oscb_unison": 1,
     "oscb_vol": 0.195,
     "poly": 1,
-    "porta": 0.03,
+    "porta": 0.06,
     "rev_mix": 0.04,
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": 4,
+    "volume": 5.19,
     "osca_vol": 0.55,
     "osca_rand_phase": 0.5,
     "rev_decay": 0.6,
@@ -143,6 +150,8 @@
     "modb_div": "1/4",
     "modb_sync": true,
     "modb_trig": "Retrigger",
-    "modb_fade": 0.3
+    "modb_fade": 0.3,
+    "vel_vol_a": 0.6,
+    "vel_vol_b": 0.6
   }
 }

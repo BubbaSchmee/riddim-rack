@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Noise Sweep Band",
   "author": "Riddim Rack",
-  "description": "A slow breathing noise sweep: band-passed noise that rises and falls over two bars, wrapped in phaser and width, for backgrounds and builds. Hold any note and let it run; the sweep locks to the host tempo. Sweep Depth sets how far it travels, Centre where it sits, Noise Colour how dark or bright the hiss is, Width how wide it spreads.",
+  "description": "A slow breathing noise sweep: band-passed noise that rises and falls over two bars, wrapped in phaser and reverb for backgrounds and builds. Hold any note and let it run, mono; the sweep locks to the host tempo. Macros: Sweep Depth sets how far it travels; Centre moves where it sits; Noise Colour shifts the hiss from dark to bright; Width spreads the reverb wider.",
   "category": "FX",
   "tags": [
     "sweep",
@@ -116,6 +116,7 @@
     "eq_low_gain": -12,
     "lim_gain": 7.6,
     "eq_high_freq": 3000,
-    "eq_high_gain": -6
+    "eq_high_gain": -6,
+    "porta": 0.0
   }
 }

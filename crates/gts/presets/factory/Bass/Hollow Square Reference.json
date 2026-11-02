@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Hollow Square Reference",
   "author": "Riddim Rack",
-  "description": "The dry reference riddim: a hollow, square-edged grunt that barks in tight eighth notes over a clean sine sub, with nothing hidden. Play: hold or stab F1, G1 and A#1 against a half-time kick at 140-150 BPM; the pulse snaps open and shut like a gate. Macros: Bark Depth widens the filter snap on every bark, Tone opens the top end, Grit pushes the hard clip and Chatter adds a sixteenth-note flutter.",
+  "description": "The dry reference riddim: a hollow, square-edged grunt that barks in tight eighths over a clean sub, with nothing hidden. Play it mono and legato, held or stabbed on F1, G1 and A#1 against a half-time kick; the pulse snaps open and shut like a gate. Macros: Bark Depth widens the filter snap on every bark; Tone opens the top end; Grit pushes the hard clip; Chatter adds a sixteenth-note flutter.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -127,12 +127,12 @@
     "osca_vol": 1.0,
     "oscb_on": false,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -9.0,
     "sub_oct": -2,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -7.0
+    "volume": -8.0
   }
 }

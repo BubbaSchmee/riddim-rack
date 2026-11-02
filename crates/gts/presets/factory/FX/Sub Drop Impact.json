@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Sub Drop Impact",
   "author": "Riddim Rack",
-  "description": "A single big boom for transitions and drop hits: a sine falls three octaves with a burst of noise on top, then a long soft tail. Play one note (C3) on the downbeat. Drop Depth sets how far it falls, Boom Length the length of the body, Noise Burst the crackle on top, Tail the reverb.",
+  "description": "A single big boom for transitions and drop hits: a sine falls a long way in pitch with a burst of noise on top, then a long soft tail. Play one note, C3, on the downbeat; it is mono and does not sustain. Macros: Drop Depth sets how far it falls; Boom Length stretches the body; Noise Burst raises the crackle on top; Tail deepens the reverb.",
   "category": "FX",
   "tags": [
     "impact",

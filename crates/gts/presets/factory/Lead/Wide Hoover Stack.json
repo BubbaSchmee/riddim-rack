@@ -3,13 +3,14 @@
   "product": "GTS",
   "name": "Wide Hoover Stack",
   "author": "Riddim Rack",
-  "description": "A hoover-style supersaw wall: two stacks of seven detuned saws that drop in pitch at the start of every note, spread wide with chorus and a touch of room. Play held chords or octave leads between C3 and C5; the low end stays clear and the level stays even across the keys. Width opens the chorus and dimension, Brightness opens the filter, Dive sets how far each note falls (and thickens the stack as it does), Chorus Depth adds shimmer.",
+  "description": "A hoover-style supersaw wall: two thick stacks of detuned saws that drop in pitch at the start of every note, spread wide with chorus and a touch of room. Play octave leads and held lines between C3 and C5; it is mono and legato, the low end stays clear and the level stays even across the keys. Macros: Width opens the chorus and dimension; Brightness opens the filter; Dive sets how far each note falls and thickens the stack as it does; Chorus Depth adds shimmer.",
   "category": "Lead",
   "tags": [
     "lead",
     "wide",
     "hybrid",
-    "qa_dive=5@140"
+    "qa_dive=12@140",
+    "qa_macro3=C:0.3"
   ],
   "macros": [
     {
@@ -50,14 +51,7 @@
     {
       "source": "Macro 3",
       "target": "moda_pitch",
-      "amount": 0.2,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Macro 3",
-      "target": "osca_index",
-      "amount": 0.2,
+      "amount": 0.5,
       "bipolar": false,
       "enabled": true
     },
@@ -73,6 +67,13 @@
       "target": "volume",
       "amount": -0.28,
       "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.12,
+      "bipolar": false,
       "enabled": true
     }
   ],
@@ -90,13 +91,13 @@
     "eq_cut_freq": 225,
     "eq_cut_on": true,
     "eq_high_freq": 3985,
-    "eq_high_gain": 1,
+    "eq_high_gain": 1.0,
     "eq_on": true,
     "filta_env": false,
     "filta_freq": 4500,
     "filta_kbd": 0.5,
     "filta_res": 0.2,
-    "filta_type": "LP12",
+    "filta_type": "LP24",
     "filtb_env": false,
     "filtb_freq": 215,
     "filtb_kbd": 0.0,
@@ -117,31 +118,31 @@
     "osca_att": 0.004,
     "osca_blend": 0.8,
     "osca_dec": 0.3,
-    "osca_detune": 6,
+    "osca_detune": 26,
     "osca_index": 55,
     "osca_on": true,
-    "osca_rel": 0.2,
+    "osca_rel": 0.15,
     "osca_shift": 0,
     "osca_sus": 1.0,
     "osca_table": "Saw Stack",
     "osca_unison": 7,
-    "osca_width": 0.6,
+    "osca_width": 1.0,
     "oscb_on": true,
     "poly": 1,
-    "porta": 0.04,
+    "porta": 0.06,
     "rev_mix": 0.06,
     "rev_on": true,
     "rev_type": "Hall",
     "routing": "Series",
     "sub_on": false,
-    "volume": 2,
+    "volume": -0.21,
     "oscb_table": "Saw Stack",
     "oscb_index": 55,
     "oscb_unison": 7,
-    "oscb_detune": 6,
+    "oscb_detune": 26,
     "oscb_cent": 2,
     "oscb_vol": 0.3,
-    "oscb_width": 0.6,
+    "oscb_width": 1.0,
     "oscb_blend": 0.8,
     "dist_on": false,
     "dist_type": "Overdrive",
@@ -159,7 +160,13 @@
     "mb_xover_lo": 150,
     "mb_xover_hi": 2500,
     "osca_det_curve": 0.7,
-    "oscb_det_curve": 0.7
+    "oscb_det_curve": 0.7,
+    "oscb_rel": 0.15,
+    "vel_vol_a": 0.6,
+    "vel_vol_b": 0.6,
+    "eq_peak_freq": 900,
+    "eq_peak_gain": 6.0,
+    "eq_peak_q": 0.7
   },
   "lfo_shapes": [
     {

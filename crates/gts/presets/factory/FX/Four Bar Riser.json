@@ -3,12 +3,13 @@
   "product": "GTS",
   "name": "Four Bar Riser",
   "author": "Riddim Rack",
-  "description": "A four-bar riser into the drop. Pitch and brightness climb across the phrase while a hiss builds in and the reverb tail swells. Hold one note (C3 works best) for four bars; the climb locks to the host tempo and restarts on every note. Rise Width brings in chorus, Noise Level the hiss, Pitch Rise how far it climbs, Reverb Tail the wash.",
+  "description": "A four-bar riser into the drop: pitch and brightness climb across the phrase while a hiss builds in and the reverb tail swells. Hold one note for four bars, C3 works best, mono; the climb locks to the host tempo and restarts on every note. Macros: Rise Width brings in chorus; Noise Level raises the hiss; Pitch Rise lifts how far it climbs; Reverb Tail swells the wash.",
   "category": "FX",
   "tags": [
     "riser",
     "sweep",
-    "qa_fxkind=riser"
+    "qa_fxkind=riser",
+    "qa_macro2=L:1.0"
   ],
   "macros": [
     {
@@ -35,7 +36,7 @@
     {
       "source": "Macro 2",
       "target": "noise_level",
-      "amount": 0.4,
+      "amount": 0.6,
       "bipolar": false,
       "enabled": true
     },
@@ -70,7 +71,7 @@
     {
       "source": "Mod C",
       "target": "volume",
-      "amount": -0.05,
+      "amount": -0.11,
       "bipolar": true,
       "enabled": true
     },
@@ -99,7 +100,7 @@
   "params": {
     "cho_mix": 0.0,
     "cho_on": true,
-    "eq_cut_freq": 520,
+    "eq_cut_freq": 500,
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
@@ -116,7 +117,7 @@
     "flg_on": false,
     "legato": true,
     "macro1": 0.5,
-    "macro2": 0.5,
+    "macro2": 0.35,
     "macro3": 0.5,
     "macro4": 0.5,
     "moda_curve": "Saw Up",
@@ -133,7 +134,7 @@
     "modd_div": "4/1",
     "modd_sync": true,
     "modd_trig": "Envelope",
-    "noise_level": -55.0,
+    "noise_level": -49.0,
     "noise_tone": 0.18,
     "noise_type": "White",
     "osca_att": 0.02,
@@ -154,15 +155,15 @@
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": 0.0,
+    "volume": -1.2,
     "rev_lowcut": 500,
     "cho_wet_lowcut": 500,
     "mono_xover": 300,
     "pitch_all": 14.0,
-    "osca_vol": 0.3,
-    "lim_gain": 12,
+    "osca_vol": 0.6,
+    "lim_gain": 6,
     "eq_high_freq": 1100,
-    "eq_high_gain": -15,
+    "eq_high_gain": -9.0,
     "eq_peak_freq": 1000,
     "eq_peak_gain": 5.5,
     "eq_peak_q": 0.7

@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Four Bar Downlifter",
   "author": "Riddim Rack",
-  "description": "The mirror of the riser. After the drop the energy falls away over four bars, getting darker and narrower under a reverb wash. Hold one note (C3 works best) for four bars; the fall locks to the host tempo and restarts on every note. Fall Speed sets how fast it darkens, Noise Level the hiss, Depth how far the pitch falls, Reverb Tail the wash.",
+  "description": "The mirror of the riser: after the drop the energy falls away over four bars, getting darker, lower and narrower under a reverb wash. Hold one note for four bars, C3 works best, mono; the fall locks to the host tempo and restarts on every note. Macros: Fall Speed darkens the tone further as the fall plays out; Noise Level raises the hiss; Depth lets the pitch fall further; Reverb Tail deepens the wash.",
   "category": "FX",
   "tags": [
     "downlifter",
@@ -108,7 +108,7 @@
     "cho_mix": 0.35,
     "eq_on": true,
     "eq_cut_on": true,
-    "eq_cut_freq": 700,
+    "eq_cut_freq": 500,
     "filta_type": "LP12",
     "filta_freq": 1217,
     "filta_res": 0.25,
@@ -170,7 +170,8 @@
     "eq_high_freq": 1500,
     "eq_high_gain": -15,
     "rev_hicut": 2500,
-    "rev_damp": 0.7
+    "rev_damp": 0.7,
+    "porta": 0.0
   },
   "fx_order": [
     "Phaser",

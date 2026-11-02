@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Robot Bark Drop",
   "author": "Riddim Rack",
-  "description": "A one-shot robot bark: every note opens bright and metallic through the filter, dives a fifth in pitch and snaps shut into a hollow ring-modulated growl over a clean sine sub, so stuttered playing becomes a machine-gun of barks. Play: short, separated F1, G1 and A#1 notes at 140-150 BPM, or tap eighths and sixteenths; the bite re-fires on every new key press. Macros: Bite opens the bark wider on each note, Dive deepens and lengthens the pitch drop, Metal adds ring-modulation and Drive pushes the diode distortion.",
+  "description": "A one-shot robot bark: every note opens bright and metallic, dives in pitch and snaps shut into a hollow ring-modulated growl over a clean sub, so stuttered playing becomes a machine-gun of barks. Play short, separated notes on F1, G1 and A#1, or tap eighths and sixteenths; it is mono, the bark re-fires on every new key press, and harder hits play louder. Macros: Bite opens the bark wider on each note; Dive deepens and lengthens the pitch drop; Metal sharpens the ring modulation; Drive pushes the distortion.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -111,6 +111,13 @@
       "enabled": true,
       "source": "Macro 2",
       "target": "menv_dec"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "volume"
     }
   ],
   "params": {
@@ -172,12 +179,14 @@
     "osca_vol": 1.0,
     "oscb_on": false,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -4.0,
     "sub_oct": -2,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -7.0
+    "vel_vol_a": 0.6,
+    "vel_vol_b": 0.6,
+    "volume": -10.4
   }
 }

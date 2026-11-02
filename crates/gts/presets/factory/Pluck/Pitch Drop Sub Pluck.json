@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Pitch Drop Sub Pluck",
   "author": "Riddim Rack",
-  "description": "A kick-like bass pluck: a sine dives about two octaves within a fraction of a second, then rings out as a clean low tail with a small bright click on top. Play single notes between C1 and C2 to fill the gaps between riddim bars. Drop Extra adds more fall, Length stretches the tail, Click brings in the bright body, Drive saturates the whole hit.",
+  "description": "A kick-like bass pluck: a sine dives steeply within a fraction of a second, then rings out as a clean low tail with a small bright click on top. Play single notes between C1 and C2 to fill the gaps between riddim bars; it is mono, and harder hits play louder and let more of the tone through. Macros: Drop Extra adds more fall; Length stretches the tail; Click brings in the bright body; Drive saturates the whole hit.",
   "category": "Pluck",
   "tags": [
     "pluck",
@@ -67,6 +67,13 @@
       "amount": 0.2,
       "bipolar": false,
       "enabled": true
+    },
+    {
+      "source": "Velocity",
+      "target": "filta_freq",
+      "amount": 0.9,
+      "bipolar": false,
+      "enabled": true
     }
   ],
   "params": {
@@ -78,7 +85,7 @@
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 20000,
+    "filta_freq": 38.65404635968939,
     "filta_kbd": 0.0,
     "filta_res": 0.0,
     "filta_type": "LP12",
@@ -127,8 +134,10 @@
     "sub_oct": -1,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -3.0,
-    "oscb_oct": 2
+    "volume": -1.22,
+    "oscb_oct": 2,
+    "vel_vol_a": 1.0,
+    "vel_vol_b": 1.0
   },
   "lfo_shapes": [
     {

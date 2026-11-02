@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Gated Triplet Call",
   "author": "Riddim Rack",
-  "description": "A held note turned into a triplet bass phrase: twelve gate slots per bar, a call of hits in the first half and a thinner answer in the second, over a clean sine sub that gates with it. Play: hold F1, G1 or A#1 for a full bar of riff at 140-150 BPM; the pattern restarts on every new note. Macros: Gap Fill fills the rests between hits, Pattern Tone opens the filter and the square edge, Answer Fade mutes and darkens the second-half answer, Smear rounds the gate edges.",
+  "description": "A held note turned into a triplet bass phrase: a call of hits in the first half of the bar and a thinner answer in the second, over a clean sub that gates with it. Hold F1, G1 or A#1 for a full bar of riff, mono and legato; the pattern restarts on every new note. Macros: Gap Fill fills the rests between hits; Pattern Tone opens the filter and the square edge; Answer Fade mutes and darkens the second-half answer; Smear rounds the gate edges.",
   "category": "Seq",
   "tags": [
     "riddim",
@@ -143,7 +143,7 @@
     "osca_vol": 0.22,
     "oscb_on": false,
     "poly": 1,
-    "porta": 0.02,
+    "porta": 0.03,
     "routing": "Series",
     "sub_level": -27.0,
     "sub_oct": -2,
