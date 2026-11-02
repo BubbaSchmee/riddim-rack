@@ -99,8 +99,8 @@ fn assert_same(a: &Patch, b: &Patch, what: &str) {
 #[test]
 fn factory_presets_load_through_the_gesture_api() {
     let names: Vec<&str> = factory().iter().map(|p| p.name.as_str()).collect();
-    // Bank order: category folder, then name.
-    assert_eq!(names, ["Growl Hound", "Reese Drift", "Sub Weight", "Talk Box", "Wobble Shot", "Screech Lead"]);
+    assert_eq!(names.len(), 39);
+    assert!(names.contains(&"Pure Sine Sub") && names.contains(&"Screech Dive One"));
     let fake = Fake::new();
     for p in factory() {
         apply_preset(&fake.table, &fake, Some(p));
@@ -124,7 +124,7 @@ fn init_restores_defaults_and_routing_is_untouched() {
     // No gesture ever touched a CV slot, and the 243 sound params (180 + 34 Track 7 modulation + 10 Track 7 sound + 19 phaser / flanger) were each driven.
     let touched = fake.gestures.borrow();
     assert!(!touched.iter().any(|id| id.starts_with("cv")), "a CV slot was written");
-    assert_eq!(touched.len(), 7 * 243);
+    assert_eq!(touched.len(), 40 * 243);
     // The last load was Init: every sound param sits at its default, the Patch is the default Patch.
     for id in fake.sound_ids() {
         assert_eq!(fake.get01(&id), fake.default01(&id), "{id}");

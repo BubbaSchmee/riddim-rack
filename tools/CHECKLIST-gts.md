@@ -83,16 +83,14 @@ the plugin. Delete the plugin log first for a clean session.
     Gain Reduction meter (FX page, 0 to -12 dB) moves with the playing and falls back when you
     stop, and Output Peak reads about -0.3 dBFS. Back to
     Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
-24. Candidate presets with FX: open the preset browser (click the preset name right of the nameplate; the arrows step
-    through its current list) and load each of the six (Growl Hound, Reese Drift, Sub Weight, Talk Box, Wobble Shot under Bass,
-    Screech Lead under Lead): the knobs
-    and the FX page jump to the preset, the bar shows its name, and after any edit a dot appears beside it. Close and reopen the
-    editor: the spectrum and meters must still move. Init sets every sound parameter back to its default; the PATCH routing, the
-    instance label and Quality do not change on any load. A/B each against its render from
-    `cargo run -p gts --release --example render_preset` (`docs/audits/renders/presets-fx/*.wav`,
-    level-matched) in Live next to the clip: each sounds like its description including the FX
-    sentence; Screech Lead's delay answers each phrase; Sub Weight stays dry and mono; no file
-    clips or pumps.
+24. Factory bank (39 presets): open the preset browser (click the preset name right of the nameplate) and browse every
+    category (Bass 27, Lead 4, Pluck 3, FX 2, Seq 2, Init 1): the knobs and the FX page jump to the preset, the bar shows its name,
+    the detail strip shows its description and four macro names, and after any edit a dot appears beside it. Close and reopen
+    the editor: the spectrum and meters must still move. Init sets every sound parameter back to its default; the PATCH routing,
+    the instance label and Quality do not change on any load. A/B each against its listening-pack render
+    (`docs/audits/renders/bank/<Category>/<name>.wav`, the family pattern at 150 BPM, 4 bars; `INDEX.md` lists name, tags, macros
+    and QA summary), level-matched in Live next to the clip: each sounds like its description including the FX sentence; sub
+    presets stay mono and dry, no render clips or pumps. Move each macro once: it does what its label says.
 25. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 26. Editor (window, hero, help bar). The window is 1000 x 832 with no scale steps yet: at 125 %
     Windows scaling it needs about 1072 px of vertical space, so auto-hide the taskbar or use

@@ -8,7 +8,8 @@
   "tags": [
     "sweep",
     "riser",
-    "qa_fxkind=sweep"
+    "qa_fxkind=sweep",
+    "qa_macro3=C:0.5"
   ],
   "macros": [
     {
@@ -40,16 +41,23 @@
       "enabled": true
     },
     {
-      "source": "Macro 3",
-      "target": "noise_tone",
-      "amount": 0.5,
-      "bipolar": true,
-      "enabled": true
-    },
-    {
       "source": "Macro 4",
       "target": "rev_width",
       "amount": 0.9,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "noise_tone",
+      "amount": 0.38,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "lim_gain",
+      "amount": -0.36,
       "bipolar": false,
       "enabled": true
     }
@@ -75,7 +83,7 @@
     "legato": true,
     "macro1": 0.5,
     "macro2": 0.5,
-    "macro3": 0.5,
+    "macro3": 0.22,
     "macro4": 0.5,
     "modb_curve": "Triangle",
     "modb_cutoff": 0.21877827187276963,
@@ -84,7 +92,7 @@
     "modb_target": "Both",
     "modb_trig": "Retrigger",
     "noise_level": 0,
-    "noise_tone": 0.12,
+    "noise_tone": 0.04,
     "noise_type": "Pink",
     "osca_att": 0.01,
     "osca_dec": 0.3,
@@ -106,7 +114,7 @@
     "phs_spread": 0,
     "eq_low_freq": 500,
     "eq_low_gain": -12,
-    "lim_gain": 4.95,
+    "lim_gain": 7.6,
     "eq_high_freq": 3000,
     "eq_high_gain": -6
   }

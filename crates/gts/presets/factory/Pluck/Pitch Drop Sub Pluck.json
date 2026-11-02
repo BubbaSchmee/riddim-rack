@@ -7,11 +7,9 @@
   "category": "Pluck",
   "tags": [
     "pluck",
-    "sub",
-    "impact",
     "mono",
-    "qa_dive=24@90",
-    "qa_decay=320"
+    "qa_decay=320",
+    "qa_bright=150..3500"
   ],
   "macros": [
     {
@@ -31,7 +29,7 @@
     {
       "source": "Mod C",
       "target": "pitch_all",
-      "amount": 0.3300075490592616,
+      "amount": 0.25,
       "bipolar": false,
       "enabled": true
     },
@@ -50,30 +48,30 @@
       "enabled": true
     },
     {
-      "source": "Macro 3",
-      "target": "oscb_vol",
-      "amount": 0.4850676093140767,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
       "source": "Macro 4",
       "target": "dist_drive",
-      "amount": 0.6,
+      "amount": 0.3,
       "bipolar": false,
       "enabled": true
     },
     {
       "source": "Macro 3",
-      "target": "osca_index",
+      "target": "oscb_vol",
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 3",
+      "target": "oscb_dec",
       "amount": 0.2,
       "bipolar": false,
       "enabled": true
     }
   ],
   "params": {
-    "dist_autogain": false,
-    "dist_drive": -12,
+    "dist_autogain": true,
+    "dist_drive": 3,
     "dist_on": true,
     "dist_type": "Tube",
     "eq_cut_freq": 25,
@@ -106,30 +104,31 @@
     "modc_trig": "Envelope",
     "osca_att": 0.001,
     "osca_curve": -0.2445549097992456,
-    "osca_dec": 0.7042620873322792,
-    "osca_index": 36,
+    "osca_dec": 0.5,
+    "osca_index": 0,
     "osca_on": true,
     "osca_rel": 0.06,
     "osca_sus": 0.0,
     "osca_table": "Basic",
     "osca_unison": 1,
     "oscb_att": 0.001,
-    "oscb_dec": 0.1654696033237729,
+    "oscb_dec": 0.045,
     "oscb_index": 65,
     "oscb_on": true,
     "oscb_rel": 0.05,
     "oscb_sus": 0.0,
     "oscb_table": "Saw Stack",
     "oscb_unison": 1,
-    "oscb_vol": 0.5,
+    "oscb_vol": 1.0,
     "poly": 1,
     "porta": 0.0,
     "routing": "Series",
-    "sub_level": -20,
-    "sub_oct": 0,
+    "sub_level": -5,
+    "sub_oct": -1,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": 0
+    "volume": -3.0,
+    "oscb_oct": 2
   },
   "lfo_shapes": [
     {

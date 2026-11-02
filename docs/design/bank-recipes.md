@@ -525,3 +525,7 @@ all four warp types (FM 5, 13, 17, 34; Sync 14, 28; Bend+ 15, 29; PWM 4, 6); all
 ## Calibration update (2026-10-18)
 
 From the QA tool's baseline run: Brightness is judged on the amplitude-weighted centroid (a −6..0 dB sub drags the power-weighted centroid below every bass band); hold-window RMS/LUFS bands for Riddim, Wobble, Tearout, Formant, Reese, Sub and Seq are +1.5 dB (−18.5..−14.5 dBFS RMS), because the original bands came from pattern measurements with rests; Init brightness band 300–1000 Hz (amplitude-weighted). Reese beat rate uses the unison voice spacing span/(n−1); FX width checks read correlation (a widening riser lowers correlation).
+
+## Calibration update (2026-11-01)
+
+From the sound-director review and fix round: the FX LUFS ceiling is −18 (was −20). Bright sweeps read LUFS-I 4.2–4.9 dB above their RMS (K-weighting), so with RMS held near the FX median (about −24 dBFS) no riser or downlifter could pass both bands; leads already allow +2 dB over their RMS ceiling. New bank check `lufs_bass_median` (C5): every non-sub bass (Riddim, Wobble, Tearout, Formant, Reese, Seq) is within ±1 LU of the median LUFS-I of those presets at 150 BPM, so the basses sit within about 2 LU of each other. Run QA over the whole bank (all staging folders, or the factory tree) to judge it. The review measured a 3.6 LU spread (−14.4 riddim to −18.0 tearout) before this check existed.

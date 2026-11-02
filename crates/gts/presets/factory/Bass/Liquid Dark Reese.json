@@ -3,24 +3,25 @@
   "product": "GTS",
   "name": "Liquid Dark Reese",
   "author": "Riddim Rack",
-  "description": "The dark rolling reese: two detuned saw voices beating slowly against each other under a warm low-pass, with a clean sub underneath. A living low drone for halftime drops and long held notes. Play F1 to A#1 as sustained notes at 140 to 150 BPM and listen to the slow beat inside the note. Beat widens the detuning and brightens it a touch, Darkness opens the filter, Drift deepens a one-bar filter sweep and Warmth pushes tube saturation for harmonics.",
+  "description": "The dark rolling reese: two detuned saw voices beating slowly against each other under a warm low-pass, with a clean sine sub carrying the fundamental on its own. A living low drone for halftime drops and long held notes. Play F1 to A#1 as sustained notes at 140 to 150 BPM and listen to the slow beat inside the note while the filter drifts gently over two bars. Beat sets how fast the two voices beat against each other, Brightness opens the filter, Drift deepens the slow filter sweep and Warmth pushes tube saturation for harmonics and weight.",
   "category": "Bass/reese",
   "tags": [
     "reese",
     "mono",
     "clean",
-    "qa_macro1=C:0.1",
-    "qa_macro2=C:0.5",
     "qa_macro3=D:0.3",
     "qa_macro4=L:1.0",
-    "qa_alias=..-28"
+    "qa_macro2=C:0.5",
+    "qa_beat=0.71",
+    "qa_alias=..-24",
+    "qa_macro1=W:0.005"
   ],
   "macros": [
     {
       "label": "Beat"
     },
     {
-      "label": "Darkness"
+      "label": "Brightness"
     },
     {
       "label": "Drift"
@@ -33,14 +34,7 @@
     {
       "source": "Macro 1",
       "target": "osca_detune",
-      "amount": 0.2,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Macro 1",
-      "target": "filta_freq",
-      "amount": 0.08,
+      "amount": 0.44,
       "bipolar": false,
       "enabled": true
     },
@@ -54,7 +48,7 @@
     {
       "source": "Macro 3",
       "target": "modb_cutoff",
-      "amount": 0.4,
+      "amount": 0.3,
       "bipolar": false,
       "enabled": true
     },
@@ -75,7 +69,7 @@
     {
       "source": "Macro 4",
       "target": "volume",
-      "amount": -0.05,
+      "amount": 0.03,
       "bipolar": false,
       "enabled": true
     }
@@ -141,10 +135,10 @@
     "filta_res": 0.2,
     "filta_type": "LP24",
     "filtb_env": false,
-    "filtb_freq": 20000.0,
+    "filtb_freq": 230.0,
     "filtb_kbd": 0.0,
     "filtb_res": 0.0,
-    "filtb_type": "LP24",
+    "filtb_type": "HP12",
     "flg_delay": 4.0,
     "flg_depth": 0.5,
     "flg_div": "1/1",
@@ -156,7 +150,7 @@
     "flg_sync": false,
     "legato": true,
     "lim_gain": 0.0,
-    "macro1": 0.0,
+    "macro1": 0.36,
     "macro2": 0.0,
     "macro3": 0.0,
     "macro4": 0.0,
@@ -196,8 +190,8 @@
     "moda_target": "Both",
     "moda_trig": "Retrigger",
     "modb_curve": "Triangle",
-    "modb_cutoff": 0.5,
-    "modb_div": "1/1",
+    "modb_cutoff": 0.12,
+    "modb_div": "2/1",
     "modb_fade": 0.0,
     "modb_moda": 0.0,
     "modb_motion": 0.0,
@@ -206,7 +200,7 @@
     "modb_rate": 4.0,
     "modb_smooth": 0.0,
     "modb_sync": true,
-    "modb_target": "Both",
+    "modb_target": "A",
     "modb_trig": "Retrigger",
     "modb_vol": 0.0,
     "modc_curve": "Triangle",
@@ -237,7 +231,7 @@
     "osca_curve": 0.0,
     "osca_dec": 0.3,
     "osca_det_curve": 0.0,
-    "osca_detune": 11.0,
+    "osca_detune": 6.0,
     "osca_index": 60.0,
     "osca_motion": 0.0,
     "osca_oct": 0,
@@ -308,7 +302,7 @@
     "shaper_on": false,
     "spread": 0.6,
     "sub_drive": 0.0,
-    "sub_level": -8.0,
+    "sub_level": -7.0,
     "sub_oct": 0,
     "sub_on": true,
     "sub_phase": 0.0,
@@ -319,7 +313,7 @@
     "vel_shift": 0.0,
     "vel_vol_a": 0.0,
     "vel_vol_b": 0.0,
-    "volume": 4.5,
+    "volume": 5.5,
     "wheel_cutoff": 0.0,
     "wheel_index": 0.0,
     "wheel_mod": 0.0,

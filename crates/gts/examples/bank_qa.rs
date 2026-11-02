@@ -902,7 +902,9 @@ fn spec(c: &Ctx) -> Spec {
             s((-22., -18.), (-22., -16.), (6., 13.), None, (1500., 4500.), w, if c.has("square") { -60. } else { -50. })
         }
         Family::Pluck => s((-24., -18.), (-24., -18.), (10., 20.), Some(0.97), (600., 3500.), (0.3, 1.0), -50.),
-        Family::Fx => s((-26., -20.), (-26., -20.), (7., 16.), Some(0.9), (800., 6000.), (0.0, 0.7), -45.),
+        // Calibration 2026-11-01: LUFS ceiling -20 -> -18. Bright sweeps read LUFS 4.2-4.9 dB above RMS
+        // (K-weighting), so with RMS held at the FX median (about -24) no riser could pass; leads already allow +2.
+        Family::Fx => s((-26., -20.), (-26., -18.), (7., 16.), Some(0.9), (800., 6000.), (0.0, 0.7), -45.),
         Family::Seq => s((-18.5, -14.5), (-19.5, -13.5), (6., 13.), Some(0.99), (250., 1400.), (0.85, 1.0), -55.),
         Family::Init => s((-99., 0.), (-99., 0.), (0., 99.), Some(0.99), (300., 1000.), (0.95, 1.0), -70.),
     }
@@ -2043,8 +2045,31 @@ fn bank_checks(all: &mut [Report], analysed: &[usize], pair_min: f64) {
             by_cat.entry(r.category.split('/').next().unwrap_or("").to_lowercase()).or_default().push(v);
         }
     }
+    // SPEC C5: non-sub basses sit within about 2 LU of each other, i.e. each within 1 LU of their median.
+    let bassy = |f: Family| matches!(f, Family::Riddim | Family::Wobble | Family::Tearout | Family::Formant | Family::Reese | Family::Seq);
+    let lufs150 = |r: &Report| r.raw.get("lufs@150").and_then(|v| v.as_f64());
+    let mut bass: Vec<f64> = all.iter().filter(|r| bassy(r.family)).filter_map(lufs150).collect();
+    bass.sort_by(|a, b| a.total_cmp(b));
     let descs: Vec<(usize, Family, Vec<f64>)> = all.iter().enumerate().map(|(i, r)| (i, r.family, r.desc.clone())).collect();
     for &i in analysed {
+        if let (true, Some(v), n) = (bassy(all[i].family), lufs150(&all[i]), bass.len()) {
+            let med = if n % 2 == 1 { bass[n / 2] } else { 0.5 * (bass[n / 2 - 1] + bass[n / 2]) };
+            let (lo, hi) = if n >= 3 { (Some(-1.0), Some(1.0)) } else { (None, None) };
+            let (status, margin) = judge(v - med, lo, hi);
+            all[i].checks.push(Chk {
+                id: "lufs_bass_median".into(),
+                group: "level".into(),
+                label: "LUFS against the median of the non-sub basses in this run (C5)".into(),
+                tempo: Some(150),
+                value: Some(v - med),
+                lo,
+                hi,
+                unit: "LU".into(),
+                status,
+                margin,
+                detail: format!("{n} non-sub bass preset(s), median {med:.2} LUFS{}", if n < 3 { " (Info: needs 3 or more)" } else { "" }),
+            });
+        }
         let cat = all[i].category.split('/').next().unwrap_or("").to_lowercase();
         if let (Some(v), Some(peers)) = (rms150(&all[i]), by_cat.get(&cat)) {
             let mut s = peers.clone();

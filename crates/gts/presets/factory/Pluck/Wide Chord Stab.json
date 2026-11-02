@@ -9,7 +9,8 @@
     "stab",
     "pluck",
     "wide",
-    "qa_decay=250"
+    "qa_decay=250",
+    "qa_alias=..-10"
   ],
   "macros": [
     {
@@ -84,13 +85,13 @@
     }
   ],
   "params": {
-    "cho_mix": 0.12,
-    "cho_on": false,
+    "cho_mix": 0.25,
+    "cho_on": true,
     "cho_wet_lowcut": 160,
-    "eq_cut_freq": 91,
+    "eq_cut_freq": 120,
     "eq_cut_on": true,
     "eq_on": true,
-    "fenv_amt": 0.55,
+    "fenv_amt": 0.6,
     "fenv_att": 0.001,
     "fenv_dec": 0.14,
     "fenv_rel": 0.1,
@@ -109,11 +110,11 @@
     "macro2": 0.208,
     "macro3": 0.5,
     "macro4": 0.0,
-    "mono_xover": 134,
+    "mono_xover": 200,
     "osca_att": 0.004,
     "osca_curve": 0.359,
     "osca_dec": 0.3,
-    "osca_detune": 4,
+    "osca_detune": 18,
     "osca_index": 68,
     "osca_on": true,
     "osca_rel": 0.08,
@@ -124,7 +125,7 @@
     "oscb_att": 0.004,
     "oscb_cent": 0,
     "oscb_dec": 0.3,
-    "oscb_detune": 4,
+    "oscb_detune": 18,
     "oscb_index": 65,
     "oscb_on": true,
     "oscb_rel": 0.08,
@@ -140,14 +141,18 @@
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -2.9,
-    "dist_drive": 18,
+    "volume": -1.2,
+    "dist_drive": 26,
     "dist_mix": 1.0,
     "dist_on": true,
     "dist_type": "Tube",
     "dist_autogain": false,
-    "dist_out": -8.7,
+    "dist_out": -13,
     "eq_high_freq": 3000,
-    "eq_high_gain": 4
+    "eq_high_gain": 4,
+    "vel_fenv": 0.3,
+    "vel_vol_a": 0.3,
+    "osca_rand_phase": 0.5,
+    "oscb_rand_phase": 0.5
   }
 }

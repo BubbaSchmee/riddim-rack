@@ -255,7 +255,7 @@ fn typing_in_the_search_box_filters_the_list() {
     h.b().set_filter(Filter { category: None, ..Filter::default() });
     h.open();
     let all = names(h.b()).len();
-    assert_eq!(all, 74);
+    assert_eq!(all, 107);
     h.click(body(120.0, TOP_H / 2.0)); // the search box
     h.type_text("wub");
     assert_eq!(h.b().search_text(), "wub");
@@ -288,11 +288,12 @@ fn source_category_and_favorites_filters_combine_on_click() {
     h.click(nav(0, 1)); // Factory
     assert_eq!(h.b().filter().source, SourceFilter::Factory);
     let bass_factory = names(h.b());
-    assert_eq!(bass_factory, ["Growl Hound", "Reese Drift", "Sub Weight", "Talk Box", "Wobble Shot"]);
+    assert_eq!(bass_factory.len(), 27);
+    assert!(bass_factory.iter().any(|n| n == "Pure Sine Sub"));
     h.click(nav(1, 2)); // Lead
-    assert_eq!(names(h.b()), ["Screech Lead"]);
+    assert_eq!(names(h.b()).len(), 4);
     h.click(nav(1, 0)); // All categories
-    assert_eq!(names(h.b()).len(), 6);
+    assert_eq!(names(h.b()).len(), 39);
     h.click(nav(0, 0)); // source All again
     h.click(nav(1, 1)); // Bass
     assert_eq!(names(h.b()).len(), bass);
@@ -330,7 +331,7 @@ fn tag_chips_filter_and_clear() {
     assert_eq!(names(h.b()).len(), n);
     h.click(pos2(x, y));
     assert_eq!(h.b().filter().tag, None);
-    assert_eq!(names(h.b()).len(), 74);
+    assert_eq!(names(h.b()).len(), 107);
 }
 
 #[test]
@@ -419,7 +420,7 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     let mut h = H::new("arrows");
     h.b().set_filter(Filter { category: Some("Bass"), source: SourceFilter::Factory, ..Filter::default() });
     let list = h.b().visible_keys();
-    assert_eq!(list.len(), 5);
+    assert_eq!(list.len(), 27);
     let (prev, next) = (pos2(208.0 + 14.0, 44.0), pos2(208.0 + 232.0 - 14.0, 44.0));
     h.click(next);
     assert_eq!(h.b().loaded(), Some(list[0].as_str()), "from nothing, Next starts at the top");
@@ -428,7 +429,7 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     assert_eq!(h.b().loaded(), Some(list[1].as_str()));
     h.click(prev);
     h.click(prev);
-    assert_eq!(h.b().loaded(), Some(list[4].as_str()), "Previous wraps to the end");
+    assert_eq!(h.b().loaded(), Some(list[26].as_str()), "Previous wraps to the end");
     h.click(next);
     assert_eq!(h.b().loaded(), Some(list[0].as_str()), "Next wraps to the start");
     // Another filter, another list.
@@ -436,7 +437,7 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     h.click(next);
     assert_eq!(h.b().loaded().map(|k| k.starts_with("Factory/Lead")), Some(true), "{:?}", h.b().loaded());
     // The header shows the name of what is loaded.
-    assert_eq!(h.b().loaded_label().unwrap().1, "Screech Lead");
+    assert_eq!(h.b().loaded_label().unwrap().1, "Screech Dive One");
     // Damaged files are skipped by the arrows.
     h.b().set_filter(Filter { category: Some("Bass"), text: "broken".into(), ..Filter::default() });
     h.bv.preset_pick = None;
@@ -486,7 +487,7 @@ fn the_panel_fades_in_over_150_ms_and_honours_reduced_motion() {
 fn save_as_writes_a_user_preset_asks_before_replacing_and_rejects_illegal_names() {
     let mut h = H::new("saveas");
     // Load a factory preset so Save As starts from it.
-    let key = "Factory/Bass/Growl Hound";
+    let key = "Factory/Bass/Pitch Rip Growl";
     h.live.browser.load_key(&mut h.bv, key);
     let Some(Pick::Preset(p)) = h.pick() else { panic!("loaded") };
     apply_preset(&h.ctl.table, &h.ctl, Some(p.as_ref()));
@@ -505,8 +506,8 @@ fn save_as_writes_a_user_preset_asks_before_replacing_and_rejects_illegal_names(
     assert!(warnings.is_empty(), "{warnings:?}");
     assert_eq!(saved.name, "My Growl");
     assert_eq!(saved.category, "Bass");
-    assert_eq!(saved.macros, ["Growl", "Dirt", "Width", "Space"]);
-    assert_eq!(saved.tags, ["growl", "riddim", "metallic"]);
+    assert_eq!(saved.macros, ["Rip", "Warp", "Grit", "Flange"]);
+    assert_eq!(saved.tags, ["tearout", "growl", "hybrid", "dirty", "qa_macro1=c:0.3", "qa_macro2=c:0.5", "qa_macro3=c:0.4", "qa_macro4=w:0.1"]);
     assert!(h.bv.preset_saved, "the host editor is told to take a new baseline");
     assert_eq!(h.b().loaded(), Some("User/Bass/My Growl"));
     // What was saved is the sound that was loaded.
@@ -585,7 +586,7 @@ fn save_overwrites_the_loaded_user_preset_after_a_confirmation() {
     assert!(saved.patch.volume_db > 0.0, "the new volume was saved: {}", saved.patch.volume_db);
     assert!(h.bv.preset_saved);
     // A factory preset's Save is Save As.
-    h.live.browser.load_key(&mut h.bv, "Factory/Bass/Sub Weight");
+    h.live.browser.load_key(&mut h.bv, "Factory/Bass/Pure Sine Sub");
     h.live.browser.begin_save(&h.ctl);
     h.frames(14);
     assert!(h.b().dialog_open());
@@ -642,14 +643,14 @@ fn context_menu_rename_delete_and_default() {
     assert!(!h._tmp.0.join("Presets/User/Bass/Renamed Wub.json").exists());
     assert!(h.lib().get(new_key).is_none() && h.lib().settings().default_preset.is_empty());
     // A factory preset's menu has no Rename or Delete; Reveal reports its folder.
-    h.b().set_filter(Filter { category: None, source: SourceFilter::Factory, text: "\"sub weight\"".into(), ..Filter::default() });
+    h.b().set_filter(Filter { category: None, source: SourceFilter::Factory, text: "\"pure sine sub\"".into(), ..Filter::default() });
     h.frames(2);
     h.right_click(at);
     assert!(h.b().menu_open());
     h.click(item(3, true)); // Reveal
     let revealed = h.b().revealed.clone();
     assert_eq!(revealed.len(), 1);
-    assert!(revealed[0].ends_with("Sub Weight.json") || revealed[0].to_string_lossy().contains("Sub Weight"), "{revealed:?}");
+    assert!(revealed[0].ends_with("Pure Sine Sub.json") || revealed[0].to_string_lossy().contains("Pure Sine Sub"), "{revealed:?}");
 }
 
 #[test]
@@ -745,18 +746,18 @@ fn a_new_instance_loads_the_default_preset_when_one_is_set() {
     let mut h = H::new("default");
     assert!(!h.live.browser.load_default(&mut h.bv), "no default set: nothing to load");
     assert!(h.bv.preset_pick.is_none());
-    h.lib().set_default(Some("Factory/Bass/Talk Box")).unwrap();
+    h.lib().set_default(Some("Factory/Bass/Talking Chatter")).unwrap();
     assert!(h.live.browser.load_default(&mut h.bv));
-    assert_eq!(h.picked_name(), Some("Talk Box".into()));
-    assert_eq!(h.b().loaded(), Some("Factory/Bass/Talk Box"));
+    assert_eq!(h.picked_name(), Some("Talking Chatter".into()));
+    assert_eq!(h.b().loaded(), Some("Factory/Bass/Talking Chatter"));
     // A default that no longer exists, or is damaged, falls back to Init (nothing is loaded).
     h.lib().set_default(Some("User/Bass/Broken")).unwrap();
     assert!(!h.live.browser.load_default(&mut h.bv));
     h.lib().set_default(Some("User/Bass/Gone")).unwrap();
     assert!(!h.live.browser.load_default(&mut h.bv));
     // It survives a restart.
-    h.lib().set_default(Some("Factory/Lead/Screech Lead")).unwrap();
+    h.lib().set_default(Some("Factory/Lead/Screech Dive One")).unwrap();
     let root = h.lib().root().to_path_buf();
     let again = Library::open(&root, FACTORY_FILES);
-    assert_eq!(again.default_preset().map(|e| e.name.as_str()), Some("Screech Lead"));
+    assert_eq!(again.default_preset().map(|e| e.name.as_str()), Some("Screech Dive One"));
 }

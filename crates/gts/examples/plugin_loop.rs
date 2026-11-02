@@ -8,7 +8,7 @@
 //!                                                      [tbp] [frames=600] [scale=1.0] [shot] [cpu]
 //!
 //!   gts      draw the real GTS editor (else a trivial panel); its hero is the GL paint callback
-//!   notes    an audio thread plays the riddim demo pattern (Wobble Shot) on the real engine in real
+//!   notes    an audio thread plays the riddim demo pattern (Eighth Triangle Wub) on the real engine in real
 //!            time and publishes through the plugin's own VizWriter / Meters, so every live display moves;
 //!            also reports the hero's own GPU time (timer query)
 //!   browser  open the preset browser over a 200-preset fixture library (SPEC v2 Track 6 frame gate)
@@ -123,7 +123,7 @@ fn main() {
     let stamps = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let updates = Arc::new(Mutex::new(Vec::<Instant>::new()));
     let update_ms = Arc::new(Mutex::new(Vec::<f64>::new()));
-    let (key, preset) = demo::factory("Wobble Shot");
+    let (key, preset) = demo::factory("Eighth Triangle Wub");
     let ctl = demo::MapCtl::with_preset(Some(preset));
     let mut patch = preset.patch;
     if val("page").as_deref() == Some("fx") {

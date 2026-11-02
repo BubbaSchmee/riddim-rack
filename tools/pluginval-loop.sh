@@ -2,6 +2,7 @@
 # Runs pluginval (strictness 5, in-process, GUI tests on) N times on a bundle and fails on the
 # first run that is not SUCCESS. Catches intermittent editor hangs a single run misses.
 # Usage: tools/pluginval-loop.sh [runs=6] [bundle=$CARGO_TARGET_DIR/bundled/GTS.vst3]
+# PV_FLAGS adds pluginval flags, e.g. PV_FLAGS=--skip-gui-tests when no window may open.
 set -u
 runs=${1:-6}
 bundle=${2:-${CARGO_TARGET_DIR:-/d/cargo-target/riddim-rack}/bundled/GTS.vst3}
@@ -10,7 +11,7 @@ logdir=${PV_LOGDIR:-${TMPDIR:-/tmp}}
 for i in $(seq 1 "$runs"); do
   log="$logdir/pv_loop_$i.log"
   start=$(date +%s)
-  "$pv" --strictness-level 5 --timeout-ms 60000 --validate-in-process --validate "$bundle" >"$log" 2>&1
+  "$pv" --strictness-level 5 --timeout-ms 60000 --validate-in-process ${PV_FLAGS:-} --validate "$bundle" >"$log" 2>&1
   code=$?
   secs=$(( $(date +%s) - start ))
   if [ $code -ne 0 ] || ! grep -q "SUCCESS" "$log"; then

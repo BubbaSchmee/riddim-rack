@@ -198,7 +198,7 @@ pub fn demo_routes(ctl: &MapCtl, patch: &mut Patch) {
     }
 }
 
-/// Factory preset by name, with its library key ("Factory/Bass/Growl Hound").
+/// Factory preset by name, with its library key ("Factory/Bass/Pitch Rip Growl").
 pub fn factory(name: &str) -> (String, &'static Preset) {
     let f = preset::factory();
     let i = f.iter().position(|p| p.name == name).unwrap_or(0);

@@ -1,12 +1,24 @@
 //! SPEC v2 Track 7 acceptance 1: with every new parameter at its default, the engine renders
 //! bit-identically to the engine before Track 7 (c178995). The golden hashes were recorded by
-//! these scenarios at that commit: every factory preset (patch + matrix), and a busy patch run
+//! these scenarios at that commit: the six pre-Track-7 factory presets (patch + matrix), and a busy patch run
 //! through every pre-Track-7 filter type and both sub octaves.
 use gts::dsp::{Engine, Patch};
 use gts::params::{Curve, FilterType, Routing};
-use gts::preset::factory;
+use gts::preset::Preset;
 
 const SR: f32 = 48000.0;
+
+/// The six pre-Track-7 factory presets, kept as fixtures (tests/fixtures/pre-track7) after the
+/// 2026-11 factory bank replaced them, so the c178995 hashes keep covering real presets.
+fn pre_track7_bank() -> Vec<Preset> {
+    ["Growl Hound", "Reese Drift", "Sub Weight", "Talk Box", "Wobble Shot", "Screech Lead"]
+        .iter()
+        .map(|n| {
+            let path = format!("{}/tests/fixtures/pre-track7/{n}.json", env!("CARGO_MANIFEST_DIR"));
+            Preset::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap().0
+        })
+        .collect()
+}
 
 fn fnv(h: &mut u64, x: f32) {
     for b in x.to_bits().to_le_bytes() {
@@ -62,7 +74,7 @@ fn busy() -> Patch {
 #[test]
 fn new_defaults_render_bit_identically_to_the_pre_track7_engine() {
     let mut hashes = vec![];
-    for pr in factory() {
+    for pr in &pre_track7_bank() {
         let enc = pr.matrix_state().encode();
         hashes.push((pr.name.clone(), render(&pr.patch, Some(&enc), 40000)));
     }

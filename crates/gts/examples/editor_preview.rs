@@ -1,7 +1,7 @@
 //! Renders the REAL GTS editor in an eframe window (glow backend, so the hero's GL paint
 //! callback runs as in the plugin), saves a screenshot to `docs/design/preview-gts-editor.png`
 //! (SYNTH page; `fx` renders the FX page into `preview-gts-editor-fx.png`) and exits. `live`
-//! keeps it open. The real engine plays the riddim demo pattern on Growl Hound through the
+//! keeps it open. The real engine plays the riddim demo pattern on Pitch Rip Growl through the
 //! plugin's own publisher, so the scope, meter, hero and playheads show live data.
 //!
 //!   cargo run -p gts --example editor_preview [fx] [live] [dirty] [cpu] [values]
@@ -161,7 +161,7 @@ fn main() -> eframe::Result {
         rr_ui::theme::apply(&cc.egui_ctx);
         let mut tables = Tables::new();
         tables.generate();
-        let (key, preset) = demo::factory("Growl Hound");
+        let (key, preset) = demo::factory("Pitch Rip Growl");
         let ctl = demo::MapCtl::with_preset(Some(preset));
         // Demo patching: rows 1 and 2 follow live sources, row 3 a lost one.
         for (k, v) in [("cv1_target", 5.0 / 8.0), ("cv1_amount", 0.78), ("cv2_target", 1.0 / 8.0), ("cv2_amount", 0.35), ("cv3_target", 7.0 / 8.0), ("cv3_amount", 0.5)] {

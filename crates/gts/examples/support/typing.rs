@@ -153,7 +153,7 @@ mod win {
             ShowWindow(parent, 4); // SW_SHOWNOACTIVATE
             SetFocus(parent);
         }
-        let (_, preset) = crate::demo::factory("Wobble Shot");
+        let (_, preset) = crate::demo::factory("Eighth Triangle Wub");
         let ctl = crate::demo::MapCtl::with_preset(Some(preset));
         let mut tables = Tables::new();
         tables.generate();

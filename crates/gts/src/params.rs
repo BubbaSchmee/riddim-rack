@@ -1356,7 +1356,7 @@ pub struct GtsParams {
     /// instant chrome transitions. Host state, not a param; off by default (no OS query).
     #[persist = "reduced_motion"]
     pub reduced_motion: AtomicBool,
-    /// Which preset this instance has loaded, by library key (`"Factory/Bass/Growl Hound"`,
+    /// Which preset this instance has loaded, by library key (`"Factory/Bass/Pitch Rip Growl"`,
     /// `"Init"`; empty = none yet). Host state (SPEC v2 2.6), written by the editor, never a param.
     #[persist = "preset_key"]
     pub preset_key: RwLock<String>,

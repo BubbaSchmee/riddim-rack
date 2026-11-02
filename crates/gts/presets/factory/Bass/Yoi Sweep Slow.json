@@ -1,71 +1,94 @@
 {
   "format_version": 1,
   "product": "GTS",
-  "name": "Drift Random Wobble",
+  "name": "Yoi Sweep Slow",
   "author": "Riddim Rack",
-  "description": "A wub that never repeats: a smooth random LFO, free-running at a fast, unsynced flutter rate, throws a band-pass filter around its centre like a hand riding the cutoff, so every note sounds a little different. A Saw Stack and a plain saw supply the body, a low-pass takes the fizz off the top, and a clean sine sub at the played pitch holds the floor. Play: held or rolling F1 to A#1 notes for fills and variation between the steadier wubs. Macros: Drift Depth widens how far the filter wanders, Centre moves where it wanders, Slow Sweep brings in a half-note shift of the grain spectrum underneath the random motion and opens the filter a touch, Width spreads the upper mids with Dimension and leaves the low end mono.",
-  "category": "Bass/wobble",
+  "description": "The oo-ee-yoi sweep: a slow vowel that glides across half a bar and back, like a voice talking at F1. A Vowel-table layer and a Reed layer run through a Formant filter, and a triangle locked to 1/2 (a whole sweep per bar at 140 to 150 BPM) walks the filter through the vowels while the Vowel table opens a little with it. A clean sine sub sits at the played pitch and a low-pass tames the top, so the low end stays steady and mono. Play: held F1 to A#1 notes with the transport running, or a half-note riff. Macros: Vowel Sweep widens how far the mouth travels, Vowel Position slides where the sweep rests along the vowel row from A toward U, Sharpness narrows the vowel peaks so they ring, Grit pushes the tube drive for a louder, rougher voice.",
+  "category": "Bass/formant",
   "tags": [
-    "wobble",
-    "wub",
-    "mono"
+    "formant",
+    "yoi",
+    "talking",
+    "mono",
+    "qa_macro1=D:0.7"
   ],
   "macros": [
     {
-      "label": "Drift Depth"
+      "label": "Vowel Sweep"
     },
     {
-      "label": "Centre"
+      "label": "Vowel Position"
     },
     {
-      "label": "Slow Sweep"
+      "label": "Sharpness"
     },
     {
-      "label": "Width"
+      "label": "Grit"
     }
   ],
   "matrix": [
     {
-      "amount": 0.25,
+      "amount": 0.08,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 1",
       "target": "modb_cutoff"
     },
     {
-      "amount": 0.15,
+      "amount": 0.11,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 1",
+      "target": "moda_index"
+    },
+    {
+      "amount": 0.12,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 2",
       "target": "filta_freq"
     },
     {
-      "amount": 0.5,
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "osca_index"
+    },
+    {
+      "amount": -0.1,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "filtb_freq"
+    },
+    {
+      "amount": 0.4,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 3",
-      "target": "moda_shift"
+      "target": "filta_res"
     },
     {
-      "amount": 0.6,
+      "amount": 0.5,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 4",
-      "target": "dim_mix"
+      "target": "dist_drive"
     },
     {
       "amount": 0.4,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 4",
-      "target": "dim_size"
+      "target": "dist_mix"
     },
     {
-      "amount": 0.1,
-      "bipolar": false,
+      "amount": -0.15,
+      "bipolar": true,
       "enabled": true,
-      "source": "Macro 3",
-      "target": "filta_freq"
+      "source": "Mod A",
+      "target": "filtb_freq"
     }
   ],
   "params": {
@@ -81,10 +104,10 @@
     "cho_sync": false,
     "cho_voices": 4,
     "cho_wet_lowcut": 120,
-    "dim_mix": 0.1,
-    "dim_on": true,
-    "dim_size": 0.3,
-    "dim_wet_lowcut": 250,
+    "dim_mix": 0.5,
+    "dim_on": false,
+    "dim_size": 0.5,
+    "dim_wet_lowcut": 120,
     "dist_autogain": true,
     "dist_bias": 0,
     "dist_drive": 6,
@@ -113,9 +136,9 @@
     "eq_low_freq": 100,
     "eq_low_gain": 0,
     "eq_on": true,
-    "eq_peak_freq": 1000,
-    "eq_peak_gain": 0,
-    "eq_peak_q": 1,
+    "eq_peak_freq": 1800,
+    "eq_peak_gain": 2,
+    "eq_peak_q": 1.0,
     "fenv_amt": 0.4,
     "fenv_att": 0.005,
     "fenv_curve": 0,
@@ -124,10 +147,10 @@
     "fenv_rel": 0.1,
     "fenv_sus": 0.2,
     "filta_env": false,
-    "filta_freq": 520,
+    "filta_freq": 3600,
     "filta_kbd": 0,
-    "filta_res": 0.5,
-    "filta_type": "BP12",
+    "filta_res": 0.6,
+    "filta_type": "Formant",
     "filtb_env": false,
     "filtb_freq": 3000,
     "filtb_kbd": 0,
@@ -148,7 +171,7 @@
     "macro2": 0,
     "macro3": 0,
     "macro4": 0,
-    "mb_depth": 1.0,
+    "mb_depth": 0.8,
     "mb_down_hi": -12,
     "mb_down_lo": -12,
     "mb_down_mid": -12,
@@ -173,29 +196,29 @@
     "moda_curve": "Triangle",
     "moda_div": "1/2",
     "moda_fade": 0,
-    "moda_index": 0,
+    "moda_index": 0.05,
     "moda_oneshot": false,
     "moda_phase": 0,
     "moda_pitch": 0,
     "moda_rate": 4,
-    "moda_shift": 0.0,
+    "moda_shift": 0,
     "moda_smooth": 0,
     "moda_sync": true,
     "moda_target": "Both",
     "moda_trig": "Retrigger",
-    "modb_curve": "Smooth Random",
-    "modb_cutoff": 0.27,
-    "modb_div": "1/32",
+    "modb_curve": "Triangle",
+    "modb_cutoff": 0.35,
+    "modb_div": "1/2",
     "modb_fade": 0,
     "modb_moda": 0,
     "modb_motion": 0,
     "modb_oneshot": false,
     "modb_phase": 0,
-    "modb_rate": 100,
+    "modb_rate": 4,
     "modb_smooth": 0,
-    "modb_sync": false,
+    "modb_sync": true,
     "modb_target": "A",
-    "modb_trig": "Free",
+    "modb_trig": "Retrigger",
     "modb_vol": 0,
     "modc_curve": "Sine",
     "modc_div": "1/8",
@@ -226,7 +249,7 @@
     "osca_dec": 0.3,
     "osca_det_curve": 0,
     "osca_detune": 12,
-    "osca_index": 55,
+    "osca_index": 50,
     "osca_motion": 0,
     "osca_oct": 1,
     "osca_on": true,
@@ -237,7 +260,7 @@
     "osca_semi": 0,
     "osca_shift": 0,
     "osca_sus": 1,
-    "osca_table": "Saw Stack",
+    "osca_table": "Vowel",
     "osca_unison": 1,
     "osca_vol": 1,
     "osca_warp_amt": 0,
@@ -250,7 +273,7 @@
     "oscb_dec": 0.3,
     "oscb_det_curve": 0,
     "oscb_detune": 12,
-    "oscb_index": 86,
+    "oscb_index": 40,
     "oscb_motion": 0,
     "oscb_oct": 1,
     "oscb_on": true,
@@ -261,9 +284,9 @@
     "oscb_semi": 0,
     "oscb_shift": 0,
     "oscb_sus": 1,
-    "oscb_table": "Basic",
+    "oscb_table": "Reed",
     "oscb_unison": 1,
-    "oscb_vol": 0.6,
+    "oscb_vol": 0.5,
     "oscb_warp_amt": 0,
     "oscb_warp_mode": "Off",
     "oscb_width": 0.5,
@@ -296,7 +319,7 @@
     "shaper_on": false,
     "spread": 0,
     "sub_drive": 0,
-    "sub_level": -3,
+    "sub_level": -9,
     "sub_oct": -1,
     "sub_on": true,
     "sub_phase": 60,
@@ -307,7 +330,7 @@
     "vel_shift": 0,
     "vel_vol_a": 0,
     "vel_vol_b": 0,
-    "volume": -6,
+    "volume": -2.9,
     "wheel_cutoff": 0,
     "wheel_index": 0,
     "wheel_mod": 0,

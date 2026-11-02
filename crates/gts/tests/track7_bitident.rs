@@ -1,12 +1,24 @@
-//! SPEC v2 Track 7 acceptance 1, per render: every factory preset (patch + matrix), the
+//! SPEC v2 Track 7 acceptance 1, per render: the six pre-Track-7 factory presets (patch + matrix), the
 //! riddim_v1 fixture (with the FX chain off and with every module on, so the default chain order
 //! is covered) and the all-defaults patch from `GtsParams` render bit-identically to c178995 with
 //! every Track 7 feature at its default. The hashes in `REF` were printed by this file at c178995.
 use gts::dsp::{Engine, Patch};
 use gts::params::GtsParams;
-use gts::preset::factory;
+use gts::preset::Preset;
 
 const SR: f32 = 48000.0;
+
+/// The six pre-Track-7 factory presets, kept as fixtures (tests/fixtures/pre-track7) after the
+/// 2026-11 factory bank replaced them, so the c178995 hashes keep covering real presets.
+fn pre_track7_bank() -> Vec<Preset> {
+    ["Growl Hound", "Reese Drift", "Sub Weight", "Talk Box", "Wobble Shot", "Screech Lead"]
+        .iter()
+        .map(|n| {
+            let path = format!("{}/tests/fixtures/pre-track7/{n}.json", env!("CARGO_MANIFEST_DIR"));
+            Preset::from_json(&std::fs::read_to_string(&path).unwrap()).unwrap().0
+        })
+        .collect()
+}
 
 fn fnv(h: &mut u64, x: f32) {
     for b in x.to_bits().to_le_bytes() {
@@ -48,7 +60,7 @@ fn render(p: &Patch, enc: Option<&[f32; gts::matrix::ENC_LEN]>, n: usize) -> u64
 fn renders() -> Vec<(String, u64)> {
     let n = 48000;
     let mut out = vec![];
-    for pr in factory() {
+    for pr in &pre_track7_bank() {
         let enc = pr.matrix_state().encode();
         out.push((pr.name.clone(), render(&pr.patch, Some(&enc), n)));
     }

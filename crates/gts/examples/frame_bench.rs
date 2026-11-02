@@ -2,7 +2,7 @@
 //! Runs `editor::draw` in a bare egui context for N frames at 1000x832 and times (a) the UI pass
 //! (begin_pass .. end_pass) and (b) tessellation, then prints mean / p50 / p99 / max and the mesh
 //! handed to the GL painter. Between frames the real engine plays the riddim demo pattern
-//! (Wobble Shot) through the plugin's own publisher (scope ring, meters, voice / ModLive record),
+//! (Eighth Triangle Wub) through the plugin's own publisher (scope ring, meters, voice / ModLive record),
 //! 735 samples per 60 Hz frame; engine time is NOT counted. Table generation is excluded.
 //!
 //!   cargo run -p gts --release --example frame_bench [-- fx] [-- ppp=1.5] [-- hover] [-- idle] [-- cpu] [-- frames=600]
@@ -52,7 +52,7 @@ fn main() {
     let voices: usize = arg("voices=").and_then(|v| v.parse().ok()).unwrap_or(8);
     let mut tables = Tables::new();
     tables.generate();
-    let (key, preset) = demo::factory("Wobble Shot");
+    let (key, preset) = demo::factory("Eighth Triangle Wub");
     let ctl = demo::MapCtl::with_preset(Some(preset));
     let mut patch = preset.patch;
     if fx {

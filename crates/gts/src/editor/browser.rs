@@ -8,7 +8,7 @@
 //! | [ search ............ ]                   [Init][Save][Save As][x]
 //! | SOURCE      | TAGS  riddim tearout growl wobble ...           |
 //! |  All     64 | +------------------------------------------+ |
-//! |  Factory  6 | | * Growl Hound        BASS      Riddim   v  | |
+//! |  Factory  6 | | * Pitch Rip Growl        BASS      Riddim   v  | |
 //! |  User    58 | |   Riddim growl: Square Morph ...  FACTORY   | |
 //! |  Favorites  | | ...                                       # | |
 //! | CATEGORY    | +------------------------------------------+ |

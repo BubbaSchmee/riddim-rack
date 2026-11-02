@@ -3,14 +3,13 @@
   "product": "GTS",
   "name": "Robot Bark Drop",
   "author": "Riddim Rack",
-  "description": "A one-shot robot bark: every note starts with a bright, ring-modulated metallic bite that dives and settles into a hollow growl over a clean sine sub, so stuttered playing becomes a machine-gun of barks. Play: short, separated F1, G1 and A#1 notes at 140-150 BPM, or tap eighths and sixteenths; the bite re-fires on every new key press. Macros: Bite brightens the ring-mod, Dive deepens the pitch drop, Metal adds ring-modulation and Drive pushes the diode distortion.",
+  "description": "A one-shot robot bark: every note opens bright and metallic through the filter, dives a fifth in pitch and snaps shut into a hollow ring-modulated growl over a clean sine sub, so stuttered playing becomes a machine-gun of barks. Play: short, separated F1, G1 and A#1 notes at 140-150 BPM, or tap eighths and sixteenths; the bite re-fires on every new key press. Macros: Bite opens the bark wider on each note, Dive deepens and lengthens the pitch drop, Metal adds ring-modulation and Drive pushes the diode distortion.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
     "metal",
     "mono",
     "dirty",
-    "dive",
     "qa_period=none",
     "qa_dive=7@150"
   ],
@@ -30,18 +29,25 @@
   ],
   "matrix": [
     {
-      "amount": 0.1,
+      "amount": 0.12,
       "bipolar": false,
       "enabled": true,
       "source": "Mod Env",
       "target": "pitch_all"
     },
     {
-      "amount": 0.2,
+      "amount": 0.3,
       "bipolar": false,
       "enabled": true,
       "source": "Mod Env",
       "target": "filta_freq"
+    },
+    {
+      "amount": 0.55,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Mod Env",
+      "target": "filtb_freq"
     },
     {
       "amount": 0.3,
@@ -55,7 +61,7 @@
       "bipolar": false,
       "enabled": true,
       "source": "Macro 1",
-      "target": "filta_freq"
+      "target": "filtb_freq"
     },
     {
       "amount": 0.375,
@@ -65,7 +71,7 @@
       "target": "dist_drive"
     },
     {
-      "amount": 0.25,
+      "amount": 0.5,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 2",
@@ -79,18 +85,11 @@
       "target": "filta_freq"
     },
     {
-      "amount": 0.45,
+      "amount": 0.1,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 2",
       "target": "osca_index"
-    },
-    {
-      "amount": 0.2,
-      "bipolar": false,
-      "enabled": true,
-      "source": "Macro 2",
-      "target": "filta_freq"
     },
     {
       "amount": 0.25,
@@ -105,6 +104,13 @@
       "enabled": true,
       "source": "Macro 3",
       "target": "filta_res"
+    },
+    {
+      "amount": 0.4,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 2",
+      "target": "menv_dec"
     }
   ],
   "params": {
@@ -132,12 +138,12 @@
     "mb_on": true,
     "mb_time": 0.3,
     "menv_att": 0.001,
-    "menv_curve": 0.0,
-    "menv_dec": 0.16,
+    "menv_curve": -0.5,
+    "menv_dec": 0.12,
     "menv_rel": 0.05,
     "menv_sus": 0.0,
     "moda_curve": "Decay",
-    "moda_div": "1/2",
+    "moda_div": "1/8",
     "moda_oneshot": true,
     "moda_pitch": 0.0,
     "moda_sync": true,

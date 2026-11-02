@@ -13,7 +13,7 @@
 //! ```
 //!
 //! A preset's identity is its **key**, the path below `Presets` without the extension and with `/`
-//! separators (`"Factory/Bass/Growl Hound"`). Favourites and the default preset are stored by key.
+//! separators (`"Factory/Bass/Pitch Rip Growl"`). Favourites and the default preset are stored by key.
 //! The category of a file is the folder it sits in (the fixed list [`CATEGORIES`]); a file outside a
 //! category folder falls back to the first segment of its own `"category"` field, then to Bass.
 //!
@@ -530,7 +530,8 @@ fn entry_from_text(origin: Origin, key: String, path: Option<PathBuf>, folder_ca
                 name,
                 author: p.author.clone(),
                 description: p.description.clone(),
-                tags: p.tags.clone(),
+                // qa_* tags pin targets for the factory QA tool (examples/bank_qa.rs); users never see them.
+                tags: p.tags.iter().filter(|t| !t.starts_with("qa_")).cloned().collect(),
                 macros: macro_labels(&p),
                 path,
                 preset: Some(Arc::new(p)),
@@ -1285,6 +1286,15 @@ mod tests {
         assert_eq!(parse_tags(&(0..40).map(|i| format!("t{i}")).collect::<Vec<_>>().join(",")).len(), MAX_TAGS);
     }
 
+    #[test]
+    fn qa_tags_stay_hidden() {
+        let mut p = sample("Pinned");
+        p.tags = vec!["wub".into(), "qa_alias=..-28".into(), "qa_family=reese".into()];
+        let e = entry_from_text(Origin::Factory, "k".into(), None, None, "Pinned", Ok(p.to_json()));
+        assert_eq!(e.tags, ["wub"]);
+        assert!(!e.hay.contains("qa_"));
+    }
+
     fn sample(name: &str) -> Preset {
         let mut p = Preset { name: name.into(), author: "Tester".into(), description: "d".into(), category: "Bass".into(), tags: vec!["wub".into()], ..Preset::default() };
         p.patch.volume_db = -3.0;
@@ -1501,7 +1511,7 @@ mod tests {
     #[test]
     fn first_sentence_and_terms() {
         let (_t, lib) = fixture_lib(1);
-        let e = lib.entries().iter().find(|e| e.name == "Growl Hound").unwrap();
+        let e = lib.entries().iter().find(|e| e.name == "Pitch Rip Growl").unwrap();
         assert!(e.first_sentence().ends_with('.') && e.first_sentence().len() < e.description.len());
         assert_eq!(search_terms("  a  \"b c\" D "), ["a", "b c", "d"]);
         assert_eq!(search_terms("\"open end"), ["open end"]);

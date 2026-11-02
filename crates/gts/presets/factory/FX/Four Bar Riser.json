@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Four Bar Riser",
   "author": "Riddim Rack",
-  "description": "A noisy four-bar riser. Pitch and brightness climb across the phrase while the sound opens up wide and the reverb tail swells into the drop. Hold one note (C3 works best) for four bars; the climb locks to the host tempo and restarts on every note. Rise Width sets how wide it ends up, Noise Level the hiss, Pitch Rise how far it climbs, Reverb Tail the wash.",
+  "description": "A four-bar riser into the drop. Pitch and brightness climb across the phrase while a hiss builds in and the reverb tail swells. Hold one note (C3 works best) for four bars; the climb locks to the host tempo and restarts on every note. Rise Width brings in chorus, Noise Level the hiss, Pitch Rise how far it climbs, Reverb Tail the wash.",
   "category": "FX",
   "tags": [
     "riser",
@@ -26,45 +26,10 @@
   ],
   "matrix": [
     {
-      "source": "Mod C",
-      "target": "filta_freq",
-      "amount": -0.28866404575981885,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Mod C",
-      "target": "pitch_all",
-      "amount": -0.1686469886269715,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Mod C",
-      "target": "volume",
-      "amount": -0.08356809993333512,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Mod C",
-      "target": "cho_mix",
-      "amount": -0.4,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
       "source": "Mod D",
       "target": "rev_mix",
-      "amount": -0.2,
-      "bipolar": false,
-      "enabled": true
-    },
-    {
-      "source": "Macro 1",
-      "target": "cho_mix",
-      "amount": 0.3,
-      "bipolar": false,
+      "amount": 0.1,
+      "bipolar": true,
       "enabled": true
     },
     {
@@ -77,7 +42,7 @@
     {
       "source": "Macro 3",
       "target": "moda_pitch",
-      "amount": 0.5,
+      "amount": 0.8,
       "bipolar": false,
       "enabled": true
     },
@@ -90,30 +55,65 @@
     },
     {
       "source": "Mod C",
-      "target": "osca_width",
-      "amount": -0.6537681532627004,
+      "target": "filta_freq",
+      "amount": 0.133,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "filta_freq",
+      "amount": 0.313,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "volume",
+      "amount": -0.05,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "pitch_all",
+      "amount": 0.145,
+      "bipolar": true,
+      "enabled": true
+    },
+    {
+      "source": "Mod C",
+      "target": "noise_level",
+      "amount": 0.59,
+      "bipolar": false,
+      "enabled": true
+    },
+    {
+      "source": "Macro 1",
+      "target": "cho_mix",
+      "amount": 0.6,
       "bipolar": false,
       "enabled": true
     }
   ],
   "params": {
-    "cho_mix": 0.4053,
+    "cho_mix": 0.0,
     "cho_on": true,
-    "eq_cut_freq": 485,
+    "eq_cut_freq": 520,
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 4621.670105183613,
+    "filta_freq": 703,
     "filta_kbd": 0.0,
-    "filta_res": 0.6,
+    "filta_res": 0.0,
     "filta_type": "LP12",
     "filtb_env": false,
-    "filtb_freq": 269,
+    "filtb_freq": 420,
     "filtb_kbd": 0.0,
     "filtb_res": 0.0,
     "filtb_type": "HP12",
-    "flg_mix": 0.2,
-    "flg_on": true,
+    "flg_mix": 0.1,
+    "flg_on": false,
     "legato": true,
     "macro1": 0.5,
     "macro2": 0.5,
@@ -125,43 +125,46 @@
     "moda_sync": true,
     "moda_target": "Both",
     "moda_trig": "Envelope",
-    "modc_curve": "Saw Down",
+    "modc_curve": "Saw Up",
     "modc_div": "4/1",
     "modc_sync": true,
     "modc_trig": "Envelope",
-    "modd_curve": "Saw Down",
+    "modd_curve": "Saw Up",
     "modd_div": "4/1",
     "modd_sync": true,
     "modd_trig": "Envelope",
-    "noise_level": -24,
-    "noise_tone": 0.18393453526776338,
+    "noise_level": -55.0,
+    "noise_tone": 0.18,
     "noise_type": "White",
     "osca_att": 0.02,
     "osca_dec": 0.3,
-    "osca_detune": 22,
+    "osca_detune": 8,
     "osca_index": 74,
     "osca_on": true,
     "osca_rel": 0.3,
     "osca_sus": 1.0,
     "osca_table": "Saw Stack",
-    "osca_unison": 7,
-    "osca_width": 1.0,
+    "osca_unison": 1,
+    "osca_width": 0.5,
     "oscb_on": false,
     "poly": 1,
     "porta": 0.0,
     "rev_decay": 3.0,
-    "rev_mix": 0.2757,
+    "rev_mix": 0.176,
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -4.746,
+    "volume": 0.0,
     "rev_lowcut": 500,
     "cho_wet_lowcut": 500,
-    "mono_xover": 200,
-    "pitch_all": 12.0928,
+    "mono_xover": 300,
+    "pitch_all": 14.0,
     "osca_vol": 0.3,
     "lim_gain": 12,
-    "eq_high_freq": 2500,
-    "eq_high_gain": -9
+    "eq_high_freq": 1100,
+    "eq_high_gain": -15,
+    "eq_peak_freq": 1000,
+    "eq_peak_gain": 5.5,
+    "eq_peak_q": 0.7
   }
 }
