@@ -2,8 +2,12 @@
 //! `docs/design/bank-recipes.md` section A, run against preset JSON files.
 //!
 //! ```text
-//! bank_qa [--only <name>] [--out <dir>] [--name <stem>] [--no-macros] [--bright-amp] [--pair-min <dB>] [path...]
+//! bank_qa [--only <name>] [--out <dir>] [--name <stem>] [--no-macros] [--bright-amp] [--pair-min <dB>] [--wav <dir>] [path...]
 //! ```
+//!
+//! `--wav <dir>` also writes, for every analysed preset, the 150 BPM test render (velocity 100: the 4-bar pattern of
+//! bass / lead / pluck, else the first test note held per `Ctx::plan`) as 16-bit stereo PCM at 48 kHz to
+//! `<dir>/<Category>/<name>.wav`, for listening. Nothing else changes.
 //!
 //! `--bright-amp` judges the amplitude-weighted centroid instead of the sheet's power-weighted Brightness
 //! (the report always shows both; the baseline report explains why). `--no-macros` skips the macro sweeps.
@@ -817,6 +821,11 @@ impl<'a> Ctx<'a> {
         }
         let len = 4.0 * 240.0 / tempo as f64 + 0.5;
         Some(render(self.p, &Job { tempo, notes, len, mode: Mode::LIVE, macros: None }))
+    }
+
+    /// The 150 BPM render written by `--wav`: the 4-bar pattern, or for the held-note families the first test note.
+    fn listening(&self) -> Vec<[f32; 2]> {
+        self.pattern(150, VEL100).unwrap_or_else(|| self.hold(150, self.test_notes()[0].0, VEL100, self.plan(150), Mode::LIVE, None).fr)
     }
 
     fn category_median(&self) -> Option<f64> {
@@ -1816,7 +1825,7 @@ struct Loaded {
     how: String,
 }
 
-fn analyze_preset(l: &Loaded, fft: &Fft, macros: bool) -> Report {
+fn analyze_preset(l: &Loaded, fft: &Fft, macros: bool, wav: Option<&Path>) -> Report {
     let t0 = std::time::Instant::now();
     let p = &l.preset;
     let tags = norm_tags(p);
@@ -1872,6 +1881,9 @@ fn analyze_preset(l: &Loaded, fft: &Fft, macros: bool) -> Report {
         macro_checks(&mut c);
     }
     repeat_check(&mut c);
+    if let Some(dir) = wav {
+        write_listening(dir, p, &c.listening()).expect("write --wav file");
+    }
     let desc = descriptor(&c);
     Report {
         name: p.name.clone(),
@@ -1887,6 +1899,18 @@ fn analyze_preset(l: &Loaded, fft: &Fft, macros: bool) -> Report {
         error: None,
         secs: t0.elapsed().as_secs_f64(),
     }
+}
+
+/// `<dir>/<Category>/<name>.wav` (Category = the first part of `Bass/riddim`), with path-unsafe characters replaced.
+fn wav_path(dir: &Path, p: &Preset) -> PathBuf {
+    let safe = |s: &str| s.chars().map(|c| if r#"/\:*?"<>|"#.contains(c) { '-' } else { c }).collect::<String>();
+    dir.join(safe(p.category.split('/').next().unwrap_or(""))).join(format!("{}.wav", safe(&p.name)))
+}
+
+fn write_listening(dir: &Path, p: &Preset, frames: &[[f32; 2]]) -> std::io::Result<()> {
+    let path = wav_path(dir, p);
+    std::fs::create_dir_all(path.parent().unwrap())?;
+    rp::demo::write_wav(&path, frames)
 }
 
 fn collect(paths: &[PathBuf]) -> Vec<PathBuf> {
@@ -1915,6 +1939,7 @@ struct Opts {
     name: String,
     macros: bool,
     pair_min: f64,
+    wav: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Opts, String> {
@@ -1925,6 +1950,7 @@ fn parse_args() -> Result<Opts, String> {
         name: "bank-qa".into(),
         macros: true,
         pair_min: PAIR_MIN_DEFAULT,
+        wav: None,
     };
     let mut a = std::env::args().skip(1);
     while let Some(x) = a.next() {
@@ -1935,9 +1961,10 @@ fn parse_args() -> Result<Opts, String> {
             "--name" => o.name = val("--name")?,
             "--pair-min" => o.pair_min = val("--pair-min")?.parse().map_err(|_| "--pair-min needs a number".to_string())?,
             "--no-macros" => o.macros = false,
+            "--wav" => o.wav = Some(PathBuf::from(val("--wav")?)),
             "--bright-amp" => BRIGHT_AMP.store(true, Ordering::Relaxed),
             "--bright-power" => BRIGHT_AMP.store(false, Ordering::Relaxed),
-            "-h" | "--help" => return Err("usage: bank_qa [--only <name>] [--out <dir>] [--name <stem>] [--no-macros] [--bright-amp] [--pair-min <dB>] [preset.json|dir]...".into()),
+            "-h" | "--help" => return Err("usage: bank_qa [--only <name>] [--out <dir>] [--name <stem>] [--no-macros] [--bright-amp] [--pair-min <dB>] [--wav <dir>] [preset.json|dir]...".into()),
             s if s.starts_with("--") => return Err(format!("unknown flag {s}")),
             s => o.paths.push(PathBuf::from(s)),
         }
@@ -1999,7 +2026,7 @@ fn main() {
                     let full = targets.contains(&i);
                     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         if full {
-                            analyze_preset(l, &fft, o.macros)
+                            analyze_preset(l, &fft, o.macros, o.wav.as_deref())
                         } else {
                             let tags = norm_tags(&l.preset);
                             let c = Ctx { p: &l.preset, fam: l.family, ov: HashMap::new(), tags, fft: &fft, dom: None, per_ov: None, checks: vec![], notes: vec![], raw: Default::default() };
@@ -2295,6 +2322,17 @@ mod tests {
         assert_eq!(f("Init", &[]), Family::Init);
         assert_eq!(f("Bass", &["qa_family=reese", "riddim"]), Family::Reese);
         assert_eq!(f("Bass", &["QA_FAMILY:Sub"]), Family::Sub, "case-insensitive, colon accepted");
+    }
+
+    #[test]
+    fn wav_option_writes_category_folder_and_riff_file() {
+        let dir = std::env::temp_dir().join(format!("bank_qa_wav_{}", std::process::id()));
+        let p = Preset { name: "A/B: Test".into(), category: "Bass/riddim".into(), ..Preset::default() };
+        assert_eq!(wav_path(&dir, &p), dir.join("Bass").join("A-B- Test.wav"));
+        write_listening(&dir, &p, &[[0.5, -0.5]; 10]).unwrap();
+        let b = std::fs::read(wav_path(&dir, &p)).unwrap();
+        assert_eq!((&b[..4], &b[8..12], b.len()), (&b"RIFF"[..], &b"WAVE"[..], 44 + 10 * 4));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

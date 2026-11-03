@@ -8,7 +8,7 @@
 use gts::dsp::Patch;
 use gts::editor::{apply_preset, Ctl, ParamTable};
 use gts::params::GtsParams;
-use gts::preset::{factory, Preset};
+use gts::preset::{bank::FACTORY_FILES, factory, Preset};
 use nih_plug::prelude::{Params, ParamPtr};
 use serde_json::{json, Map, Value};
 use std::cell::RefCell;
@@ -99,8 +99,8 @@ fn assert_same(a: &Patch, b: &Patch, what: &str) {
 #[test]
 fn factory_presets_load_through_the_gesture_api() {
     let names: Vec<&str> = factory().iter().map(|p| p.name.as_str()).collect();
-    assert_eq!(names.len(), 39);
-    assert!(names.contains(&"Pure Sine Sub") && names.contains(&"Screech Dive One"));
+    assert_eq!(names.len(), FACTORY_FILES.len());
+    assert!(names.contains(&"Pure Sine Sub") && names.contains(&"Diving Screech"));
     let fake = Fake::new();
     for p in factory() {
         apply_preset(&fake.table, &fake, Some(p));
@@ -124,7 +124,7 @@ fn init_restores_defaults_and_routing_is_untouched() {
     // No gesture ever touched a CV slot, and the 243 sound params (180 + 34 Track 7 modulation + 10 Track 7 sound + 19 phaser / flanger) were each driven.
     let touched = fake.gestures.borrow();
     assert!(!touched.iter().any(|id| id.starts_with("cv")), "a CV slot was written");
-    assert_eq!(touched.len(), 40 * 243);
+    assert_eq!(touched.len(), (factory().len() + 1) * 243); // every factory preset, then Init
     // The last load was Init: every sound param sits at its default, the Patch is the default Patch.
     for id in fake.sound_ids() {
         assert_eq!(fake.get01(&id), fake.default01(&id), "{id}");

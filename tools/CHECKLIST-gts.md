@@ -83,13 +83,14 @@ the plugin. Delete the plugin log first for a clean session.
     Gain Reduction meter (FX page, 0 to -12 dB) moves with the playing and falls back when you
     stop, and Output Peak reads about -0.3 dBFS. Back to
     Limiter Gain 0 dB and the default Volume: the peak returns to about -9 dBFS on C2.
-24. Factory bank (39 presets): open the preset browser (click the preset name right of the nameplate) and browse every
-    category (Bass 27, Lead 4, Pluck 3, FX 2, Seq 2, Init 1): the knobs and the FX page jump to the preset, the bar shows its name,
+24. Factory bank (41 presets): open the preset browser (click the preset name right of the nameplate) and browse every
+    category (Bass 27, Lead 4, Pluck 3, FX 4, Seq 2, Init 1): the knobs and the FX page jump to the preset, the bar shows its name,
     the detail strip shows its description and four macro names, and after any edit a dot appears beside it. Close and reopen
     the editor: the spectrum and meters must still move. Init sets every sound parameter back to its default; the PATCH routing,
     the instance label and Quality do not change on any load. A/B each against its listening-pack render
-    (`docs/audits/renders/bank/<Category>/<name>.wav`, the family pattern at 150 BPM, 4 bars; `INDEX.md` lists name, tags, macros
-    and QA summary), level-matched in Live next to the clip: each sounds like its description including the FX sentence; sub
+    (`docs/audits/renders/bank/<Category>/<name>.wav`, gitignored; regenerate with `bank_qa --wav docs/audits/renders/bank`:
+    the 4-bar pattern at 150 BPM for bass, lead and pluck, one held note for FX, Seq and Init; `INDEX.md` lists name, tags, macros,
+    description and QA summary), level-matched in Live next to the clip: each sounds like its description including the FX sentence; sub
     presets stay mono and dry, no render clips or pumps. Move each macro once: it does what its label says.
 25. Resample 8 bars to an audio track, export WAV into `sessions/` named `YYYY-MM-DD-gts-150.wav`.
 26. Editor (window, hero, help bar). The window is 1000 x 832 with no scale steps yet: at 125 %
@@ -165,6 +166,9 @@ still works. Click Live's window before pressing Space; set values by dragging.
 N times and stops on the first non-SUCCESS run (log in `$TMPDIR/pv_loop_<n>.log`). Run it on the
 release bundle (6 runs) and on the debug bundle (`cargo xtask bundle gts`, 2 runs). One hang is a
 failure, never "flaky": take thread stacks of the hung pluginval.exe before killing it.
+
+Factory bank round (2026-11): the loop ran with `PV_FLAGS=--skip-gui-tests` (no windows while the machine was in use). The
+GUI loop (release 6 runs, debug 2 runs, without the flag) is still to run on a free machine before the bank is committed.
 
 Environment check first if it hangs at "Starting tests in: pluginval / Editor...": the bundle is on
 D: (Samsung T7 over USB) and the external monitor hangs off the same USB-C dock. On 2026-10-10 the

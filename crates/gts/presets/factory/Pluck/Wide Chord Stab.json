@@ -3,15 +3,15 @@
   "product": "GTS",
   "name": "Wide Chord Stab",
   "author": "Riddim Rack",
-  "description": "A short, bright chord hit with a quick filter close and a wide unison spread, built to answer a bass note on the drop. Play stacked triads on the beat; it is polyphonic, and harder hits play louder and open the filter wider. Macros: Snap pushes the filter snap harder; Decay stretches each hit; Width spreads the stereo image; Space brings in reverb (the stab is dry until you turn it up).",
+  "description": "A short, bright chord hit with a quick filter close, a touch of warm saturation and a wide unison spread, built to answer a bass note on the drop. Play stacked triads on the beat; it is polyphonic, and harder hits play louder and open the filter wider. Macros: Snap pushes the filter snap harder and longer; Decay stretches each hit; Width spreads the stereo image; Space brings in reverb (the stab is dry until you turn it up).",
   "category": "Pluck",
   "tags": [
     "stab",
     "pluck",
     "wide",
     "qa_decay=250",
-    "qa_alias=..-10",
-    "qa_macro1=C:0.5"
+    "qa_macro1=C:0.5",
+    "qa_alias=..-12"
   ],
   "macros": [
     {
@@ -73,7 +73,7 @@
     {
       "source": "Macro 1",
       "target": "fenv_dec",
-      "amount": 0.054078522339483175,
+      "amount": 0.08,
       "bipolar": false,
       "enabled": true
     },
@@ -119,9 +119,9 @@
     "macro3": 0.5,
     "macro4": 0.0,
     "mono_xover": 200,
-    "osca_att": 0.004,
-    "osca_curve": 0.359,
-    "osca_dec": 0.3,
+    "osca_att": 0.01,
+    "osca_curve": 1.0,
+    "osca_dec": 0.25,
     "osca_detune": 18,
     "osca_index": 68,
     "osca_on": true,
@@ -130,9 +130,9 @@
     "osca_table": "Saw Stack",
     "osca_unison": 4,
     "osca_width": 0.4,
-    "oscb_att": 0.004,
+    "oscb_att": 0.01,
     "oscb_cent": 0,
-    "oscb_dec": 0.3,
+    "oscb_dec": 0.25,
     "oscb_detune": 18,
     "oscb_index": 65,
     "oscb_on": true,
@@ -149,19 +149,20 @@
     "rev_on": true,
     "routing": "Series",
     "sub_on": false,
-    "volume": -2.03,
-    "dist_drive": 6.0,
-    "dist_mix": 0.3,
+    "volume": -5.1,
+    "dist_drive": 10.0,
+    "dist_mix": 1.0,
     "dist_on": true,
     "dist_type": "Tube",
-    "dist_autogain": true,
+    "dist_autogain": false,
     "dist_out": 0.0,
     "eq_high_freq": 3000,
-    "eq_high_gain": 2.0,
+    "eq_high_gain": -2.0,
     "vel_fenv": 1.0,
-    "vel_vol_a": 1.0,
+    "vel_vol_a": 0.85,
     "osca_rand_phase": 0.5,
     "oscb_rand_phase": 0.5,
-    "vel_vol_b": 1.0
+    "vel_vol_b": 0.85,
+    "oscb_curve": 1.0
   }
 }

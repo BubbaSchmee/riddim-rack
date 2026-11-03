@@ -247,8 +247,8 @@ context menu, modal), `crates/gts/build.rs` (embeds every `presets/factory/<Cate
 new factory preset is a file drop). The six candidates now live under `presets/factory/Bass` and
 `.../Lead` (file name = preset name). Decisions where the text left room:
 
-* **Identity.** A preset's key is its path below `Presets` without `.json` (`Factory/Bass/Growl
-  Hound`); favourites, the default preset and the project's loaded-preset record use it. The project
+* **Identity.** A preset's key is its path below `Presets` without `.json` (`Factory/Bass/Pitch
+  Rip Growl`); favourites, the default preset and the project's loaded-preset record use it. The project
   stores `preset_key` and `preset_dirty` (host state, SPEC 2.6); a project saved with an edited
   preset reopens marked edited until the next load or save.
 * **Category** is the folder a file sits in (fixed list); a loose file falls back to the first segment

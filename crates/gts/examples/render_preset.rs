@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 
 #[path = "demo.rs"]
 #[allow(dead_code)]
-mod demo;
+pub mod demo;
 
 pub const SR: u32 = 48000;
 pub const BPM: f64 = 150.0;

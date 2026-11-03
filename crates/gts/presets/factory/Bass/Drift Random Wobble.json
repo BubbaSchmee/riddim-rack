@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Drift Random Wobble",
   "author": "Riddim Rack",
-  "description": "A wub that never repeats: a smooth random motion throws a band-pass filter around its centre like a hand riding the cutoff, with a slow low-pass sweep over the top and a clean sub underneath. Play held or rolling notes on F1-A#1, mono and legato, for fills and variation between the steadier wubs. Macros: Drift Depth widens how far the filter wanders and sharpens its peak; Centre moves where it wanders; Slow Sweep sharpens the slow sweep so it whistles across the random motion; Width spreads the upper mids.",
+  "description": "A wub that never repeats: a smooth random motion throws a band-pass filter around its centre like a hand riding the cutoff, with a slow low-pass sweep over the top and a clean sub underneath. Play held or rolling notes on F1-A#1, mono and legato, for fills and variation between the steadier wubs. Macros: Drift Depth widens how far the filter wanders and sharpens its peak; Centre moves where it wanders; Slow Sweep opens the slow low-pass and sharpens its peak so it whistles across the random motion; Width spreads the upper mids.",
   "category": "Bass/wobble",
   "tags": [
     "wobble",
@@ -74,6 +74,13 @@
       "enabled": true,
       "source": "Macro 1",
       "target": "filta_res"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Macro 3",
+      "target": "filtb_freq"
     }
   ],
   "params": {

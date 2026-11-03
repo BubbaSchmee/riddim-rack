@@ -3,13 +3,15 @@
   "product": "GTS",
   "name": "Robotic Comb Chatter",
   "author": "Riddim Rack",
-  "description": "A tight machine chatter: a pulse-warped square through a tuned comb filter that ratchets in sixteenths, folded into a harsh bark over a clean sub. Play short notes or runs on F1, G1 and A#1, mono and legato; the comb follows your keys so the metal stays in tune with the sub, and harder hits push the comb resonance. Macros: Chatter deepens the sixteenth-note ratchet; Comb Tone tightens and raises the comb; Fold pushes the wave folder; Square Gate adds an eighth-note spectral jump.",
+  "description": "A tight machine chatter: a pulse-warped square through a tuned comb filter that ratchets in sixteenths, folded into a harsh bark over a clean sub. Play short notes or runs on F1, G1 and A#1, mono and legato; the comb follows your keys so the metal stays in tune with the sub, and harder hits push the comb resonance. Macros: Chatter deepens the sixteenth-note ratchet; Comb Tone raises and tightens the comb, which darkens the metal; Fold pushes the wave folder; Square Gate adds an eighth-note spectral jump.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
     "metal",
     "dirty",
-    "mono"
+    "mono",
+    "qa_macro1=D:0.4",
+    "qa_macro2=C:0.4"
   ],
   "macros": [
     {
@@ -48,7 +50,7 @@
       "target": "filtb_res"
     },
     {
-      "amount": 0.1,
+      "amount": 0.45,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 2",
@@ -62,7 +64,7 @@
       "target": "dist_drive"
     },
     {
-      "amount": 0.3,
+      "amount": 0.2,
       "bipolar": false,
       "enabled": true,
       "source": "Macro 4",
@@ -92,9 +94,9 @@
     "eq_cut_on": true,
     "eq_on": true,
     "filta_env": false,
-    "filta_freq": 60.0,
+    "filta_freq": 140.0,
     "filta_kbd": 0.0,
-    "filta_res": 0.5,
+    "filta_res": 0.15,
     "filta_type": "HP12",
     "filtb_env": false,
     "filtb_freq": 2000.0,
@@ -116,7 +118,7 @@
     "moda_sync": true,
     "moda_target": "A",
     "modb_curve": "Square",
-    "modb_cutoff": 0.4,
+    "modb_cutoff": 0.3,
     "modb_div": "1/16",
     "modb_smooth": 0.2,
     "modb_sync": true,
@@ -146,7 +148,7 @@
     "sub_oct": -2,
     "sub_on": true,
     "sub_shape": "Sine",
-    "volume": -2.7,
+    "volume": -1.0,
     "dist_filter_mode": "Post",
     "dist_filter_type": "LP",
     "dist_filter_freq": 2500.0,

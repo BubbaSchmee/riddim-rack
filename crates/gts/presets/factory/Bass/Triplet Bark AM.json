@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Triplet Bark AM",
   "author": "Riddim Rack",
-  "description": "The robotic bark: a metallic tone through a keytracked ring-mod filter and a falling triplet low-pass over a clean sub, so the timbre snaps open and rolls off on every triplet and swings against straight-eighth drum patterns. Play short stabs or held notes on F1, G1 and A#1, mono and legato; the ring-mod pitch follows your keys, so melodic lines stay metallic but in tune with the sub, and harder hits play louder and open the bark wider. Macros: Bark sets how far the timbre falls on each triplet; Metal deepens the ring modulation; Snap deepens the low-pass sweep on each triplet; Drive pushes the distortion.",
+  "description": "The robotic bark: a metallic tone through a keytracked ring-mod filter and a falling triplet low-pass over a clean sub, so the timbre snaps open and rolls off on every triplet and swings against straight-eighth drum patterns. Play short stabs or held notes on F1, G1 and A#1, mono and legato; the ring-mod pitch follows your keys, so melodic lines stay metallic but in tune with the sub, and harder hits play louder and brighter. Macros: Bark sets how far the timbre falls on each triplet; Metal deepens the ring modulation; Snap deepens the low-pass sweep on each triplet; Drive pushes the distortion.",
   "category": "Bass/riddim",
   "tags": [
     "riddim",
@@ -81,6 +81,13 @@
       "enabled": true,
       "source": "Macro 1",
       "target": "moda_index"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filtb_freq"
     }
   ],
   "params": {
@@ -97,7 +104,7 @@
     "filta_res": 0.45,
     "filta_type": "AM",
     "filtb_env": false,
-    "filtb_freq": 1000.0,
+    "filtb_freq": 294.9,
     "filtb_kbd": 0.0,
     "filtb_res": 0.3,
     "filtb_type": "LP24",

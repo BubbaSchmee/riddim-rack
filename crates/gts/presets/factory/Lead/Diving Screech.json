@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Diving Screech",
   "author": "Riddim Rack",
-  "description": "A bright, screaming lead: every note dives down from a high pitch in a fraction of a second while a comb filter sweeps upward once per half note. Play melodies from C3 to C5, or hold a long note to hear the sweep; it is mono and legato, and harder hits play louder and brighter. Macros: Dive sets how far the note falls; Comb Sweep sharpens the comb ring; Screech adds hard-sync bite; Drive pushes the distortion.",
+  "description": "A bright, screaming lead: every note dives down from a high pitch in a fraction of a second while a comb filter sweeps upward once per half note. Play melodies from C3 to C5, or hold a long note to hear the sweep; it is mono and legato, and harder hits play louder and brighter. Macros: Dive sets how far the note falls; Comb Sweep sharpens the comb ring and deepens its sweep; Screech adds hard-sync bite; Drive pushes the distortion.",
   "category": "Lead",
   "tags": [
     "screech",
@@ -28,6 +28,13 @@
     }
   ],
   "matrix": [
+    {
+      "source": "Mod B",
+      "target": "filta_freq",
+      "amount": 0.151633,
+      "bipolar": false,
+      "enabled": true
+    },
     {
       "source": "Macro 1",
       "target": "moda_pitch",
@@ -59,7 +66,7 @@
     {
       "source": "Macro 3",
       "target": "osca_warp_amt",
-      "amount": 0.9,
+      "amount": 1.0,
       "bipolar": false,
       "enabled": true
     },
@@ -87,7 +94,7 @@
     {
       "source": "Macro 2",
       "target": "modb_cutoff",
-      "amount": 0.2,
+      "amount": 0.3,
       "bipolar": false,
       "enabled": true
     }
@@ -107,7 +114,7 @@
     "filta_env": false,
     "filta_freq": 600,
     "filta_kbd": 0.5,
-    "filta_res": 0.0,
+    "filta_res": 0.25,
     "filta_type": "Comb+",
     "filtb_env": false,
     "filtb_freq": 4132.398478635423,
@@ -120,8 +127,8 @@
     "flg_rate": 0.1,
     "legato": true,
     "macro1": 0.6,
-    "macro2": 0.5,
-    "macro3": 0.6,
+    "macro2": 0.0,
+    "macro3": 0.74,
     "macro4": 0.5,
     "moda_curve": "Custom",
     "moda_pitch": 0.0,
@@ -141,7 +148,7 @@
     "osca_sus": 1.0,
     "osca_table": "Saw Stack",
     "osca_unison": 1,
-    "osca_warp_amt": 0.1,
+    "osca_warp_amt": 0.0,
     "osca_warp_mode": "Sync",
     "oscb_att": 0.002,
     "oscb_cent": 2,
@@ -165,8 +172,7 @@
     "volume": -8.79,
     "vel_vol_a": 0.9,
     "vel_vol_b": 0.9,
-    "modb_target": "A",
-    "modb_cutoff": 0.2
+    "modb_cutoff": 0.1
   },
   "lfo_shapes": [
     {

@@ -379,7 +379,7 @@ B. Matrix lines read "source -> target (amount)". Macro lines read "M1 Name: wha
 
 ### Leads / screech (Lead, 4)
 
-**28. Screech Dive One** | Lead | screech, lead, mono
+**28. Diving Screech** | Lead | screech, lead, mono
 - Role. A bright, screaming lead with a quick pitch dive at the start of each note and a rising comb sweep: the high-energy screech at C3-C5.
 - Signal. A: Saw Stack, Idx 80, Warp Sync 0.5; B: Metal at -6 dB, detune +3 ct. Unison 5, detune 18 ct. Mod Env (A 1 ms, D 90 ms, S 0, curve -0.5) -> pitch_all (+12 st). LFO A: Saw
   Up, 1/2, Retrigger, to Filt A (Comb+) comb offset (+0.6). Filt B: HP12 at 220 Hz. FX: Dist Hard Clip +18 dB; EQ low cut 200 Hz; Flanger mix 20 %; Reverb 8 % (low cut 300 Hz); limiter.

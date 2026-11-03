@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Vowel Pluck Bark",
   "author": "Riddim Rack",
-  "description": "A short vowel bark on every note: each hit opens bright on an open, nasal vowel and snaps shut to a rounder oh within a fraction of a second, like a mouth saying wow in one syllable, then settles so held notes stay steady over a clean sub. Play staccato eighth and sixteenth riffs on F1-A#1, mono and legato, one bark per note; harder hits play louder and snap wider. Macros: Bark adds a deeper filter snap; Vowel slides the resting vowel from oh toward ee while the tone opens; Decay stretches the bark from a tight snap to a long, slow wow; Grit pushes the tube drive for a louder, rougher mouth.",
+  "description": "A short vowel bark on every note: each hit opens bright on an open, nasal vowel and snaps shut to a rounder oh within a fraction of a second, like a mouth saying wow in one syllable, then settles so held notes stay steady over a clean sub. Play staccato eighth and sixteenth riffs on F1-A#1, mono and legato, one bark per note; harder hits play louder and brighter. Macros: Bark adds a deeper filter snap; Vowel slides the resting vowel from oh toward ee while the tone opens; Decay stretches the bark from a tight snap to a long, slow wow; Grit pushes the tube drive for a louder, rougher mouth.",
   "category": "Bass/formant",
   "tags": [
     "formant",
@@ -105,6 +105,13 @@
       "enabled": true,
       "source": "Macro 2",
       "target": "filtb_freq"
+    },
+    {
+      "amount": 0.15,
+      "bipolar": false,
+      "enabled": true,
+      "source": "Velocity",
+      "target": "filtb_freq"
     }
   ],
   "params": {
@@ -168,7 +175,7 @@
     "filta_res": 0.55,
     "filta_type": "Formant",
     "filtb_env": false,
-    "filtb_freq": 1500,
+    "filtb_freq": 478.5,
     "filtb_kbd": 0,
     "filtb_res": 0,
     "filtb_type": "LP12",
@@ -344,9 +351,9 @@
     "vel_fenv": 0.5,
     "vel_mod": 0.5,
     "vel_shift": 0,
-    "vel_vol_a": 0.8,
-    "vel_vol_b": 0.8,
-    "volume": -1.1,
+    "vel_vol_a": 0.5,
+    "vel_vol_b": 0.5,
+    "volume": -1.64,
     "wheel_cutoff": 0,
     "wheel_index": 0,
     "wheel_mod": 0,

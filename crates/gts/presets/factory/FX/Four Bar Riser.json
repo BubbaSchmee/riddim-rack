@@ -36,7 +36,7 @@
     {
       "source": "Macro 2",
       "target": "noise_level",
-      "amount": 0.6,
+      "amount": 1.0,
       "bipolar": false,
       "enabled": true
     },
@@ -85,7 +85,7 @@
     {
       "source": "Mod C",
       "target": "noise_level",
-      "amount": 0.59,
+      "amount": 0.45,
       "bipolar": false,
       "enabled": true
     },
@@ -134,7 +134,7 @@
     "modd_div": "4/1",
     "modd_sync": true,
     "modd_trig": "Envelope",
-    "noise_level": -49.0,
+    "noise_level": -58,
     "noise_tone": 0.18,
     "noise_type": "White",
     "osca_att": 0.02,
@@ -160,8 +160,8 @@
     "cho_wet_lowcut": 500,
     "mono_xover": 300,
     "pitch_all": 14.0,
-    "osca_vol": 0.6,
-    "lim_gain": 6,
+    "osca_vol": 0.37,
+    "lim_gain": 10.5,
     "eq_high_freq": 1100,
     "eq_high_gain": -9.0,
     "eq_peak_freq": 1000,

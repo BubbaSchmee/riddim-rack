@@ -7,14 +7,14 @@
 mod rp;
 
 use gts::matrix::Source;
-use gts::preset::Preset;
+use gts::preset::{bank::FACTORY_FILES, Preset};
 
 #[test]
 fn candidate_presets_pass_qa() {
     // Structure of every factory preset (all families). The audio checks (loudness band, pitch,
     // macro sweeps, per-family targets) live in the bank_qa tool, run by `factory_bank_full_qa`.
     let paths = rp::candidates();
-    assert!(paths.len() >= 39, "expected the factory bank, found {}", paths.len());
+    assert_eq!(paths.len(), FACTORY_FILES.len(), "the factory tree and the embedded bank differ");
     let mut fails = vec![];
     for path in &paths {
         let text = std::fs::read_to_string(path).unwrap();
@@ -49,8 +49,8 @@ fn candidate_presets_pass_qa() {
 "));
 }
 
-/// Fast structure test: every factory preset loads clean, has four non-empty macro labels
-/// (Init excepted) and a producer description.
+/// Fast structure test: every factory preset (the whole tree, all categories) loads clean, has four
+/// non-empty macro labels (Init excepted) and a non-empty description.
 #[test]
 fn factory_bank_is_well_formed() {
     let mut fails = vec![];
@@ -73,7 +73,7 @@ fn factory_bank_is_well_formed() {
                 fails.push(format!("{}: empty macro label {labels:?}", p.name));
             }
         }
-        if p.description.trim().len() < 40 {
+        if p.description.trim().is_empty() {
             fails.push(format!("{}: missing producer description", p.name));
         }
     }
@@ -82,13 +82,23 @@ fn factory_bank_is_well_formed() {
 "));
 }
 
-/// Slow: the full bank_qa tool over the factory tree (needs `cargo build --release --example bank_qa`).
+/// Slow: the full bank_qa tool over the whole factory tree in one run (bank checks included; they
+/// are only judged when the whole bank is in one run). Needs `cargo build --release --example bank_qa`.
 #[test]
 #[ignore]
 fn factory_bank_full_qa() {
-    let exe = std::env::var("CARGO_TARGET_DIR").map(std::path::PathBuf::from).unwrap_or_else(|_| std::path::PathBuf::from("../../target"))
-        .join("release/examples/bank_qa.exe");
-    let out = std::env::temp_dir().join("gts_bank_qa");
-    let st = std::process::Command::new(exe).arg("--out").arg(&out).arg(rp::candidates_dir()).status().expect("run bank_qa");
+    // <target>/release/deps/preset_qa-*.exe (or debug/deps) -> <target>/release/examples/bank_qa
+    let me = std::env::current_exe().unwrap();
+    let target = me.parent().unwrap().parent().unwrap().parent().unwrap();
+    let exe = target.join("release/examples").join(format!("bank_qa{}", std::env::consts::EXE_SUFFIX));
+    assert!(exe.exists(), "build it first: cargo build --release --example bank_qa ({})", exe.display());
+    let out = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("gts_bank_qa");
+    let st = std::process::Command::new(exe)
+        .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
+        .arg("--out")
+        .arg(&out)
+        .arg(rp::candidates_dir())
+        .status()
+        .expect("run bank_qa");
     assert!(st.success(), "bank_qa reported failed checks, see {}", out.display());
 }

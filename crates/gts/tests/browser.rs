@@ -47,6 +47,11 @@ impl Drop for Tmp {
     }
 }
 
+/// How many embedded factory presets sit in this category folder.
+fn factory_count(cat: &str) -> usize {
+    FACTORY_FILES.iter().filter(|(rel, _)| rel.split('/').next() == Some(cat)).count()
+}
+
 /// Holds the values a host would hold (nih-plug has no public setter outside a host), reads the
 /// rest through the real param table, and builds `current_preset` from both, as `PlugCtl` does from
 /// the real params.
@@ -255,7 +260,7 @@ fn typing_in_the_search_box_filters_the_list() {
     h.b().set_filter(Filter { category: None, ..Filter::default() });
     h.open();
     let all = names(h.b()).len();
-    assert_eq!(all, 107);
+    assert_eq!(all, 64 + 4 + FACTORY_FILES.len());
     h.click(body(120.0, TOP_H / 2.0)); // the search box
     h.type_text("wub");
     assert_eq!(h.b().search_text(), "wub");
@@ -288,12 +293,12 @@ fn source_category_and_favorites_filters_combine_on_click() {
     h.click(nav(0, 1)); // Factory
     assert_eq!(h.b().filter().source, SourceFilter::Factory);
     let bass_factory = names(h.b());
-    assert_eq!(bass_factory.len(), 27);
+    assert_eq!(bass_factory.len(), factory_count("Bass"));
     assert!(bass_factory.iter().any(|n| n == "Pure Sine Sub"));
     h.click(nav(1, 2)); // Lead
-    assert_eq!(names(h.b()).len(), 4);
+    assert_eq!(names(h.b()).len(), factory_count("Lead"));
     h.click(nav(1, 0)); // All categories
-    assert_eq!(names(h.b()).len(), 39);
+    assert_eq!(names(h.b()).len(), FACTORY_FILES.len());
     h.click(nav(0, 0)); // source All again
     h.click(nav(1, 1)); // Bass
     assert_eq!(names(h.b()).len(), bass);
@@ -331,7 +336,7 @@ fn tag_chips_filter_and_clear() {
     assert_eq!(names(h.b()).len(), n);
     h.click(pos2(x, y));
     assert_eq!(h.b().filter().tag, None);
-    assert_eq!(names(h.b()).len(), 107);
+    assert_eq!(names(h.b()).len(), 64 + 4 + FACTORY_FILES.len());
 }
 
 #[test]
@@ -420,7 +425,8 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     let mut h = H::new("arrows");
     h.b().set_filter(Filter { category: Some("Bass"), source: SourceFilter::Factory, ..Filter::default() });
     let list = h.b().visible_keys();
-    assert_eq!(list.len(), 27);
+    let n_bass = factory_count("Bass");
+    assert_eq!(list.len(), n_bass);
     let (prev, next) = (pos2(208.0 + 14.0, 44.0), pos2(208.0 + 232.0 - 14.0, 44.0));
     h.click(next);
     assert_eq!(h.b().loaded(), Some(list[0].as_str()), "from nothing, Next starts at the top");
@@ -429,7 +435,7 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     assert_eq!(h.b().loaded(), Some(list[1].as_str()));
     h.click(prev);
     h.click(prev);
-    assert_eq!(h.b().loaded(), Some(list[26].as_str()), "Previous wraps to the end");
+    assert_eq!(h.b().loaded(), Some(list[n_bass - 1].as_str()), "Previous wraps to the end");
     h.click(next);
     assert_eq!(h.b().loaded(), Some(list[0].as_str()), "Next wraps to the start");
     // Another filter, another list.
@@ -437,7 +443,7 @@ fn header_arrows_follow_the_filtered_list_and_wrap() {
     h.click(next);
     assert_eq!(h.b().loaded().map(|k| k.starts_with("Factory/Lead")), Some(true), "{:?}", h.b().loaded());
     // The header shows the name of what is loaded.
-    assert_eq!(h.b().loaded_label().unwrap().1, "Screech Dive One");
+    assert_eq!(h.b().loaded_label().unwrap().1, "Diving Screech");
     // Damaged files are skipped by the arrows.
     h.b().set_filter(Filter { category: Some("Bass"), text: "broken".into(), ..Filter::default() });
     h.bv.preset_pick = None;
@@ -507,7 +513,8 @@ fn save_as_writes_a_user_preset_asks_before_replacing_and_rejects_illegal_names(
     assert_eq!(saved.name, "My Growl");
     assert_eq!(saved.category, "Bass");
     assert_eq!(saved.macros, ["Rip", "Warp", "Grit", "Flange"]);
-    assert_eq!(saved.tags, ["tearout", "growl", "hybrid", "dirty", "qa_macro1=c:0.3", "qa_macro2=c:0.5", "qa_macro3=c:0.4", "qa_macro4=w:0.1"]);
+    // The factory qa_* pins (bank_qa targets) are hidden from users and are not copied into their presets.
+    assert_eq!(saved.tags, ["tearout", "growl", "hybrid", "dirty"]);
     assert!(h.bv.preset_saved, "the host editor is told to take a new baseline");
     assert_eq!(h.b().loaded(), Some("User/Bass/My Growl"));
     // What was saved is the sound that was loaded.
@@ -756,8 +763,8 @@ fn a_new_instance_loads_the_default_preset_when_one_is_set() {
     h.lib().set_default(Some("User/Bass/Gone")).unwrap();
     assert!(!h.live.browser.load_default(&mut h.bv));
     // It survives a restart.
-    h.lib().set_default(Some("Factory/Lead/Screech Dive One")).unwrap();
+    h.lib().set_default(Some("Factory/Lead/Diving Screech")).unwrap();
     let root = h.lib().root().to_path_buf();
     let again = Library::open(&root, FACTORY_FILES);
-    assert_eq!(again.default_preset().map(|e| e.name.as_str()), Some("Screech Dive One"));
+    assert_eq!(again.default_preset().map(|e| e.name.as_str()), Some("Diving Screech"));
 }

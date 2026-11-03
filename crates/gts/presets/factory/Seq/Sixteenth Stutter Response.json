@@ -3,7 +3,7 @@
   "product": "GTS",
   "name": "Sixteenth Stutter Response",
   "author": "Riddim Rack",
-  "description": "A ratchet bar of sixteenth-note stabs that answers the triplet call: bright metallic hits with a rest at the end of each beat, over a clean sub that gates with them. Hold F1, G1 or A#1 for a full bar of stutter, or drop it as a fill, mono and legato; the pattern restarts on every new key press. Macros: Stutter Depth takes the bar from a steady tone to hard gated stabs; Metal adds bite and metallic edge; Rest Length smears the gaps between hits; Shimmer adds a sixteenth-note flutter on top.",
+  "description": "A ratchet bar of sixteenth-note stabs that answers the triplet call: bright metallic hits with a rest at the end of each beat, over a clean sub that gates with them. Hold F1, G1 or A#1 for a full bar of stutter, or drop it as a fill, mono and legato; the pattern restarts on every new key press. Macros: Stutter Depth takes the bar from a steady tone to hard gated stabs; Metal adds bite and metallic edge; Fill smears the hits into the rests; Shimmer adds a sixteenth-note flutter on top.",
   "category": "Seq",
   "tags": [
     "riddim",
@@ -19,7 +19,7 @@
       "label": "Metal"
     },
     {
-      "label": "Rest Length"
+      "label": "Fill"
     },
     {
       "label": "Shimmer"
